@@ -1,103 +1,226 @@
-import Image from "next/image";
+// app/page.jsx
+import Link from "next/link"
+import { Sidebar } from "./components/sidebar"
+import { Header } from "./components/header"
 
-export default function Home() {
+// Componente de tarjeta para el dashboard
+// Componente de tarjeta para el dashboard
+function DashboardCard(props: {
+  title: string;
+  description: string;
+  href: string;
+}) {
+  const { title, description, href } = props;
+  
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+    <Link href={href} className="block">
+      <div className="rounded-lg border p-6 shadow-sm transition-all hover:shadow-md">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-medium">{title}</h3>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+        <p className="mt-2 text-sm text-gray-600">
+          {description}
+        </p>
+      </div>
+    </Link>
+  )
+}
+
+// Componente para mostrar estadísticas
+function StatsCards({
+  totalCasos = 0,
+  totalClientes = 0,
+  totalAbogados = 0
+}) {
+  return (
+    <div className="grid gap-4 md:grid-cols-3">
+      <div className="rounded-lg border bg-white p-4 shadow-sm">
+        <div className="flex items-center gap-2">
+          <h3 className="font-medium">Total Casos</h3>
+        </div>
+        <p className="mt-2 text-2xl font-bold">{totalCasos}</p>
+      </div>
+      <div className="rounded-lg border bg-white p-4 shadow-sm">
+        <div className="flex items-center gap-2">
+          <h3 className="font-medium">Total Clientes</h3>
+        </div>
+        <p className="mt-2 text-2xl font-bold">{totalClientes}</p>
+      </div>
+      <div className="rounded-lg border bg-white p-4 shadow-sm">
+        <div className="flex items-center gap-2">
+          <h3 className="font-medium">Total Abogados</h3>
+        </div>
+        <p className="mt-2 text-2xl font-bold">{totalAbogados}</p>
+      </div>
     </div>
-  );
+  )
+}
+
+// Componente para mostrar próximos vencimientos
+function UpcomingDeadlines() {
+  const deadlines = [
+    {
+      title: "Audiencia Preliminar - Caso #2023-45",
+      subtitle: "Martínez c/ Empresa XYZ",
+      date: "Mañana 09:00",
+      location: "Juzgado Civil N°5",
+      urgent: true
+    },
+    {
+      title: "Vencimiento Escrito - Caso #2023-32",
+      subtitle: "López c/ Aseguradora ABC",
+      date: "En 3 días",
+      location: "Presentación de pruebas",
+      urgent: false
+    },
+    {
+      title: "Reunión Cliente - Caso #2023-51",
+      subtitle: "Rodríguez, María",
+      date: "En 5 días 15:30",
+      location: "Oficina principal",
+      urgent: false
+    }
+  ]
+  
+  return (
+    <div className="rounded-lg border shadow-sm">
+      <div className="border-b p-4">
+        <h3 className="font-medium">Próximos Vencimientos</h3>
+        <p className="text-sm text-gray-500">Plazos y audiencias para los próximos 7 días</p>
+      </div>
+      <div className="p-4">
+        <div className="space-y-4">
+          {deadlines.map((item, index) => (
+            <div key={index} className="flex items-center justify-between border-b pb-2 last:border-0">
+              <div>
+                <p className="font-medium">{item.title}</p>
+                <p className="text-sm text-gray-500">{item.subtitle}</p>
+              </div>
+              <div className="text-right">
+                <p className={`font-medium ${item.urgent ? 'text-red-600' : ''}`}>{item.date}</p>
+                <p className="text-sm text-gray-500">{item.location}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Componente para mostrar actividad reciente
+function RecentActivity() {
+  const activities = [
+    {
+      type: "document",
+      title: "Documento agregado - Caso #2023-45",
+      description: "Respuesta a demanda",
+      timestamp: "Hoy, 14:25 - Dr. González"
+    },
+    {
+      type: "calculation",
+      title: "Cálculo actualizado - Caso #2023-38",
+      description: "Indemnización por despido",
+      timestamp: "Ayer, 10:15 - Dra. Martínez"
+    },
+    {
+      type: "client",
+      title: "Nuevo cliente registrado",
+      description: "Fernández, Carlos",
+      timestamp: "Hace 2 días - Dr. Pérez"
+    }
+  ]
+  
+  return (
+    <div className="rounded-lg border shadow-sm">
+      <div className="border-b p-4">
+        <h3 className="font-medium">Actividad Reciente</h3>
+        <p className="text-sm text-gray-500">Últimas actualizaciones en casos activos</p>
+      </div>
+      <div className="p-4">
+        <div className="space-y-4">
+          {activities.map((item, index) => (
+            <div key={index} className="flex items-start gap-4 border-b pb-2 last:border-0">
+              <div className="rounded-full bg-blue-50 p-2">
+                📄
+              </div>
+              <div>
+                <p className="font-medium">{item.title}</p>
+                <p className="text-sm text-gray-500">{item.description}</p>
+                <p className="text-xs text-gray-500">{item.timestamp}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default function Dashboard() {
+  // Datos estáticos para el dashboard (sin llamadas a la API por ahora)
+  const dashboardData = {
+    totalCasos: 3,
+    totalClientes: 2,
+    totalAbogados: 2
+  };
+  
+  return (
+    <div className="flex min-h-screen w-full flex-col">
+      <Header />
+      <div className="flex flex-1">
+        <Sidebar />
+        <main className="flex-1 p-6">
+          <div className="mb-6">
+            <h2 className="text-2xl font-bold">Panel Principal</h2>
+            <p className="text-gray-500">Bienvenido al sistema de gestión legal</p>
+          </div>
+
+          <StatsCards 
+            totalCasos={dashboardData.totalCasos}
+            totalClientes={dashboardData.totalClientes}
+            totalAbogados={dashboardData.totalAbogados}
+          />
+
+          <div className="mt-6 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            <DashboardCard
+              title="Gestión de Casos"
+              description="Registro detallado de casos, actualizaciones en tiempo real y acceso rápido a la información."
+              href="/casos"
+            />
+            <DashboardCard
+              title="Seguimiento y Plazos"
+              description="Sistema de alertas y notificaciones para plazos judiciales, audiencias y fechas importantes."
+              href="/seguimiento"
+            />
+            <DashboardCard
+              title="Plantillas de Documentos"
+              description="Biblioteca de plantillas para contratos, demandas y otros escritos legales."
+              href="/plantillas"
+            />
+            <DashboardCard
+              title="Cálculos de Indemnización"
+              description="Herramienta para cálculos automatizados de indemnización y generación de informes."
+              href="/indemnizaciones"
+            />
+            <DashboardCard
+              title="Formulario de Toma de Casos"
+              description="Formulario digital para el primer contacto con el cliente y evaluación de viabilidad."
+              href="/formulario-casos"
+            />
+            <DashboardCard
+              title="Gestión de Clientes"
+              description="Perfiles de clientes con información personal, histórico de casos y comunicaciones."
+              href="/clientes"
+            />
+          </div>
+
+          <div className="mt-8 grid gap-6 md:grid-cols-2">
+            <UpcomingDeadlines />
+            <RecentActivity />
+          </div>
+        </main>
+      </div>
+    </div>
+  )
 }

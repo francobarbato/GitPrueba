@@ -1,0 +1,39 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url="mysql://root:riverplate123@localhost:3306/estudio_juridico"
+}
+
+// Modelos iniciales (solo los esenciales para la primera entrega)
+model Usuario {
+  id                Int      @id @default(autoincrement())
+  email             String   @unique
+  nombre            String
+  apellido          String
+  password          String
+  rol               String   // "admin", "abogado", "cliente"
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  casos             Caso[]   @relation("AbogadoCasos")
+  casosCliente      Caso[]   @relation("ClienteCasos")
+}
+
+model Caso {
+  id                Int       @id @default(autoincrement())
+  numero            String    @unique
+  titulo            String
+  descripcion       String    @db.Text
+  tipo              String    // "laboral", "civil", "comercial", "familia", "penal"
+  estado            String    // "abierto", "en_proceso", "cerrado", "archivado"
+  fechaInicio       DateTime
+  fechaCierre       DateTime?
+  abogadoId         Int
+  clienteId         Int
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  abogado           Usuario   @relation("AbogadoCasos", fields: [abogadoId], references: [id])
+  cliente           Usuario   @relation("ClienteCasos", fields: [clienteId], references: [id])
+}
