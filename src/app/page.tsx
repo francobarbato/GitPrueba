@@ -2,8 +2,8 @@
 import Link from "next/link"
 import { Sidebar } from "./components/sidebar"
 import { Header } from "./components/header"
+import { auth } from "@/auth";
 
-// Componente de tarjeta para el dashboard
 // Componente de tarjeta para el dashboard
 function DashboardCard(props: {
   title: string;
@@ -25,6 +25,8 @@ function DashboardCard(props: {
     </Link>
   )
 }
+
+
 
 // Componente para mostrar estadísticas
 function StatsCards({
@@ -157,23 +159,26 @@ function RecentActivity() {
   )
 }
 
-export default function Dashboard() {
-  // Datos estáticos para el dashboard (sin llamadas a la API por ahora)
+export default async function Dashboard() {
+  const session = await auth();
+
   const dashboardData = {
     totalCasos: 3,
     totalClientes: 2,
     totalAbogados: 2
   };
-  
+
   return (
     <div className="flex min-h-screen w-full flex-col">
-      <Header />
+      <Header user={session?.user} />
       <div className="flex flex-1">
         <Sidebar />
         <main className="flex-1 p-6">
           <div className="mb-6">
             <h2 className="text-2xl font-bold">Panel Principal</h2>
-            <p className="text-gray-500">Bienvenido al sistema de gestión legal</p>
+            <p className="text-gray-500">
+              Bienvenido, {session?.user?.name || "Usuario"}
+            </p>
           </div>
 
           <StatsCards 
@@ -222,5 +227,5 @@ export default function Dashboard() {
         </main>
       </div>
     </div>
-  )
+  );
 }
