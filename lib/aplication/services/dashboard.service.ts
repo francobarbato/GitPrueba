@@ -1,4 +1,4 @@
-const prisma = require('../../../lib/db/prisma');
+import { prisma } from '../../../lib/db/prisma' // Usa import en lugar de require
 
 export class DashboardService {
   async getStats() {
@@ -41,33 +41,10 @@ export class DashboardService {
         }
       });
 
-      // Obtener próximas alertas
-      const proximasAlertas = await prisma.alerta.findMany({
-        where: {
-          fecha: {
-            gte: new Date()
-          },
-          estado: 'pendiente'
-        },
-        take: 5,
-        orderBy: {
-          fecha: 'asc'
-        },
-        include: {
-          caso: {
-            select: {
-              numero: true,
-              titulo: true
-            }
-          }
-        }
-      });
-
       return {
         casosPorTipo,
         casosPorEstado,
         casosRecientes,
-        proximasAlertas,
         totalCasos: await prisma.caso.count(),
         totalClientes: await prisma.usuario.count({
           where: {
@@ -83,6 +60,30 @@ export class DashboardService {
     } catch (error) {
       console.error("Error al obtener estadísticas del dashboard:", error);
       throw error;
+    }
+  }
+
+  // Nuevos métodos para reportes específicos
+  async obtenerCasosPorAbogado() {
+    const casoRepository = new (await import('../../infrastructure/repositories/prisma/caso.repository')).PrismaCasoRepository()
+    return casoRepository.getCasosPorAbogado()
+  }
+
+  async obtenerAvanceCasos() {
+    const casoRepository = new (await import('../../infrastructure/repositories/prisma/caso.repository')).PrismaCasoRepository()
+    return casoRepository.getEstadisticasAvance()
+  }
+
+  async obtenerResumenGeneral() {
+    const stats = await this.getStats()
+    const estadisticas = await this.obtenerAvanceCasos()
+    
+    return {
+      totalCasos: stats.totalCasos,
+      casosAbiertos: stats.casosPorEstado.find(e => e.estado === 'abierto')?._count?.id || 0,
+      casosEnProceso: stats.casosPorEstado.find(e => e.estado === 'en_proceso')?._count?.id || 0,
+      casosCerrados: stats.casosPorEstado.find(e => e.estado === 'cerrado')?._count?.id || 0,
+      promedioAvance: Math.round(estadisticas.promedioAvance),
     }
   }
 }

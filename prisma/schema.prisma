@@ -4,36 +4,42 @@ generator client {
 
 datasource db {
   provider = "mysql"
-  url="mysql://root:riverplate123@localhost:3306/estudio_juridico"
+  url      = env("DATABASE_URL")
 }
 
-// Modelos iniciales (solo los esenciales para la primera entrega)
 model Usuario {
-  id                Int      @id @default(autoincrement())
-  email             String   @unique
-  nombre            String
-  apellido          String
-  password          String
-  rol               String   // "admin", "abogado", "cliente"
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  casos             Caso[]   @relation("AbogadoCasos")
-  casosCliente      Caso[]   @relation("ClienteCasos")
+  id               Int      @id @default(autoincrement())
+  email            String   @unique(map: "Usuario_email_key")
+  nombre           String
+  apellido         String
+  password         String
+  rol              String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  casosComoAbogado Caso[]   @relation("AbogadoCasos")
+  casosComoCliente Caso[]   @relation("ClienteCasos")
+
+  @@map("usuario")
 }
 
 model Caso {
-  id                Int       @id @default(autoincrement())
-  numero            String    @unique
-  titulo            String
-  descripcion       String    @db.Text
-  tipo              String    // "laboral", "civil", "comercial", "familia", "penal"
-  estado            String    // "abierto", "en_proceso", "cerrado", "archivado"
-  fechaInicio       DateTime
-  fechaCierre       DateTime?
-  abogadoId         Int
-  clienteId         Int
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-  abogado           Usuario   @relation("AbogadoCasos", fields: [abogadoId], references: [id])
-  cliente           Usuario   @relation("ClienteCasos", fields: [clienteId], references: [id])
+  id               Int       @id @default(autoincrement())
+  numero           String    @unique(map: "Caso_numero_key")
+  titulo           String
+  descripcion      String    @db.Text
+  tipo             String
+  estado           String
+  porcentajeAvance Int       @default(0)
+  fechaInicio      DateTime
+  fechaCierre      DateTime?
+  abogadoId        Int
+  clienteId        Int
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  abogado          Usuario   @relation("AbogadoCasos", fields: [abogadoId], references: [id], map: "Caso_abogadoId_fkey")
+  cliente          Usuario   @relation("ClienteCasos", fields: [clienteId], references: [id], map: "Caso_clienteId_fkey")
+
+  @@index([abogadoId], map: "Caso_abogadoId_fkey")
+  @@index([clienteId], map: "Caso_clienteId_fkey")
+  @@map("caso")
 }

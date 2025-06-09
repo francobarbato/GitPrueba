@@ -1,50 +1,52 @@
-"use client";
+"use client"
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { signIn } from "@/auth";
+import type React from "react"
+
+import { useState } from "react"
+import { useRouter } from "next/navigation"
+import Link from "next/link"
+import { signIn } from "next-auth/react"
 
 export default function LoginPage() {
-  const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const router = useRouter()
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [error, setError] = useState("")
+  const [loading, setLoading] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
+    e.preventDefault()
+
     if (!email || !password) {
-      setError("Por favor, complete todos los campos");
-      return;
+      setError("Por favor, complete todos los campos")
+      return
     }
-    
+
     try {
-      setLoading(true);
-      setError("");
-      
+      setLoading(true)
+      setError("")
+
       const result = await signIn("credentials", {
         redirect: false,
         email,
         password,
-      });
-      
-      if (!result?.ok) {
-        setError("Credenciales inválidas");
-        return;
+      })
+
+      if (result?.error) {
+        setError("Credenciales inválidas")
+        return
       }
-      
+
       // Redireccionar al dashboard
-      router.push("/");
-      router.refresh();
+      router.push("/")
+      router.refresh()
     } catch (error) {
-      console.error("Error de login:", error);
-      setError("Ocurrió un error al iniciar sesión");
+      console.error("Error de login:", error)
+      setError("Ocurrió un error al iniciar sesión")
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-100">
@@ -53,13 +55,9 @@ export default function LoginPage() {
           <h1 className="text-2xl font-bold text-gray-900">Sistema de Gestión Legal</h1>
           <p className="mt-2 text-gray-600">Inicie sesión para acceder al sistema</p>
         </div>
-        
-        {error && (
-          <div className="mb-4 rounded-md bg-red-50 p-4 text-sm text-red-700">
-            {error}
-          </div>
-        )}
-        
+
+        {error && <div className="mb-4 rounded-md bg-red-50 p-4 text-sm text-red-700">{error}</div>}
+
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-gray-700">
@@ -76,7 +74,7 @@ export default function LoginPage() {
               className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500"
             />
           </div>
-          
+
           <div>
             <label htmlFor="password" className="block text-sm font-medium text-gray-700">
               Contraseña
@@ -92,7 +90,7 @@ export default function LoginPage() {
               className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500"
             />
           </div>
-          
+
           <div>
             <button
               type="submit"
@@ -103,7 +101,7 @@ export default function LoginPage() {
             </button>
           </div>
         </form>
-        
+
         <div className="mt-6 text-center text-sm text-gray-600">
           <p>
             ¿Olvidó su contraseña?{" "}
@@ -114,5 +112,5 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
-  );
+  )
 }

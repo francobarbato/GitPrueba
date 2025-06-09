@@ -2,11 +2,12 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { FileText, Calendar, FileCheck, Calculator, UserPlus, Users, BarChart3, LogOut } from 'lucide-react'
+import { FileText, Calendar, FileCheck, Calculator, UserPlus, Users, BarChart3, LogOut, PieChart } from 'lucide-react'
 
 const menuItems = [
   { name: "Dashboard", href: "/", icon: BarChart3 },
   { name: "Gestión de Casos", href: "/casos", icon: FileText },
+  { name: "Reportes", href: "/dashboard", icon: PieChart }, 
   { name: "Seguimiento y Plazos", href: "/seguimiento", icon: Calendar },
   { name: "Plantillas de Documentos", href: "/plantillas", icon: FileCheck },
   { name: "Cálculos de Indemnización", href: "/indemnizaciones", icon: Calculator },

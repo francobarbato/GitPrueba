@@ -2,7 +2,7 @@
 import Link from "next/link"
 import { Sidebar } from "./components/sidebar"
 import { Header } from "./components/header"
-import { auth } from "@/auth";
+import { auth } from "@/../auth";
 
 // Componente de tarjeta para el dashboard
 function DashboardCard(props: {

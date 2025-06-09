@@ -1,7 +1,7 @@
 // app/layout.tsx
 import './globals.css';
 import { Inter } from 'next/font/google';
-import { auth } from '@/auth';  // Mantén esta importación si auth.ts está en un nivel superior
+import  {auth}  from '../../auth';  // Mantén esta importación si auth.ts está en un nivel superior
 import type { Metadata } from 'next';
 
 const inter = Inter({ subsets: ['latin'] });

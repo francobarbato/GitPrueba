@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signIn, signOut } from 'next-auth/react';
-// import { signOut } from "@/auth";
+// import { signOut } from "@/auth"; no me acuerdo porque lo bloquee asi... TODO
 
 interface User {
   name?: string | null;

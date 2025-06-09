@@ -4,7 +4,7 @@ import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcryptjs from "bcryptjs";
 import { getServerSession } from "next-auth/next";
-import prisma from "./lib/db/prisma";
+import {prisma} from "./lib/db/prisma";
 
 // Definir la configuración de NextAuth
 export const authOptions: NextAuthOptions = {
