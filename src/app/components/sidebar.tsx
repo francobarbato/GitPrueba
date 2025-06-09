@@ -7,12 +7,12 @@ import { FileText, Calendar, FileCheck, Calculator, UserPlus, Users, BarChart3, 
 const menuItems = [
   { name: "Dashboard", href: "/", icon: BarChart3 },
   { name: "Gestión de Casos", href: "/casos", icon: FileText },
-  { name: "Reportes", href: "/dashboard", icon: PieChart }, 
   { name: "Seguimiento y Plazos", href: "/seguimiento", icon: Calendar },
   { name: "Plantillas de Documentos", href: "/plantillas", icon: FileCheck },
   { name: "Cálculos de Indemnización", href: "/indemnizaciones", icon: Calculator },
   { name: "Formulario de Toma de Casos", href: "/formulario-casos", icon: UserPlus },
   { name: "Gestión de Clientes", href: "/clientes", icon: Users },
+  { name: "Reportes", href: "/dashboard", icon: PieChart },
 ]
 
 export function Sidebar() {
