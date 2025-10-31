@@ -1,15 +1,14 @@
-// app/api/dashboard/route.js
 import { NextResponse } from "next/server";
-const DashboardService = require('../../../lib/application/services/dashboard.service');
+import { DashboardService } from "@/lib/aplication/services/dashboard.service";
 
 const dashboardService = new DashboardService();
 
 export async function GET() {
   try {
-    const stats = await dashboardService.getStats();
-    return NextResponse.json(stats);
+    const resumen = await dashboardService.obtenerResumenGeneral();
+    return NextResponse.json(resumen);
   } catch (error) {
-    console.error("Error en la API de dashboard:", error);
+    console.error("Error en API Dashboard:", error);
     return NextResponse.json(
       { error: "Error al obtener datos del dashboard" },
       { status: 500 }

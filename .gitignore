@@ -32,6 +32,11 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# Archivos de entorno
+.env
+.env.local
+.env.development
+.env.production
 
 # vercel
 .vercel
@@ -39,3 +44,26 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Datos sensibles o locales
+*.sqlite
+*.db
+*.bak
+
+# Archivos de build o cache
+*.cache
+*.tmp
+
+# VSCode
+.vscode/
+.idea/
+
+# Logs y temporales
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# Sistema operativo
+.DS_Store
+Thumbs.db

@@ -2,52 +2,109 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { FileText, Calendar, FileCheck, Calculator, UserPlus, Users, BarChart3, LogOut, PieChart } from 'lucide-react'
+import { FileText, PieChart, Users, Calendar, FileCheck, Calculator, UserPlus, Home, Menu } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Sheet, SheetContent, SheetTrigger } from "../../components/ui/sheet"
+import { useState } from "react"
 
 const menuItems = [
-  { name: "Dashboard", href: "/", icon: BarChart3 },
+  { name: "Inicio", href: "/", icon: Home },
+  { name: "Reportes Power BI", href: "/reportes", icon: PieChart },
   { name: "Gestión de Casos", href: "/casos", icon: FileText },
-  { name: "Seguimiento y Plazos", href: "/seguimiento", icon: Calendar },
-  { name: "Plantillas de Documentos", href: "/plantillas", icon: FileCheck },
-  { name: "Cálculos de Indemnización", href: "/indemnizaciones", icon: Calculator },
-  { name: "Formulario de Toma de Casos", href: "/formulario-casos", icon: UserPlus },
-  { name: "Gestión de Clientes", href: "/clientes", icon: Users },
-  { name: "Reportes", href: "/dashboard", icon: PieChart },
+  { name: "Gestión de Clientes", href: "/gestion-clientes", icon: Users },
+  { name: "Seguimiento y Plazos", href: "/seguimiento-plazos", icon: Calendar },
+  { name: "Plantillas de Documentos", href: "/plantilla-documentos", icon: FileCheck },
+  { name: "Cálculos de Indemnización", href: "/calculos-indemnizacion", icon: Calculator },
+  { name: "Formulario de Toma de Casos", href: "/formulario-toma-casos", icon: UserPlus },
 ]
 
 export function Sidebar() {
   const pathname = usePathname()
 
   return (
-    <aside className="hidden w-64 border-r bg-gray-50 lg:block">
-      <div className="flex h-16 items-center border-b px-6">
-        <h2 className="text-lg font-semibold">Estudio Jurídico</h2>
-      </div>
-      <nav className="flex flex-col gap-2 p-4">
-        {menuItems.map((item) => {
-          const isActive = pathname === item.href
-          return (
-            <Link
-              key={item.name}
-              href={item.href}
-              className={`flex items-center gap-2 rounded-md px-3 py-2 transition-colors ${
-                isActive 
-                  ? "bg-blue-100 text-blue-700" 
-                  : "text-gray-700 hover:bg-gray-100"
-              }`}
-            >
-              <item.icon className="h-4 w-4" />
-              {item.name}
-            </Link>
-          )
-        })}
-        <div className="mt-auto pt-4">
-          <button className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-gray-700 hover:bg-gray-100">
-            <LogOut className="h-4 w-4" />
-            Cerrar Sesión
-          </button>
+    <>
+      {/* Sidebar Desktop */}
+      <aside className="hidden md:flex w-64 bg-card border-r min-h-screen flex-col">
+        {/* <div className="p-6 border-b">
+          <h2 className="text-xl font-bold">Sistema Legval</h2>
+          <p className="text-sm text-muted-foreground">Gestión de Casos</p>
+        </div> */}
+        <nav className="flex-1 p-4">
+          <div className="space-y-1">
+            {menuItems.map((item) => {
+              const Icon = item.icon
+              const isActive = pathname === item.href || pathname.startsWith(item.href + "/")
+
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all ${
+                    isActive
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "hover:bg-muted text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Icon className="h-5 w-5 flex-shrink-0" />
+                  <span className="text-sm font-medium">{item.name}</span>
+                </Link>
+              )
+            })}
+          </div>
+        </nav>
+        <div className="p-4 border-t">
+          <div className="text-xs text-muted-foreground">
+            <p>v1.0.0</p>
+            <p>© 2025 Estudio Jurídico</p>
+          </div>
         </div>
-      </nav>
-    </aside>
+      </aside>
+    </>
+  )
+}
+
+export function MobileSidebar() {
+  const pathname = usePathname()
+  const [open, setOpen] = useState(false)
+
+  return (
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetTrigger asChild>
+        <Button variant="ghost" size="icon" className="md:hidden">
+          <Menu className="h-6 w-6" />
+          <span className="sr-only">Abrir menú</span>
+        </Button>
+      </SheetTrigger>
+      <SheetContent side="left" className="w-64 p-0">
+        <div className="p-6 border-b">
+          <h2 className="text-xl font-bold">Sistema Legal</h2>
+          <p className="text-sm text-muted-foreground">Gestión de Casos</p>
+        </div>
+        <nav className="p-4">
+          <div className="space-y-1">
+            {menuItems.map((item) => {
+              const Icon = item.icon
+              const isActive = pathname === item.href || pathname.startsWith(item.href + "/")
+
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setOpen(false)}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all ${
+                    isActive
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "hover:bg-muted text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Icon className="h-5 w-5 flex-shrink-0" />
+                  <span className="text-sm font-medium">{item.name}</span>
+                </Link>
+              )
+            })}
+          </div>
+        </nav>
+      </SheetContent>
+    </Sheet>
   )
 }

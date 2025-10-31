@@ -1,0 +1,113 @@
+
+---
+
+## 📘 **manual.txt**
+
+```text
+===========================================
+MANUAL DE USO - SISTEMA DE GESTIÓN LEGAL
+===========================================
+
+1️⃣ CONFIGURACIÓN INICIAL
+-------------------------------------------
+1. Clonar el repositorio:
+   git clone https://github.com/usuario/gestion-legal.git
+   cd gestion-legal
+
+2. Instalar dependencias:
+   npm install
+
+3. Crear archivo .env.local en la raíz con:
+   DATABASE_URL="mysql://usuario:password@localhost:3306/gestion_legal"
+   NEXTAUTH_SECRET="valor_secreto"
+   NEXTAUTH_URL="http://localhost:3000"
+
+4. Crear la base de datos ejecutando este script SQL:
+
+   CREATE DATABASE gestion_legal;
+   USE gestion_legal;
+   CREATE TABLE User (
+     id INT AUTO_INCREMENT PRIMARY KEY,
+     name VARCHAR(255),
+     email VARCHAR(255) UNIQUE NOT NULL,
+     password VARCHAR(255) NOT NULL,
+     role VARCHAR(50) DEFAULT 'abogado'
+   );
+
+5. Ejecutar los comandos de Prisma:
+   npx prisma generate
+   npx prisma db push
+
+6. Opcional: abrir Prisma Studio para ver la base:
+   npx prisma studio
+
+-------------------------------------------
+
+2️⃣ CREAR UN USUARIO
+-------------------------------------------
+Opción 1: desde Prisma Studio
+- Abrir Prisma Studio con `npx prisma studio`
+- Agregar manualmente un nuevo usuario en la tabla User.
+
+Opción 2: desde SQL
+INSERT INTO User (name, email, password, role)
+VALUES ('Administrador', 'admin@azar.com', 'tiene que ser generada, ver punto 3', 'admin');
+
+(Contraseña: admin123)
+
+-------------------------------------------
+
+3️⃣ GENERAR TU PROPIO HASH DE CONTRASEÑA
+-------------------------------------------
+Desde la consola de Node:
+node
+import bcrypt from "bcryptjs";
+const hash = await bcrypt.hash("tu_contraseña", 10);
+console.log(hash);
+
+Copiar ese hash e insertarlo en la base, es la contraseña que se debe usar en el script del SQL mas arriba
+
+-------------------------------------------
+
+4️⃣ INICIAR EL SERVIDOR
+-------------------------------------------
+npm run dev
+
+Abrir el navegador en:
+http://localhost:3000
+
+Ingresar con:
+Email: admin@azar.com
+Contraseña: admin123
+
+-------------------------------------------
+
+5️⃣ NAVEGACIÓN DEL SISTEMA
+-------------------------------------------
+- Barra lateral (sidebar): acceso a módulos
+- Barra superior (header): perfil y configuración
+- Botón 👤: ver perfil, configuración o cerrar sesión
+
+Módulos disponibles:
+• Seguimiento y Plazos
+• Plantillas de Documentos
+• Cálculos de Indemnización
+• Formulario de Toma de Casos
+• Gestión de Clientes
+
+Cada uno mostrará una página base con mensaje de “Próximamente”.
+
+-------------------------------------------
+
+6️⃣ NOTAS TÉCNICAS
+-------------------------------------------
+- Si aparece un error 404, revisar el nombre del archivo `page.tsx`.
+- Los estilos se manejan con TailwindCSS.
+- No subir `.env.local` al repo.
+- Para sincronizar cambios de la base:
+  npx prisma db push
+- Para generar el cliente Prisma:
+  npx prisma generate
+
+
+
