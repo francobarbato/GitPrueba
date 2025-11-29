@@ -10,12 +10,12 @@ import { useState } from "react"
 const menuItems = [
   { name: "Inicio", href: "/", icon: Home },
   { name: "Reportes Power BI", href: "/reportes", icon: PieChart },
-  { name: "Gestión de Casos", href: "/casos", icon: FileText },
-  { name: "Gestión de Clientes", href: "/gestion-clientes", icon: Users },
-  { name: "Seguimiento y Plazos", href: "/seguimiento-plazos", icon: Calendar },
-  { name: "Plantillas de Documentos", href: "/plantilla-documentos", icon: FileCheck },
-  { name: "Cálculos de Indemnización", href: "/calculos-indemnizacion", icon: Calculator },
-  { name: "Formulario de Toma de Casos", href: "/formulario-toma-casos", icon: UserPlus },
+  { name: "Gestión de casos", href: "/casos", icon: FileText },
+  { name: "Gestión de clientes", href: "/clientes", icon: Users },
+  { name: "Seguimiento y plazos", href: "/seguimiento-plazos", icon: Calendar },
+  { name: "Plantillas de documentos", href: "/plantilla-documentos", icon: FileCheck },
+  { name: "Cálculos de indemnización", href: "/calculos-indemnizacion", icon: Calculator },
+  { name: "Formulario de toma de casos", href: "/formulario-toma-casos", icon: UserPlus },
 ]
 
 export function Sidebar() {

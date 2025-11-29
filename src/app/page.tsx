@@ -204,7 +204,7 @@ export default function DashboardPage() {
             <DashboardCard
               title="Gestión de Clientes"
               description="Listado completo de clientes con historial de casos."
-              href="/gestion-clientes"
+              href="/clientes"
             />
           </div>
 

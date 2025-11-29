@@ -54,12 +54,11 @@ export default function NuevoCasoPage() {
           { id: 4, nombre: "Carlos", apellido: "Lopez" }
         ])
         
-        setClientes([
-          { id: 5, nombre: "Pedro", apellido: "Garcia" },
-          { id: 6, nombre: "Ana", apellido: "Lopez" },
-          { id: 7, nombre: "Maria", apellido: "Rodriguez" },
-          { id: 8, nombre: "Luis", apellido: "Fernandez" }
-        ])
+        const response = await fetch("/api/clientes");
+            // ... manejo de errores ...
+        const clientesData: Cliente[] = await response.json();
+      setClientes(clientesData);
+      
       } catch (error) {
         console.error("Error al cargar datos:", error)
       } finally {

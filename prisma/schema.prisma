@@ -7,37 +7,68 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// 1. MODELO USUARIO: Solo para login (abogados y admin)
 model Usuario {
-  id               Int      @id @default(autoincrement())
-  email            String   @unique(map: "Usuario_email_key")
-  nombre           String
-  apellido         String
-  password         String?
-  rol              String
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  casosComoAbogado Caso[]   @relation("AbogadoCasos")
-  casosComoCliente Caso[]   @relation("ClienteCasos")
+  id                Int      @id @default(autoincrement())
+  email             String   @unique(map: "Usuario_email_key")
+  nombre            String
+  apellido          String
+  password          String?  // Necesario para el login
+  rol               String   // "admin" o "abogado"
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  // Relación con Casos (solo como Abogado)
+  casosComoAbogado  Caso[]   @relation("AbogadoCasos")
 
   @@map("usuario")
 }
 
+// 2. MODELO CLIENTE: Solo para datos de contacto
+model Cliente {
+  id                Int      @id @default(autoincrement())
+  nombre            String
+  apellido          String
+  email             String?  @unique
+  numeroDocumento   String?  @unique
+  tipoDocumento     String?
+  direccion         String?
+  telefono          String?
+  estado            String? 
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relación con Casos (solo como Cliente)
+  casosComoCliente  Caso[]   @relation("ClienteCasos")
+
+  @@map("cliente") // NUEVA TABLA EN MYSQL
+}
+
+// 3. MODELO CASO: Relaciones actualizadas
 model Caso {
-  id               Int       @id @default(autoincrement())
-  numero           String    @unique(map: "Caso_numero_key")
-  titulo           String
-  descripcion      String    @db.Text
-  tipo             String
-  estado           String
-  porcentajeAvance Int       @default(0)
-  fechaInicio      DateTime
-  fechaCierre      DateTime?
-  abogadoId        Int
-  clienteId        Int
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-  abogado          Usuario   @relation("AbogadoCasos", fields: [abogadoId], references: [id], map: "Caso_abogadoId_fkey")
-  cliente          Usuario   @relation("ClienteCasos", fields: [clienteId], references: [id], map: "Caso_clienteId_fkey")
+  id                Int       @id @default(autoincrement())
+  numero            String    @unique(map: "Caso_numero_key")
+  titulo            String
+  descripcion       String    @db.Text
+  tipo              String
+  estado            String
+  porcentajeAvance  Int       @default(0)
+  fechaInicio       DateTime
+  fechaCierre       DateTime?
+  
+  // Clave foránea al USUARIO (Abogado)
+  abogadoId         Int
+  // Clave foránea al CLIENTE (la nueva tabla)
+  clienteId         Int
+
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  // Relación con el Abogado (Usuario)
+  abogado           Usuario   @relation("AbogadoCasos", fields: [abogadoId], references: [id], map: "Caso_abogadoId_fkey")
+  // Relación con el Cliente (Cliente)
+  cliente           Cliente   @relation("ClienteCasos", fields: [clienteId], references: [id], map: "Caso_clienteId_fkey")
 
   @@index([abogadoId], map: "Caso_abogadoId_fkey")
   @@index([clienteId], map: "Caso_clienteId_fkey")
