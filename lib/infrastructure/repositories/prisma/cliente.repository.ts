@@ -1,123 +1,62 @@
-// /lib/infrastructure/repositories/prisma/cliente.repository.ts
+import prisma from "src/lib/db/prisma" // Tu instancia singleton
+import { Cliente } from "@prisma/client"
 
-import { prisma } from "@/lib/db/prisma"
-import type { IClienteRepository } from "@/lib/domain/repositories/cliente.repository"
-import type { Cliente, CrearClienteDto, ActualizarClienteDto } from "@/lib/types"
+export class PrismaClienteRepository {
+  
+  // Obtener clientes filtrados por Abogado (Seguridad)
+  async findByAbogado(abogadoId: string): Promise<Cliente[]> {
+    try {
+      const clientes = await prisma.cliente.findMany({
+        where: { abogadoId: abogadoId },
+        orderBy: { createdAt: 'desc' }
+      })
+      return clientes
+    } catch (error) {
+      console.error("Error en findByAbogado:", error)
+      return []
+    }
+  }
 
-export class PrismaClienteRepository implements IClienteRepository {
-    async obtenerTodos(filtros?: any): Promise<Cliente[]> {
-        const where: any = {}
+  // Obtener todos (Para Admin)
+  async findAll(): Promise<Cliente[]> {
+    return await prisma.cliente.findMany({
+      orderBy: { createdAt: "desc" },
+      include: {
+        abogado: true // Opcional: para ver quién es el abogado
+      }
+    })
+  }
 
-        if (filtros?.estado) {
-            where.estado = filtros.estado
-        }
+  async findById(id: string): Promise<Cliente | null> {
+    return await prisma.cliente.findUnique({
+      where: { id },
+      include: {
+        casos: true // Traemos los casos asociados al cliente
+      }
+    })
+  }
 
-        if (filtros?.tipoDocumento) {
-            where.tipoDocumento = filtros.tipoDocumento
-        }
+  // Crear Cliente
+async create(data: any, abogadoId: string): Promise<Cliente> {
+    return await prisma.cliente.create({
+      data: {
+        ...data, // nombre, apellido, email, etc.
+        abogadoId: abogadoId, // <--- VINCULACIÓN AUTOMÁTICA
+        estado: 'Activo' // Por defecto
+      }
+    })
+  }
 
-        if (filtros?.buscar) {
-            where.OR = [
-                { nombre: { contains: filtros.buscar, mode: "insensitive" } },
-                { apellido: { contains: filtros.buscar, mode: "insensitive" } },
-                { email: { contains: filtros.buscar, mode: "insensitive" } },
-                { numeroDocumento: { contains: filtros.buscar, mode: "insensitive" } },
-            ]
-        }
+  // Actualizar Cliente
+  async update(id: string, data: any): Promise<Cliente> {
+    return await prisma.cliente.update({
+      where: { id },
+      data
+    })
+  }
 
-        // === CAMBIO CLAVE: Usamos prisma.cliente y ya no filtramos por rol ===
-        return (await prisma.cliente.findMany({
-            where, // Aquí se usan los filtros
-            orderBy: {
-                createdAt: "desc",
-            },
-        })) as Cliente[]
-    }
-
-    async obtenerPorId(id: number): Promise<Cliente | null> {
-        // === CAMBIO CLAVE: Usamos prisma.cliente ===
-        return (await prisma.cliente.findUnique({
-            where: { id },
-        })) as Cliente | null
-    }
-
-    // **MÉTODO CREAR (LIMPIO Y CORREGIDO)**
-    async crear(datos: CrearClienteDto): Promise<Cliente> {
-        const { 
-            nombre, 
-            apellido, 
-            email, 
-            numeroDocumento, 
-            tipoDocumento, 
-            direccion, 
-            telefono, 
-            estado 
-        } = datos;
-
-        const numeroDocumentoString = numeroDocumento ? String(numeroDocumento) : undefined;
-
-        // === CAMBIO CLAVE: Ahora creamos en la nueva tabla 'cliente' ===
-        return (await prisma.cliente.create({
-            data: {
-                nombre,
-                apellido,
-                email,
-                numeroDocumento: numeroDocumentoString,
-                tipoDocumento, 
-                direccion,
-                telefono,
-                estado,
-                // ¡Ya no se necesitan rol ni password!
-            },
-        })) as Cliente
-    }
-
-    // **MÉTODO ACTUALIZAR (CORREGIDO Y FILTRADO)**
-    async actualizar(id: number, datos: ActualizarClienteDto): Promise<Cliente> {
-        // Filtramos los campos undefined/nulos para que Prisma no se queje
-        const datosActualizables = {
-            nombre: datos.nombre,
-            apellido: datos.apellido,
-            email: datos.email,
-            numeroDocumento: datos.numeroDocumento,
-            tipoDocumento: datos.tipoDocumento,
-            direccion: datos.direccion,
-            telefono: datos.telefono,
-            estado: datos.estado,
-        };
-
-        // Eliminamos las propiedades que tengan valor 'undefined' para que Prisma las ignore
-        const datosValidos = Object.fromEntries(
-            Object.entries(datosActualizables).filter(([, value]) => value !== undefined)
-        );
-
-        // === CAMBIO CLAVE: Usamos prisma.cliente ===
-        return (await prisma.cliente.update({
-            where: { id },
-            data: datosValidos,
-        })) as Cliente
-    }
-
-    async eliminar(id: number): Promise<void> {
-        // === CAMBIO CLAVE: Usamos prisma.cliente ===
-        await prisma.cliente.delete({
-            where: { id },
-        })
-    }
-
-    async verificarEmailExistente(email: string, idExcluir?: number): Promise<boolean> {
-        // === CAMBIO CLAVE: Buscamos en la nueva tabla 'cliente' ===
-        const cliente = await prisma.cliente.findFirst({
-            where: {
-                email,
-                ...(idExcluir && { id: { not: idExcluir } }),
-            },
-        })
-        return !!cliente
-    }
-
-    async contarTotal(): Promise<number> {
-        // === CAMBIO CLAVE: Contamos en la nueva tabla 'cliente' ===
-        return await prisma.cliente.count({})
-    }
+  // Eliminar Cliente
+async delete(id: string): Promise<void> {
+    await prisma.cliente.delete({ where: { id } })
+  }
 }

@@ -7,26 +7,38 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// 1. MODELO USUARIO: Solo para login (abogados y admin)
-model Usuario {
-  id                Int      @id @default(autoincrement())
-  email             String   @unique(map: "Usuario_email_key")
-  nombre            String
-  apellido          String
-  password          String?  // Necesario para el login
-  rol               String   // "admin" o "abogado"
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+// 1. MODELO USUARIO (Adaptado para Auth.js)
+model User  {
+  id            String       @id @default(uuid())
+  name          String?   // Auth.js usa 'name' por defecto, mapeamos a 'nombre'/'apellido'
+  email         String    @unique(map: "Usuario_email_key")
+  emailVerified DateTime? // Requerido por Auth.js
+  image         String?   // Requerido por Auth.js (foto de Google)
+  password      String?   // Para credenciales (opcional si es solo Google)
   
-  // Relación con Casos (solo como Abogado)
-  casosComoAbogado  Caso[]   @relation("AbogadoCasos")
+  // Tus campos personalizados
+  nombre        String?   // Opcional porque Google da 'name' completo
+  apellido      String?   // Opcional porque Google da 'name' completo
+  rol           String   @default("abogado") //mysql no soporta arrays postgr si...
+  isActive      Boolean  @default(true)
 
-  @@map("usuario")
+  createdAt     DateTime  @default(now()) 
+  updatedAt     DateTime  @updatedAt
+
+  // Relaciones
+  clientes Cliente[] @relation("AbogadoClientes")
+  casos     Caso[] @relation("AbogadoCasos")
+
+  // Relaciones de Auth.js
+  accounts      Account[]
+  sessions      Session[]
+
+  @@map("usuario") // Mantiene tu nombre de tabla original
 }
 
 // 2. MODELO CLIENTE: Solo para datos de contacto
 model Cliente {
-  id                Int      @id @default(autoincrement())
+  id                String       @id @default(uuid())
   nombre            String
   apellido          String
   email             String?  @unique
@@ -39,15 +51,22 @@ model Cliente {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  // Relación con Casos (solo como Cliente)
-  casosComoCliente  Caso[]   @relation("ClienteCasos")
+  // Relación con el abogado (usuario)
+  abogado     User   @relation("AbogadoClientes", fields: [abogadoId], references: [id])
+  abogadoId   String
+
+  // Relación con casos del cliente
+  casos       Caso[] @relation("ClienteCasos")
+
+  
+  
 
   @@map("cliente") // NUEVA TABLA EN MYSQL
 }
 
 // 3. MODELO CASO: Relaciones actualizadas
 model Caso {
-  id                Int       @id @default(autoincrement())
+  id                String    @id @default(uuid())
   numero            String    @unique(map: "Caso_numero_key")
   titulo            String
   descripcion       String    @db.Text
@@ -56,21 +75,63 @@ model Caso {
   porcentajeAvance  Int       @default(0)
   fechaInicio       DateTime
   fechaCierre       DateTime?
-  
-  // Clave foránea al USUARIO (Abogado)
-  abogadoId         Int
-  // Clave foránea al CLIENTE (la nueva tabla)
-  clienteId         Int
 
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
-  
-  // Relación con el Abogado (Usuario)
-  abogado           Usuario   @relation("AbogadoCasos", fields: [abogadoId], references: [id], map: "Caso_abogadoId_fkey")
-  // Relación con el Cliente (Cliente)
-  cliente           Cliente   @relation("ClienteCasos", fields: [clienteId], references: [id], map: "Caso_clienteId_fkey")
 
+  // Relación con el abogado
+  abogado      User   @relation("AbogadoCasos", fields: [abogadoId], references: [id])
+  abogadoId    String
+
+  // Relación con el cliente
+  cliente      Cliente @relation("ClienteCasos", fields: [clienteId], references: [id])
+  clienteId    String
+  
   @@index([abogadoId], map: "Caso_abogadoId_fkey")
   @@index([clienteId], map: "Caso_clienteId_fkey")
   @@map("caso")
+}
+
+// MODELOS DE AUTH.JS 
+// ======================
+
+model Account {
+  id                 String @id @default(uuid()) //cambiar a uuid
+  userId             String     // Cambiado a Int para coincidir con tu Usuario.id
+  type               String
+  provider           String
+  providerAccountId  String
+  refresh_token      String? @db.Text
+  
+  access_token       String? @db.Text
+  expires_at         Int?
+  token_type         String?
+  scope              String?
+  id_token           String? @db.Text
+  session_state      String?
+
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("account") // Opcional: minúsculas para consistencia
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  sessionToken String   @unique
+  userId       String      // Cambiado a Int
+  expires      DateTime
+  user         User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("session")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_token")
 }

@@ -1,5 +1,4 @@
 import { PrismaClienteRepository } from "@/lib/infrastructure/repositories/prisma/cliente.repository"
-import type { Cliente, CrearClienteDto, ActualizarClienteDto } from "@/lib/types"
 
 export class ClienteService {
   private repository: PrismaClienteRepository
@@ -8,61 +7,34 @@ export class ClienteService {
     this.repository = new PrismaClienteRepository()
   }
 
-  async obtenerTodos(filtros?: any): Promise<Cliente[]> {
-    return await this.repository.obtenerTodos(filtros)
+  async getClientesByAbogado(abogadoId: string) {
+    if (!abogadoId) return []
+    return await this.repository.findByAbogado(abogadoId)
   }
 
-  async obtenerPorId(id: number): Promise<Cliente | null> {
-    const cliente = await this.repository.obtenerPorId(id)
-    if (!cliente) {
-      throw new Error(`Cliente con ID ${id} no encontrado`)
-    }
-    return cliente
+  async getAllClientes() {
+    return await this.repository.findAll()
   }
 
-  async crearCliente(datos: CrearClienteDto): Promise<Cliente> {
-    // Validaciones
-    if (!datos.nombre || !datos.apellido) {
-      throw new Error("Nombre y apellido son requeridos")
-    }
-
-    if (!datos.email) {
-      throw new Error("Email es requerido")
-    }
-
-    // Verificar email único
-    const emailExiste = await this.repository.verificarEmailExistente(datos.email)
-    if (emailExiste) {
-      throw new Error("El email ya está registrado")
-    }
-
-    return await this.repository.crear(datos)
+  async getClienteById(id: string) {
+    return await this.repository.findById(id)
   }
 
-  async actualizarCliente(id: number, datos: ActualizarClienteDto): Promise<Cliente> {
-    // Verificar que existe
-    const cliente = await this.obtenerPorId(id)
-    if (!cliente) {
-      throw new Error("Cliente no encontrado")
-    }
-
-    // Si cambió el email, verificar que no exista
-    if (datos.email && datos.email !== cliente.email) {
-      const emailExiste = await this.repository.verificarEmailExistente(datos.email, id)
-      if (emailExiste) {
-        throw new Error("El email ya está registrado")
-      }
-    }
-
-    return await this.repository.actualizar(id, datos)
+  async createCliente(data: any, usuarioId: string) {
+    // Aquí podrías validar reglas de negocio (ej: límite de clientes)
+    return await this.repository.create(data, usuarioId)
   }
 
-  async eliminarCliente(id: number): Promise<void> {
-    await this.obtenerPorId(id) // Verificar que existe
-    await this.repository.eliminar(id)
-  }
+  async deleteCliente(id: string, usuarioId: string, esAdmin: boolean) {
+    // 1. Buscamos el cliente
+    const cliente = await this.repository.findById(id)
+    if (!cliente) throw new Error("Cliente no encontrado")
 
-  async contarTotal(): Promise<number> {
-    return await this.repository.contarTotal()
+    // 2. Verificamos permisos
+    if (!esAdmin && cliente.abogadoId !== usuarioId) {
+      throw new Error("No tienes permiso para eliminar este cliente")
+    }
+
+    return await this.repository.delete(id)
   }
 }

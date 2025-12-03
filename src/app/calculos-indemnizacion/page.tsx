@@ -8,7 +8,7 @@ export default function CalculosIndemnizacionPage() {
     <div className="flex h-screen">
       <Sidebar />
       <div className="flex flex-col flex-1">
-        <Header title="Cálculos de Indemnización" />
+        <Header />
         <main className="flex-1 p-6">
           <ComingSoon title="Cálculos de Indemnización" />
         </main>

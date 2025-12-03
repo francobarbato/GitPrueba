@@ -16,8 +16,8 @@ export function RoleGuard({ children, allowedRoles }: RoleGuardProps) {
   useEffect(() => {
     // Si la autenticación está completa y el usuario no tiene el rol permitido
     if (status === "authenticated" && 
-        session?.user?.role &&
-        !allowedRoles.includes(session.user.role)) {
+        session?.user?.rol &&
+        !allowedRoles.includes(session.user.rol)) {
       router.push("/");
     }
   }, [status, session, router, allowedRoles]);
@@ -29,8 +29,8 @@ export function RoleGuard({ children, allowedRoles }: RoleGuardProps) {
   
   // Si el usuario no está autenticado o no tiene el rol permitido
   if (status !== "authenticated" || 
-      !session?.user?.role ||
-      !allowedRoles.includes(session.user.role)) {
+      !session?.user?.rol ||
+      !allowedRoles.includes(session.user.rol)) {
     return null;
   }
   

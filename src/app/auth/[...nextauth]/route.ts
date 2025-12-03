@@ -1,14 +1,14 @@
-import NextAuth from "next-auth"
-import CredentialsProvider from "next-auth/providers/credentials"
-import { compare } from "bcryptjs"
-import { NextResponse } from "next/server"
-import { prisma } from "@/lib/db/prisma" // ajustá si usás otro ORM o conexión
-import { authOptions } from "@/auth"
+// import NextAuth from "next-auth"
+// import CredentialsProvider from "next-auth/providers/credentials"
+// import { compare } from "bcryptjs"
+// import { NextResponse } from "next/server"
+// import { prisma } from "@/lib/db/prisma" // ajustá si usás otro ORM o conexión
+// import { authOptions } from "@/auth"
 
 
-const handler = NextAuth(authOptions)
+// const handler = NextAuth(authOptions)
 
-export { handler as GET, handler as POST }
+// export { handler as GET, handler as POST }
 
 // const handler = NextAuth({
 //   providers: [

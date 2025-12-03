@@ -8,7 +8,7 @@ export default function FormularioTomaCasosPage() {
     <div className="flex h-screen">
       <Sidebar />
       <div className="flex flex-col flex-1">
-        <Header title="Formulario de Toma de Casos" />
+        <Header />
         <main className="flex-1 p-6">
           <ComingSoon title="Formulario de Toma de Casos" />
         </main>

@@ -1,95 +1,107 @@
-import { PrismaClient } from "@prisma/client"
-import type { CasoRepository } from "@/lib/domain/repositories/caso.repository"
-import type { Caso } from "@/lib/types"
+import prisma from "src/lib/db/prisma"
+import { Caso } from "@prisma/client"
 
-export class PrismaCasoRepository implements CasoRepository {
-  private prisma: PrismaClient
+export class PrismaCasoRepository {
+  
+  // ---------------------------------------------------------
+  // MÉTODOS DE CONSULTA BÁSICA
+  // ---------------------------------------------------------
 
-  constructor() {
-    this.prisma = new PrismaClient()
-
-    
-  }
-
-  // Métodos básicos CRUD
   async findAll(): Promise<Caso[]> {
-    const casos = await this.prisma.caso.findMany({
+    const casos = await prisma.caso.findMany({
       include: {
         abogado: true,
         cliente: true,
       },
-      orderBy: {
-        createdAt: "desc",
-      },
+      orderBy: { createdAt: "desc" },
     })
-    return casos as Caso[]
+    return casos
   }
 
-  async findById(id: number): Promise<Caso | null> {
-    const caso = await this.prisma.caso.findUnique({
+  async findById(id: string): Promise<Caso | null> {
+    const caso = await prisma.caso.findUnique({
       where: { id },
       include: {
         abogado: true,
         cliente: true,
       },
     })
-    return caso as Caso | null
+    return caso
   }
 
-  async create(data: any): Promise<Caso> {
-    const caso = await this.prisma.caso.create({
-      data,
-      include: {
-        abogado: true,
-        cliente: true,
-      },
-    })
-    return caso as Caso
+  // ESTE ES EL NUEVO IMPORTANTE: Filtrar por abogado logueado
+  async findByAbogado(abogadoId: string): Promise<Caso[]> {
+    try {
+      const casos = await prisma.caso.findMany({
+        where: { abogadoId: abogadoId },
+        include: {
+          cliente: true,
+          abogado: true
+        },
+        orderBy: { createdAt: 'desc' }
+      })
+      return casos
+    } catch (error) {
+      console.error("Error en findByAbogado:", error)
+      return []
+    }
   }
 
-  async update(id: number, data: any): Promise<Caso> {
-    const caso = await this.prisma.caso.update({
-      where: { id },
-      data,
-      include: {
-        abogado: true,
-        cliente: true,
-      },
-    })
-    return caso as Caso
-  }
-
-  async delete(id: number): Promise<void> {
-    await this.prisma.caso.delete({
-      where: { id },
-    })
-  }
-
-  async findByAbogado(abogadoId: number): Promise<Caso[]> {
-    const casos = await this.prisma.caso.findMany({
-      where: { abogadoId },
-      include: {
-        abogado: true,
-        cliente: true,
-      },
-    })
-    return casos as Caso[]
-  }
-
-  async findByCliente(clienteId: number): Promise<Caso[]> {
-    const casos = await this.prisma.caso.findMany({
+  async findByCliente(clienteId: string): Promise<Caso[]> {
+    const casos = await prisma.caso.findMany({
       where: { clienteId },
       include: {
         abogado: true,
         cliente: true,
       },
     })
-    return casos as Caso[]
+    return casos
   }
 
-  // Nuevos métodos implementados
-  async updatePorcentajeAvance(id: number, porcentaje: number): Promise<Caso> {
-    const caso = await this.prisma.caso.update({
+  // ---------------------------------------------------------
+  // MÉTODOS DE MUTACIÓN (Crear, Editar, Eliminar)
+  // ---------------------------------------------------------
+
+async create(data: any): Promise<Caso> {
+    return await prisma.caso.create({
+      data: {
+        numero: data.numero,
+        titulo: data.titulo,
+        descripcion: data.descripcion,
+        tipo: data.tipo,
+        estado: 'Abierto', // Estado inicial por defecto
+        fechaInicio: new Date(), // Fecha actual por defecto
+        porcentajeAvance: 0,
+        abogadoId: data.abogadoId, // VINCULACIÓN AUTOMÁTICA
+        clienteId: data.clienteId, // VINCULACIÓN CON CLIENTE
+      },
+      include: {
+        abogado: true,
+        cliente: true,
+      }
+    })
+  }
+
+  async update(id: string, data: any): Promise<Caso> {
+    const caso = await prisma.caso.update({
+      where: { id },
+      data,
+      include: {
+        abogado: true,
+        cliente: true,
+      },
+    })
+    return caso
+  }
+
+  async delete(id: string): Promise<void> {
+    await prisma.caso.delete({
+      where: { id },
+    })
+  }
+
+  async updatePorcentajeAvance(id: string, porcentaje: number): Promise<Caso> {
+    const caso = await prisma.caso.update({
       where: { id },
       data: { porcentajeAvance: porcentaje },
       include: {
@@ -97,31 +109,28 @@ export class PrismaCasoRepository implements CasoRepository {
         cliente: true,
       },
     })
-    return caso as Caso
+    return caso
   }
 
-  async getCasosPorAbogado(): Promise<
-    {
-      abogadoId: number
-      nombre: string
-      apellido: string
-      totalCasos: number
-      casosPorTipo: { tipo: string; cantidad: number }[]
-    }[]
-  > {
+  // ---------------------------------------------------------
+  // MÉTODOS PARA DASHBOARD Y REPORTES (Los que daban error)
+  // ---------------------------------------------------------
+
+  async getCasosPorAbogado() {
     // Obtener todos los abogados con sus casos
-    const abogados = await this.prisma.usuario.findMany({
+    // Nota: Asegúrate de que en tu schema.prisma la relación inversa se llame "casos" o "casosComoAbogado"
+    // Aquí asumo que es "casos" por defecto si no le pusiste nombre. Si falla, revisa el schema.
+    const abogados = await prisma.user.findMany({
       where: { rol: "abogado" },
       include: {
-        casosComoAbogado: true, // Usar la relación correcta del esquema
+        casos: true, 
       },
     })
 
-    // Procesar los datos para el formato requerido
     return abogados.map((abogado) => {
-      // Agrupar casos por tipo usando JavaScript (más confiable que queryRaw)
-      const casosPorTipo = abogado.casosComoAbogado.reduce(
-        (acc, caso) => {
+      // Agrupar casos por tipo usando JavaScript
+      const casosPorTipo = abogado.casos.reduce(
+        (acc: any[], caso: any) => {
           const existing = acc.find((item) => item.tipo === caso.tipo)
           if (existing) {
             existing.cantidad++
@@ -130,39 +139,35 @@ export class PrismaCasoRepository implements CasoRepository {
           }
           return acc
         },
-        [] as { tipo: string; cantidad: number }[],
+        [] 
       )
 
       return {
         abogadoId: abogado.id,
-        nombre: abogado.nombre,
-        apellido: abogado.apellido,
-        totalCasos: abogado.casosComoAbogado.length,
+        nombre: abogado.nombre ?? "",
+        apellido: abogado.apellido ?? "",
+        totalCasos: abogado.casos.length,
         casosPorTipo,
       }
     })
   }
 
-  async getEstadisticasAvance(): Promise<{
-    totalCasos: number
-    promedioAvance: number
-    casosPorEstado: { estado: string; cantidad: number }[]
-  }> {
+  async getEstadisticasAvance() {
     // Obtener todos los casos
-    const casos = await this.prisma.caso.findMany({
+    const casos = await prisma.caso.findMany({
       select: {
         porcentajeAvance: true,
         estado: true,
       },
     })
 
-    // Calcular estadísticas usando JavaScript
+    // Calcular estadísticas
     const totalCasos = casos.length
     const promedioAvance = totalCasos > 0 ? casos.reduce((sum, caso) => sum + caso.porcentajeAvance, 0) / totalCasos : 0
 
     // Agrupar casos por estado
     const casosPorEstado = casos.reduce(
-      (acc, caso) => {
+      (acc: any[], caso: any) => {
         const existing = acc.find((item) => item.estado === caso.estado)
         if (existing) {
           existing.cantidad++
@@ -171,12 +176,12 @@ export class PrismaCasoRepository implements CasoRepository {
         }
         return acc
       },
-      [] as { estado: string; cantidad: number }[],
+      [] 
     )
 
     return {
       totalCasos,
-      promedioAvance: Math.round(promedioAvance * 100) / 100, // Redondear a 2 decimales
+      promedioAvance: Math.round(promedioAvance * 100) / 100,
       casosPorEstado,
     }
   }

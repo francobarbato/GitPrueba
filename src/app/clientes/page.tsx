@@ -1,7 +1,9 @@
-"use client"
-
-import { useState, useEffect } from "react"
+import { getUserSessionServer } from "@/auth/actions/auth-actions"
+import { redirect } from "next/navigation"
+import { ClienteService } from "@/lib/aplication/services/cliente.service"
 import Link from "next/link"
+import { Sidebar } from "@/app/components/sidebar"
+import { Header } from "@/app/components/header"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -9,181 +11,146 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ArrowLeft, Plus, Edit, Trash2 } from "lucide-react"
 
-interface Cliente {
-  id: number
-  nombre: string
-  apellido: string
-  email: string
-  numeroDocumento?: string
-  tipoDocumento?: string
-  telefono?: string
-  estado: string
-  createdAt: string
-}
+// Instancia del servicio
+const clienteService = new ClienteService()
 
-export default function ClientesPage() {
-  const [clientes, setClientes] = useState<Cliente[]>([])
-  const [loading, setLoading] = useState(true)
-  const [buscar, setBuscar] = useState("")
-  const [estado, setEstado] = useState("Todos")
-  const [error, setError] = useState("")
+export default async function ClientesPage({
+  searchParams,
+}: {
+  searchParams?: { buscar?: string; estado?: string }
+}) {
+  // 1. Sesión
+  const user = await getUserSessionServer()
+  if (!user) redirect("/api/auth/signin")
 
-  useEffect(() => {
-    cargarClientes()
-  }, [])
-
-  const cargarClientes = async () => {
-    try {
-      setLoading(true)
-      const params = new URLSearchParams()
-      if (buscar) params.append("buscar", buscar)
-      if (estado !== "Todos") params.append("estado", estado)
-
-      const res = await fetch(`/api/clientes?${params}`)
-      if (!res.ok) throw new Error("Error al cargar clientes")
-
-      const data = await res.json()
-      setClientes(data)
-      setError("")
-    } catch (err: any) {
-      setError(err.message)
-      console.error("Error:", err)
-    } finally {
-      setLoading(false)
-    }
+  // 2. Obtener datos (Lógica de Roles)
+  let clientes = []
+  if (user.rol === 'admin') {
+    clientes = await clienteService.getAllClientes()
+  } else {
+    clientes = await clienteService.getClientesByAbogado(user.id)
   }
 
-  const eliminarCliente = async (id: number) => {
-    if (!confirm("¿Estás seguro que deseas eliminar este cliente?")) return
-
-    try {
-      const res = await fetch(`/api/clientes/${id}`, { method: "DELETE" })
-      if (!res.ok) throw new Error("Error al eliminar")
-
-      setClientes(clientes.filter((c) => c.id !== id))
-    } catch (err: any) {
-      setError(err.message)
-    }
+  // 3. Filtrado simple en memoria (o podrías pasarlo al repo)
+  const terminoBusqueda = searchParams?.buscar?.toLowerCase() || ""
+  if (terminoBusqueda) {
+    clientes = clientes.filter(c => 
+      c.nombre.toLowerCase().includes(terminoBusqueda) || 
+      c.apellido.toLowerCase().includes(terminoBusqueda) ||
+      c.email?.toLowerCase().includes(terminoBusqueda)
+    )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-4">
-            <Link href="/">
-              <Button variant="ghost" size="icon">
-                <ArrowLeft className="w-4 h-4" />
-              </Button>
-            </Link>
-            <div>
-              <h1 className="text-3xl font-bold">Gestión de Clientes</h1>
-              <p className="text-gray-600">Registra y administra los clientes del estudio</p>
-            </div>
-          </div>
-          <Link href="/clientes/nuevo">
-            <Button className="gap-2">
-              <Plus className="w-4 h-4" />
-              Nuevo Cliente
-            </Button>
-          </Link>
-        </div>
-
-        {/* Filtros */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle>Filtros</CardTitle>
-          </CardHeader>
-          <CardContent className="flex gap-4">
-            <div className="flex-1">
-              <Input
-                placeholder="Buscar por nombre, email o documento..."
-                value={buscar}
-                onChange={(e) => setBuscar(e.target.value)}
-              />
-            </div>
-            <Select value={estado} onValueChange={setEstado}>
-              <SelectTrigger className="w-40">
-                <SelectValue placeholder="Estado" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Todos">Todos</SelectItem>
-                <SelectItem value="activo">Activo</SelectItem>
-                <SelectItem value="inactivo">Inactivo</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button onClick={cargarClientes} variant="outline">
-              Aplicar Filtros
-            </Button>
-          </CardContent>
-        </Card>
-
-        {/* Tabla */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Lista de Clientes ({clientes.length})</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {error && <div className="bg-red-50 border border-red-200 text-red-600 p-4 rounded mb-4">{error}</div>}
-
-            {loading ? (
-              <div className="text-center py-8">Cargando clientes...</div>
-            ) : clientes.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">No hay clientes registrados</div>
-            ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Nombre</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Documento</TableHead>
-                      <TableHead>Teléfono</TableHead>
-                      <TableHead>Estado</TableHead>
-                      <TableHead>Acciones</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {clientes.map((cliente) => (
-                      <TableRow key={cliente.id}>
-                        <TableCell className="font-medium">
-                          {cliente.nombre} {cliente.apellido}
-                        </TableCell>
-                        <TableCell>{cliente.email}</TableCell>
-                        <TableCell>
-                          {cliente.numeroDocumento ? `${cliente.tipoDocumento}: ${cliente.numeroDocumento}` : "-"}
-                        </TableCell>
-                        <TableCell>{cliente.telefono || "-"}</TableCell>
-                        <TableCell>
-                          <span
-                            className={`px-3 py-1 rounded-full text-sm font-medium ${
-                              cliente.estado === "activo" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"
-                            }`}
-                          >
-                            {cliente.estado}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex gap-2">
-                            <Link href={`/clientes/${cliente.id}/editar`}>
-                              <Button variant="ghost" size="sm">
-                                <Edit className="w-4 h-4" />
-                              </Button>
-                            </Link>
-                            <Button variant="ghost" size="sm" onClick={() => eliminarCliente(cliente.id)}>
-                              <Trash2 className="w-4 h-4 text-red-500" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+    <div className="flex h-screen bg-gray-50">
+      <Sidebar />
+      
+      <div className="flex flex-col flex-1 overflow-hidden">
+        <Header />
+        
+        <main className="flex-1 overflow-auto p-6">
+          <div className="max-w-6xl mx-auto">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-8">
+              <div className="flex items-center gap-4">
+                <div>
+                  <h1 className="text-3xl font-bold text-slate-800">Gestión de Clientes</h1>
+                  <p className="text-gray-600">Registra y administra los clientes del estudio</p>
+                </div>
               </div>
-            )}
-          </CardContent>
-        </Card>
+              <Link href="/clientes/nuevo">
+                <Button className="gap-2 bg-blue-600 hover:bg-blue-700">
+                  <Plus className="w-4 h-4" />
+                  Nuevo Cliente
+                </Button>
+              </Link>
+            </div>
+
+            {/* Filtros (Visual por ahora, funcionará con URL parameters luego) */}
+            <Card className="mb-6 shadow-sm border-slate-200">
+              <CardHeader>
+                <CardTitle className="text-lg">Filtros</CardTitle>
+              </CardHeader>
+              <CardContent className="flex gap-4">
+                <div className="flex-1">
+                  {/* Este input necesitaría ser un Client Component para actualizar la URL */}
+                  <form action="">
+                    <Input
+                        name="buscar"
+                        placeholder="Buscar por nombre, email... (Presiona Enter)"
+                        defaultValue={searchParams?.buscar}
+                    />
+                  </form>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Tabla */}
+            <Card className="shadow-sm border-slate-200">
+              <CardHeader>
+                <CardTitle>Lista de Clientes ({clientes.length})</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {clientes.length === 0 ? (
+                  <div className="text-center py-12 text-gray-500">
+                    <p className="text-lg">No hay clientes registrados</p>
+                    <Link href="/clientes/nuevo" className="text-blue-600 hover:underline text-sm mt-2 block">
+                        Crear el primero
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader className="bg-slate-50">
+                        <TableRow>
+                          <TableHead className="font-semibold text-slate-600">Nombre</TableHead>
+                          <TableHead className="font-semibold text-slate-600">Email</TableHead>
+                          <TableHead className="font-semibold text-slate-600">Documento</TableHead>
+                          <TableHead className="font-semibold text-slate-600">Teléfono</TableHead>
+                          <TableHead className="font-semibold text-slate-600">Estado</TableHead>
+                          <TableHead className="font-semibold text-slate-600">Acciones</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {clientes.map((cliente) => (
+                          <TableRow key={cliente.id} className="hover:bg-slate-50 transition">
+                            <TableCell className="font-medium text-slate-900">
+                              {cliente.nombre} {cliente.apellido}
+                            </TableCell>
+                            <TableCell className="text-slate-600">{cliente.email || "-"}</TableCell>
+                            <TableCell className="text-slate-600">
+                              {cliente.numeroDocumento ? `${cliente.tipoDocumento || 'DNI'}: ${cliente.numeroDocumento}` : "-"}
+                            </TableCell>
+                            <TableCell className="text-slate-600">{cliente.telefono || "-"}</TableCell>
+                            <TableCell>
+                              <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium 
+                                ${cliente.estado === "Activo" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}`}>
+                                {cliente.estado || 'Activo'}
+                              </span>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex gap-2">
+                                <Link href={`/clientes/${cliente.id}/editar`}>
+                                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                    <Edit className="w-4 h-4 text-slate-500 hover:text-blue-600" />
+                                  </Button>
+                                </Link>
+                                {/* El botón de eliminar requerirá un Server Action o Componente Cliente */}
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                  <Trash2 className="w-4 h-4 text-slate-400 hover:text-red-600" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </main>
       </div>
     </div>
   )

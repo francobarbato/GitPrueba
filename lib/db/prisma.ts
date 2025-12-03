@@ -14,20 +14,37 @@
 // if (process.env.NODE_ENV !== "production") prismaGlobal.prisma = prisma;
 
 // export default prisma;
-import { PrismaClient } from "@prisma/client"
+// import { PrismaClient } from "@prisma/client"
 
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined
-}
+// const globalForPrisma = globalThis as unknown as {
+//   prisma: PrismaClient | undefined
+// }
 
-//  objeto de configuración al constructor de PrismaClient
-export const prisma = globalForPrisma.prisma ?? new PrismaClient({
-    // La solución a la advertencia de Prisma 7:
-    // Le decimos dónde encontrar la URL de conexión.
-    datasourceUrl: process.env.DATABASE_URL, 
-})
+// //  objeto de configuración al constructor de PrismaClient
+// export const prisma = globalForPrisma.prisma ?? new PrismaClient({
+//     // La solución a la advertencia de Prisma 7:
+//     // Le decimos dónde encontrar la URL de conexión.
+//     datasourceUrl: process.env.DATABASE_URL, 
+// })
 
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma
+// if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma
+
+// import { PrismaClient } from "@prisma/client";
+
+// const globalForPrisma = globalThis as unknown as {
+//   prisma: PrismaClient | undefined;
+// };
+
+// export const prisma =
+//   globalForPrisma.prisma ??
+//   new PrismaClient({
+//     datasourceUrl: process.env.DATABASE_URL,
+//   });
+
+// if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+
+// export default prisma;
+
 
 
 

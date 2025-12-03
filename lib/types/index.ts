@@ -88,6 +88,7 @@ export interface Cliente {
   updatedAt: Date
 }
 export interface CrearClienteDto {
+  // abogadoId: string
   nombre: string
   apellido: string
   email: string

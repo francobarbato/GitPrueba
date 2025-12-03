@@ -1,70 +1,58 @@
-import { prisma } from '../../../lib/db/prisma'
+import prisma from 'src/lib/db/prisma'
 
 export class DashboardService {
-  async getStats() {
+  
+  // Modificamos este método para recibir userId y esAdmin
+  async getStats(userId: string, esAdmin: boolean) {
     try {
-      // Contar casos por tipo
-      const casosPorTipo = await prisma.caso.groupBy({
-        by: ['tipo'],
-        _count: { id: true },
+      // 1. Construir el filtro (WHERE) dinámico
+      const whereUser = esAdmin ? {} : { abogadoId: userId }
+
+      // 2. Obtener conteos filtrados
+      const totalCasos = await prisma.caso.count({ where: whereUser })
+      
+      const casosAbiertos = await prisma.caso.count({ 
+        where: { ...whereUser, estado: 'Abierto' } 
+      })
+      
+      const casosEnProceso = await prisma.caso.count({ 
+        where: { ...whereUser, estado: 'En proceso' } 
+      })
+      
+      const casosCerrados = await prisma.caso.count({ 
+        where: { ...whereUser, estado: 'Cerrado' } 
       })
 
-      // Contar casos por estado
-      const casosPorEstado = await prisma.caso.groupBy({
-        by: ['estado'],
-        _count: { id: true },
-      })
-
-      // Casos recientes (últimos 5)
-      const casosRecientes = await prisma.caso.findMany({
-        take: 5,
-        orderBy: { createdAt: 'desc' },
-        include: {
-          abogado: { select: { nombre: true, apellido: true } },
-          cliente: { select: { nombre: true, apellido: true } },
-        },
-      })
-
-      // Totales generales
-      const totalCasos = await prisma.caso.count()
-      const totalClientes = await prisma.usuario.count({ where: { rol: 'cliente' } })
-      const totalAbogados = await prisma.usuario.count({ where: { rol: 'abogado' } })
+      // Total de clientes (Si es admin ve todos, si es abogado solo los suyos)
+      const whereCliente = esAdmin ? {} : { abogadoId: userId }
+      const totalClientes = await prisma.cliente.count({ where: whereCliente })
 
       return {
-        casosPorTipo,
-        casosPorEstado,
-        casosRecientes,
         totalCasos,
-        totalClientes,
-        totalAbogados,
+        casosAbiertos,
+        casosEnProceso,
+        casosCerrados,
+        totalClientes
       }
     } catch (error) {
-      console.error('Error al obtener estadísticas del dashboard:', error)
-      throw error
+      console.error('Error al obtener estadísticas:', error)
+      return {
+        totalCasos: 0, casosAbiertos: 0, casosEnProceso: 0, casosCerrados: 0, totalClientes: 0
+      }
     }
   }
 
-  // Métodos adicionales (sin tocar)
-  async obtenerCasosPorAbogado() {
-    const casoRepository = new (await import('../../infrastructure/repositories/prisma/caso.repository')).PrismaCasoRepository()
-    return casoRepository.getCasosPorAbogado()
-  }
-
-  async obtenerAvanceCasos() {
-    const casoRepository = new (await import('../../infrastructure/repositories/prisma/caso.repository')).PrismaCasoRepository()
-    return casoRepository.getEstadisticasAvance()
-  }
-
-  async obtenerResumenGeneral() {
-    const stats = await this.getStats()
-    const estadisticas = await this.obtenerAvanceCasos()
-
-    return {
-      totalCasos: stats.totalCasos,
-      casosAbiertos: stats.casosPorEstado.find(e => e.estado === 'abierto')?._count?.id || 0,
-      casosEnProceso: stats.casosPorEstado.find(e => e.estado === 'en_proceso')?._count?.id || 0,
-      casosCerrados: stats.casosPorEstado.find(e => e.estado === 'cerrado')?._count?.id || 0,
-      promedioAvance: Math.round(estadisticas.promedioAvance),
-    }
+  // Método para "Actividad Reciente" (Los últimos 5 casos del abogado)
+  async getActividadReciente(userId: string, esAdmin: boolean) {
+    const whereUser = esAdmin ? {} : { abogadoId: userId }
+    
+    return await prisma.caso.findMany({
+        where: whereUser,
+        take: 5,
+        orderBy: { updatedAt: 'desc' },
+        include: {
+            cliente: true
+        }
+    })
   }
 }

@@ -1,183 +1,111 @@
-"use client"
+'use client'
 
-import type React from "react"
-
-import { useState } from "react"
-import { useRouter } from "next/navigation"
-import Link from "next/link"
+// CORRECCIÓN AQUÍ: Usamos la ruta absoluta con @
+import { crearClienteAction } from "../../../lib/actions/clientes-actions" 
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ArrowLeft, Save } from "lucide-react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import Link from "next/link"
+// Importamos useFormState y useFormStatus correctamente
+import { useFormState, useFormStatus } from "react-dom" 
+
+// Botón inteligente
+function SubmitButton() {
+  const { pending } = useFormStatus()
+  return (
+    <Button type="submit" disabled={pending} className="bg-blue-600 hover:bg-blue-700 text-white w-full sm:w-auto">
+      {pending ? "Guardando..." : "Guardar Cliente"}
+    </Button>
+  )
+}
 
 export default function NuevoClientePage() {
-  const router = useRouter()
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState("")
-  const [formData, setFormData] = useState({
-    nombre: "",
-    apellido: "",
-    email: "",
-    numeroDocumento: "",
-    tipoDocumento: "cedula",
-    telefono: "",
-    direccion: "",
-    estado: "activo",
-  })
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target
-    setFormData((prev) => ({ ...prev, [name]: value }))
-  }
-
-  const handleSelectChange = (name: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [name]: value }))
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    setError("")
-
-    try {
-      const res = await fetch("/api/clientes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      })
-
-      if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.error || "Error al crear cliente")
-      }
-
-      router.push("/clientes")
-    } catch (err: any) {
-      setError(err.message)
-      console.error("Error:", err)
-    } finally {
-      setLoading(false)
-    }
-  }
+  // Configuración del hook para manejar errores
+  const initialState = { message: null, error: null }
+  const [state, dispatch] = useFormState(crearClienteAction, initialState)
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-2xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center gap-4 mb-8">
-          <Link href="/clientes">
-            <Button variant="ghost" size="icon">
-              <ArrowLeft className="w-4 h-4" />
-            </Button>
-          </Link>
-          <div>
-            <h1 className="text-3xl font-bold">Nuevo Cliente</h1>
-            <p className="text-gray-600">Registra un nuevo cliente en el estudio</p>
-          </div>
-        </div>
+    <div className="min-h-screen bg-slate-50 p-6 flex justify-center items-start">
+      <Card className="w-full max-w-2xl shadow-md">
+        <CardHeader className="border-b bg-white rounded-t-xl">
+          <CardTitle className="text-xl font-bold text-slate-800">Registrar Nuevo Cliente</CardTitle>
+        </CardHeader>
+        <CardContent className="p-6 bg-white rounded-b-xl">
+          
+          {/* Mostramos mensaje de error si existe */}
+          {state?.error && (
+            <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+              <p className="font-bold">Error:</p>
+              <p>{state.error}</p>
+            </div>
+          )}
 
-        {/* Formulario */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Información Personal</CardTitle>
-            <CardDescription>Completa los datos del cliente</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {error && <div className="bg-red-50 border border-red-200 text-red-600 p-4 rounded mb-6">{error}</div>}
+          {/* Usamos 'dispatch' en el action */}
+          <form action={dispatch} className="space-y-6">
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Nombre */}
+              <div className="space-y-2">
+                <Label htmlFor="nombre">Nombre</Label>
+                <Input id="nombre" name="nombre" placeholder="Ej: Juan" required />
+              </div>
 
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Nombre y Apellido */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="nombre">Nombre</Label>
-                  <Input id="nombre" name="nombre" value={formData.nombre} onChange={handleChange} required />
-                </div>
-                <div>
-                  <Label htmlFor="apellido">Apellido</Label>
-                  <Input id="apellido" name="apellido" value={formData.apellido} onChange={handleChange} required />
-                </div>
+              {/* Apellido */}
+              <div className="space-y-2">
+                <Label htmlFor="apellido">Apellido</Label>
+                <Input id="apellido" name="apellido" placeholder="Ej: Pérez" required />
               </div>
 
               {/* Email */}
-              <div>
+              <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
-                <Input id="email" name="email" type="email" value={formData.email} onChange={handleChange} required />
+                <Input id="email" name="email" type="email" placeholder="cliente@email.com" required />
               </div>
 
-              {/* Documento */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="tipoDocumento">Tipo de Documento</Label>
-                  <Select value={formData.tipoDocumento} onValueChange={(v) => handleSelectChange("tipoDocumento", v)}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="cedula">Cédula</SelectItem>
-                      <SelectItem value="pasaporte">Pasaporte</SelectItem>
-                      <SelectItem value="ruc">RUC</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="numeroDocumento">Número de Documento</Label>
-                  <Input
-                    id="numeroDocumento"
-                    name="numeroDocumento"
-                    value={formData.numeroDocumento}
-                    onChange={handleChange}
-                  />
-                </div>
+              {/* Teléfono */}
+              <div className="space-y-2">
+                <Label htmlFor="telefono">Teléfono</Label>
+                <Input id="telefono" name="telefono" placeholder="+54 9 351..." />
               </div>
 
-              {/* Contacto */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="telefono">Teléfono</Label>
-                  <Input id="telefono" name="telefono" value={formData.telefono} onChange={handleChange} />
-                </div>
-                <div>
-                  <Label htmlFor="estado">Estado</Label>
-                  <Select value={formData.estado} onValueChange={(v) => handleSelectChange("estado", v)}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="activo">Activo</SelectItem>
-                      <SelectItem value="inactivo">Inactivo</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+              {/* Tipo Documento */}
+              <div className="space-y-2">
+                <Label htmlFor="tipoDocumento">Tipo Documento</Label>
+                <select 
+                    name="tipoDocumento" 
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                >
+                    <option value="DNI">DNI</option>
+                    <option value="CUIL">CUIL</option>
+                    <option value="PASAPORTE">Pasaporte</option>
+                </select>
               </div>
 
-              {/* Dirección */}
-              <div>
-                <Label htmlFor="direccion">Dirección</Label>
-                <Input
-                  id="direccion"
-                  name="direccion"
-                  value={formData.direccion}
-                  onChange={handleChange}
-                  placeholder="Dirección completa"
-                />
+              {/* Número Documento */}
+              <div className="space-y-2">
+                <Label htmlFor="numeroDocumento">Número</Label>
+                <Input id="numeroDocumento" name="numeroDocumento" placeholder="12345678" />
               </div>
+            </div>
 
-              {/* Botones */}
-              <div className="flex gap-4 justify-end">
-                <Link href="/clientes">
-                  <Button variant="outline">Cancelar</Button>
-                </Link>
-                <Button type="submit" disabled={loading} className="gap-2">
-                  <Save className="w-4 h-4" />
-                  {loading ? "Creando..." : "Crear Cliente"}
-                </Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-      </div>
+            {/* Dirección */}
+            <div className="space-y-2">
+              <Label htmlFor="direccion">Domicilio</Label>
+              <Input id="direccion" name="direccion" placeholder="Calle Falsa 123, Córdoba" />
+            </div>
+
+            {/* Botones */}
+            <div className="flex justify-end gap-3 pt-4 border-t">
+              <Link href="/clientes">
+                <Button variant="outline" type="button">Cancelar</Button>
+              </Link>
+              <SubmitButton />
+            </div>
+
+          </form>
+        </CardContent>
+      </Card>
     </div>
   )
 }

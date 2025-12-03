@@ -1,113 +1,107 @@
+=====================================================
+📘 MANUAL DE DESPLIEGUE - SISTEMA JURÍDICO (TESIS)
+=====================================================
 
----
-
-## 📘 **manual.txt**
-
-```text
-===========================================
-MANUAL DE USO - SISTEMA DE GESTIÓN LEGAL
-===========================================
-
-1️⃣ CONFIGURACIÓN INICIAL
+1️⃣ REQUISITOS PREVIOS
 -------------------------------------------
-1. Clonar el repositorio:
-   git clone https://github.com/usuario/gestion-legal.git
-   cd gestion-legal
+- Node.js (v18 o superior)
+- MySQL Server corriendo (XAMPP, Docker o local)
+- Una cuenta de desarrollador en Google/GitHub (para OAuth)
 
-2. Instalar dependencias:
+-------------------------------------------
+
+2️⃣ CONFIGURACIÓN DEL ENTORNO (.env)
+-------------------------------------------
+1. Clonar el repositorio e instalar dependencias:
    npm install
 
-3. Crear archivo .env.local en la raíz con:
-   DATABASE_URL="mysql://usuario:password@localhost:3306/gestion_legal"
-   NEXTAUTH_SECRET="valor_secreto"
+2. Crear un archivo llamado `.env` en la raíz del proyecto.
+3. Copiar y pegar el siguiente contenido, llenando tus datos:
+
+   # Conexión a Base de Datos (Ajustar usuario:password)
+   DATABASE_URL="mysql://root:tu_password@localhost:3306/estudio_juridico"
+
+   # Configuración de NextAuth (URL base y llave secreta)
    NEXTAUTH_URL="http://localhost:3000"
+   NEXTAUTH_SECRET="tu_clave_secreta_generada_al_azar"
 
-4. Crear la base de datos ejecutando este script SQL:
+   # (OPCIONAL) OAuth - Si se desea login con redes sociales
+   # Conseguir en: https://console.cloud.google.com/
+   GOOGLE_CLIENT_ID="tu_id_de_google"
+   GOOGLE_CLIENT_SECRET="tu_secreto_de_google"
 
-   CREATE DATABASE gestion_legal;
-   USE gestion_legal;
-   CREATE TABLE User (
-     id INT AUTO_INCREMENT PRIMARY KEY,
-     name VARCHAR(255),
-     email VARCHAR(255) UNIQUE NOT NULL,
-     password VARCHAR(255) NOT NULL,
-     role VARCHAR(50) DEFAULT 'abogado'
-   );
-
-5. Ejecutar los comandos de Prisma:
-   npx prisma generate
-   npx prisma db push
-
-6. Opcional: abrir Prisma Studio para ver la base:
-   npx prisma studio
+   # Conseguir en: https://github.com/settings/developers
+   GITHUB_ID="tu_id_de_github"
+   GITHUB_SECRET="tu_secreto_de_github"
 
 -------------------------------------------
 
-2️⃣ CREAR UN USUARIO
+3️⃣ BASE DE DATOS Y USUARIOS (SEED)
 -------------------------------------------
-Opción 1: desde Prisma Studio
-- Abrir Prisma Studio con `npx prisma studio`
-- Agregar manualmente un nuevo usuario en la tabla User.
+No es necesario crear tablas manualmente con SQL. El sistema usa Prisma ORM.
 
-Opción 2: desde SQL
-INSERT INTO User (name, email, password, role)
-VALUES ('Administrador', 'admin@azar.com', 'tiene que ser generada, ver punto 3', 'admin');
+1. Crear las tablas automáticamente:
+   npx prisma migrate dev --name init
 
-(Contraseña: admin123)
+2. Poblar la base de datos con datos de prueba (Admin, Abogados, Casos):
+   npx prisma db seed
 
--------------------------------------------
-
-3️⃣ GENERAR TU PROPIO HASH DE CONTRASEÑA
--------------------------------------------
-Desde la consola de Node:
-node
-import bcrypt from "bcryptjs";
-const hash = await bcrypt.hash("tu_contraseña", 10);
-console.log(hash);
-
-Copiar ese hash e insertarlo en la base, es la contraseña que se debe usar en el script del SQL mas arriba
+   (Esto creará automáticamente al Administrador y a los Abogados con casos asignados).
 
 -------------------------------------------
 
-4️⃣ INICIAR EL SERVIDOR
+4️⃣ INICIAR EL SISTEMA
 -------------------------------------------
-npm run dev
+1. Ejecutar el servidor de desarrollo:
+   npm run dev
 
-Abrir el navegador en:
-http://localhost:3000
-
-Ingresar con:
-Email: admin@azar.com
-Contraseña: admin123
+2. Abrir en el navegador:
+   http://localhost:3000
 
 -------------------------------------------
 
-5️⃣ NAVEGACIÓN DEL SISTEMA
+5️⃣ CREDENCIALES DE ACCESO (Generadas por el Seed)
 -------------------------------------------
-- Barra lateral (sidebar): acceso a módulos
-- Barra superior (header): perfil y configuración
-- Botón 👤: ver perfil, configuración o cerrar sesión
+El sistema cuenta con Roles (Admin ve todo, Abogado ve solo lo suyo).
 
-Módulos disponibles:
-• Seguimiento y Plazos
-• Plantillas de Documentos
-• Cálculos de Indemnización
-• Formulario de Toma de Casos
-• Gestión de Clientes
+🔐 ROL ADMINISTRADOR
+   Email: admin@estudio.com
+   Pass:  123456
+   -> Acceso a: Dashboard Global, Configuración de Usuarios (Altas).
 
-Cada uno mostrará una página base con mensaje de “Próximamente”.
+⚖️ ROL ABOGADO (Ejemplo 1)
+   Email: hernan@estudio.com
+   Pass:  123456
+   -> Acceso a: Mis Casos, Mis Clientes (Laboral/Civil).
+
+⚖️ ROL ABOGADO (Ejemplo 2)
+   Email: agustin@estudio.com
+   Pass:  123456
+   -> Acceso a: Mis Casos (Familia/Penal).
 
 -------------------------------------------
 
-6️⃣ NOTAS TÉCNICAS
+6️⃣ GUÍA RÁPIDA DE USO
 -------------------------------------------
-- Si aparece un error 404, revisar el nombre del archivo `page.tsx`.
-- Los estilos se manejan con TailwindCSS.
-- No subir `.env.local` al repo.
-- Para sincronizar cambios de la base:
-  npx prisma db push
-- Para generar el cliente Prisma:
-  npx prisma generate
+A. LOGIN CON GOOGLE/GITHUB:
+   - Si configuras las claves en el .env, puedes entrar directo.
+   - Si el email de Google coincide con uno creado por el Admin, el sistema lo vincula.
+   - Si es un email nuevo, entra como usuario sin rol (no verá casos hasta que el Admin lo asigne).
 
+B. CREAR UN NUEVO ABOGADO:
+   1. Ingresa como Admin.
+   2. Ve a "Configuración" (Icono de engranaje).
+   3. Usa el formulario para dar de alta un nuevo colega.
 
+C. GESTIÓN DE CASOS:
+   1. Ingresa como Abogado.
+   2. Ve a "Nuevo Caso".
+   3. Notarás que en "Clientes" solo aparecen TUS clientes asignados.
 
+-------------------------------------------
+
+7️⃣ SOLUCIÓN DE PROBLEMAS COMUNES
+-------------------------------------------
+- Error "Prisma Client not initialized": Ejecuta `npx prisma generate`.
+- Error de Login: Asegúrate de ejecutar `npx prisma db seed` para tener los usuarios.
+- Cambios en la BD: Si modificas `schema.prisma`, ejecuta `npx prisma migrate dev`.

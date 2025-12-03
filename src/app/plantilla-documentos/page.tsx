@@ -27,7 +27,7 @@ export default function DocumentosPage() {
     <div className="flex h-screen">
       <Sidebar />
       <div className="flex flex-col flex-1">
-        <Header title="Gestión de Documentos y Plantillas" />
+        <Header/>
         <main className="flex-1 overflow-auto p-6 bg-slate-50">
           {/* Tabs */}
           <div className="flex gap-4 mb-6">

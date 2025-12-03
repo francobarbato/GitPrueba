@@ -1,55 +1,63 @@
-import { CasoRepository } from "@/lib/domain/repositories/caso.repository"
-import { Caso, CreateCasoData, UpdateCasoData } from "../../types"
+import { PrismaCasoRepository } from "@/lib/infrastructure/repositories/prisma/caso.repository"
 
 export class CasoService {
-  constructor(private casoRepository: CasoRepository) {}
+  private casoRepository: PrismaCasoRepository
 
-  // Métodos existentes actualizados
-  async getAllCasos(filtros?: any): Promise<Caso[]> {
-    if (filtros) {
-      // Si hay filtros, usar un método específico
-      return this.casoRepository.findWithFilters(filtros)
-    }
-    return this.casoRepository.findAll()
+  constructor() {
+    this.casoRepository = new PrismaCasoRepository()
   }
 
-  async getCasoById(id: number): Promise<Caso | null> {
-    return this.casoRepository.findById(id)
+  // --- MÉTODOS DE LECTURA ---
+
+  async getAllCasos() {
+    return await this.casoRepository.findAll()
   }
 
-  async createCaso(data: CreateCasoData): Promise<Caso> {
-    return this.casoRepository.create(data)
+  async getCasoById(id: string) {
+    return await this.casoRepository.findById(id)
   }
 
-  async updateCaso(id: number, data: UpdateCasoData): Promise<Caso> {
-    return this.casoRepository.update(id, data)
+  async getCasosByAbogado(abogadoId: string) {
+    if (!abogadoId) return []
+    return await this.casoRepository.findByAbogado(abogadoId)
   }
 
-  async deleteCaso(id: number): Promise<void> {
-    return this.casoRepository.delete(id)
+  async getCasosByCliente(clienteId: string) {
+    return await this.casoRepository.findByCliente(clienteId)
   }
 
-  async getCasosByAbogado(abogadoId: number): Promise<Caso[]> {
-    return this.casoRepository.findByAbogado(abogadoId)
+  // --- MÉTODOS DE ESCRITURA ---
+
+async createCaso(data: any, abogadoId: string) {
+    // Aquí podrías validar que el clienteId pertenezca al abogado si quisieras ser muy estricto
+    return await this.casoRepository.create({
+      ...data,
+      abogadoId // Inyectamos el ID del abogado logueado
+    })
   }
 
-  async getCasosByCliente(clienteId: number): Promise<Caso[]> {
-    return this.casoRepository.findByCliente(clienteId)
+  async updateCaso(id: string, data: any) {
+    return await this.casoRepository.update(id, data)
   }
 
-  async updatePorcentajeAvance(id: number, porcentaje: number): Promise<Caso> {
+  async deleteCaso(id: string) {
+    return await this.casoRepository.delete(id)
+  }
+
+  async updatePorcentajeAvance(id: string, porcentaje: number) {
     if (porcentaje < 0 || porcentaje > 100) {
       throw new Error("El porcentaje debe estar entre 0 y 100")
     }
-    return this.casoRepository.updatePorcentajeAvance(id, porcentaje)
+    return await this.casoRepository.updatePorcentajeAvance(id, porcentaje)
   }
 
+  // --- MÉTODOS DE DASHBOARD ---
+
   async getCasosPorAbogado() {
-    return this.casoRepository.getCasosPorAbogado()
+    return await this.casoRepository.getCasosPorAbogado()
   }
 
   async getEstadisticasAvance() {
-    return this.casoRepository.getEstadisticasAvance()
+    return await this.casoRepository.getEstadisticasAvance()
   }
 }
-export default CasoService;
