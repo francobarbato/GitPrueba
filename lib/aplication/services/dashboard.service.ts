@@ -2,13 +2,11 @@ import prisma from 'src/lib/db/prisma'
 
 export class DashboardService {
   
-  // Modificamos este método para recibir userId y esAdmin
+  // 1. Estadísticas Generales para el Dashboard Principal
   async getStats(userId: string, esAdmin: boolean) {
     try {
-      // 1. Construir el filtro (WHERE) dinámico
       const whereUser = esAdmin ? {} : { abogadoId: userId }
 
-      // 2. Obtener conteos filtrados
       const totalCasos = await prisma.caso.count({ where: whereUser })
       
       const casosAbiertos = await prisma.caso.count({ 
@@ -23,7 +21,6 @@ export class DashboardService {
         where: { ...whereUser, estado: 'Cerrado' } 
       })
 
-      // Total de clientes (Si es admin ve todos, si es abogado solo los suyos)
       const whereCliente = esAdmin ? {} : { abogadoId: userId }
       const totalClientes = await prisma.cliente.count({ where: whereCliente })
 
@@ -42,7 +39,7 @@ export class DashboardService {
     }
   }
 
-  // Método para "Actividad Reciente" (Los últimos 5 casos del abogado)
+  // 2. Actividad Reciente (Últimos 5 casos)
   async getActividadReciente(userId: string, esAdmin: boolean) {
     const whereUser = esAdmin ? {} : { abogadoId: userId }
     
@@ -53,6 +50,49 @@ export class DashboardService {
         include: {
             cliente: true
         }
+    })
+  }
+
+  // 3. Carga de Trabajo (Para la Tabla de Reportes)
+  async getCargaTrabajo() {
+    const abogados = await prisma.user.findMany({
+      where: { rol: 'abogado' },
+      include: {
+        casos: {
+          select: { estado: true }
+        }
+      }
+    })
+
+    return abogados.map(abogado => {
+      const total = abogado.casos.length
+      
+      // Casos cerrados
+      const cerrados = abogado.casos.filter(c => ['Cerrado', 'Archivado'].includes(c.estado || '')).length
+      
+      // Casos activos (Abierto + En proceso)
+      const activos = abogado.casos.filter(c => ['Abierto', 'En proceso'].includes(c.estado || '')).length
+      
+      // Casos específicamente "En proceso"
+      const enProceso = abogado.casos.filter(c => c.estado === 'En proceso').length
+
+      const eficiencia = total > 0 ? Math.round((cerrados / total) * 100) : 0
+
+      let estadoCarga = 'Libre'
+      if (activos > 10) estadoCarga = 'Saturado'
+      else if (activos > 4) estadoCarga = 'Ocupado'
+
+      return {
+        id: abogado.id,
+        nombre: `${abogado.nombre || ''} ${abogado.apellido || ''}`.trim(),
+        email: abogado.email,
+        total,
+        activos,     // Total activos
+        enProceso,   // Detalle en proceso (Esto faltaba en el tipo anterior)
+        cerrados,
+        eficiencia,
+        estadoCarga 
+      }
     })
   }
 }

@@ -110,6 +110,16 @@ export interface ActualizarClienteDto {
   estado?: string
 }
 
+export interface Bitacora {
+  id: number; // O string, dependiendo de tu schema, el error dice string en el usuarioId pero number en otros. Ajusta si es uuid.
+  texto: string; // El error muestra que en DB se llama 'texto', no 'detalle'
+  tipo: string;  // El error muestra que en DB se llama 'tipo', no 'accion'
+  usuarioId: string | number; // Ajustar según tu ID
+  casoId?: number | null;     // Relación opcional con caso
+  createdAt: Date;
+}
+
+
 // Constantes
 export const TIPOS_CASO = ["laboral", "civil", "comercial", "familia", "penal"] as const
 

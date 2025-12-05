@@ -28,12 +28,46 @@ export class CasoService {
 
   // --- MÉTODOS DE ESCRITURA ---
 
-async createCaso(data: any, abogadoId: string) {
-    // Aquí podrías validar que el clienteId pertenezca al abogado si quisieras ser muy estricto
-    return await this.casoRepository.create({
-      ...data,
-      abogadoId // Inyectamos el ID del abogado logueado
-    })
+  async createCaso(data: any, abogadoId: string) {
+    // 1. Procesamiento de Fecha de Inicio
+    // Aseguramos que sea un objeto Date real, o usamos la fecha actual
+    const fechaInicio = data.fechaInicio ? new Date(data.fechaInicio) : new Date()
+
+    // 2. Procesamiento del Checklist (Requirements)
+    // El Action nos manda un array simple, pero Prisma necesita el formato { create: [...] }
+    let requirementsFormat = undefined
+
+    if (data.requirements && Array.isArray(data.requirements) && data.requirements.length > 0) {
+      requirementsFormat = {
+        create: data.requirements.map((req: any) => ({
+          description: req.description,
+          // Convertimos el string de fecha a objeto Date, o null si está vacío
+          dueDate: req.dueDate ? new Date(req.dueDate) : null,
+          isCompleted: false
+        }))
+      }
+    }
+
+    // 3. Armamos el objeto final limpio para el Repositorio
+    const datosParaGuardar = {
+      numero: data.numero,
+      titulo: data.titulo,
+      descripcion: data.descripcion,
+      tipo: data.tipo,
+      estado: data.estado || "Abierto", // Forzamos el estado inicial
+      fechaInicio: fechaInicio,
+      clienteId: data.clienteId,
+      abogadoId: abogadoId, // Inyectamos el ID del abogado logueado
+      
+      // Nuevos campos de Prioridad y Favorito
+      priority: data.priority,
+      isFavorite: data.isFavorite,
+
+      // Aquí pasamos la estructura mágica para que Prisma cree los hijos
+      requirements: requirementsFormat 
+    }
+
+    return await this.casoRepository.create(datosParaGuardar)
   }
 
   async updateCaso(id: string, data: any) {

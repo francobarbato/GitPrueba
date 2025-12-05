@@ -1,103 +1,282 @@
-"use client"
+'use client'
 
-import { Sidebar } from "../components/sidebar"
-import { Header } from "../components/header"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import Link from "next/link"
+import { Sidebar } from "@/app/components/sidebar"
+import { Header } from "@/app/components/header"
 import { Button } from "@/components/ui/button"
-import { ExternalLink, Database } from "lucide-react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { 
+  ExternalLink, BarChart3, Download, Activity, 
+  CalendarClock, History, FileText, Calculator, 
+  Filter, Flag, MapPin, ArrowRight, // Usamos Filter en lugar de Funnel para evitar errores
+  TrendingUp
+} from "lucide-react"
 
 export default function ReportesPage() {
-  const handleOpenPowerBI = () => {
-    alert(
-      "📊 Para abrir Power BI:\n\n" +
-        "1. Abre Power BI Desktop\n" +
-        "2. Abre el archivo estudio_juridico.pbix\n" +
-        "3. Los datos se actualizan automáticamente desde MySQL\n\n" +
-        "💡 Próximamente: Reporte publicado en la nube",
-    )
+  const handleOpenDesktop = () => {
+    alert("Para editar el reporte original, abre el archivo .pbix local en Power BI Desktop.")
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
-      {/* Sidebar */}
+    <div className="flex h-screen bg-slate-50 font-sans text-slate-800">
+      
+      {/* 1. SIDEBAR REAL */}
       <Sidebar />
 
-      {/* Contenido principal */}
-      <div className="flex-1 flex flex-col">
-        {/* Header superior */}
+      <div className="flex flex-col flex-1 overflow-hidden">
+        
+        {/* 2. HEADER REAL */}
         <Header />
 
-        {/* Contenido */}
-        <main className="flex-1 p-8 space-y-8">
-          <div>
-            <h1 className="text-2xl font-bold mb-2">Reportes Power BI</h1>
-            <p className="text-gray-600">
-              Visualización de reportes dinámicos del estudio jurídico en Power BI.
-            </p>
-          </div>
-
-          {/* Sección principal: dos columnas */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Información lateral izquierda */}
-            <div className="space-y-6 lg:col-span-1">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Acceso al reporte</CardTitle>
-                  <CardDescription>Explorá las visualizaciones actualizadas.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Button
-                    size="lg"
-                    className="w-full h-12 text-lg font-medium"
-                    onClick={handleOpenPowerBI}
-                  >
-                    <ExternalLink className="h-5 w-5 mr-2" />
-                    Abrir en Power BI
-                  </Button>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-blue-50 border-blue-200">
-                <CardContent className="p-5">
-                  <div className="flex gap-3">
-                    <Database className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
-                    <div>
-                      <h3 className="font-semibold text-blue-900 mb-2">Incluye:</h3>
-                      <ul className="text-sm text-blue-800 list-disc list-inside space-y-1">
-                        <li>Casos por tipo y abogado</li>
-                        <li>Estados de avance y progreso</li>
-                        <li>Distribución por categoría</li>
-                        <li>Datos actualizados en tiempo real</li>
-                      </ul>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="p-5">
-                  <h3 className="font-semibold mb-2">📌 Cómo usar:</h3>
-                  <ol className="text-sm text-gray-700 list-decimal list-inside space-y-1">
-                    <li>Presioná el botón “Abrir en Power BI”.</li>
-                    <li>Iniciá sesión si es necesario.</li>
-                    <li>Interactuá con las visualizaciones desde esta página.</li>
-                  </ol>
-                </CardContent>
-              </Card>
+        <main className="flex-1 overflow-auto p-6">
+          
+          {/* --- ENCABEZADO SUPERIOR --- */}
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <BarChart3 className="w-6 h-6 text-blue-600" />
+                <h1 className="text-2xl font-bold text-slate-800">Reportes & Analytics</h1>
+              </div>
+              <p className="text-slate-500 text-sm mt-1">
+                Tablero de control integral: Operativo, Estratégico y Logístico.
+              </p>
             </div>
 
-            {/* Iframe Power BI */}
-            <div className="lg:col-span-2">
-              <Card className="h-[650px] shadow-md border">
-                <iframe
-                  title="Reporte Power BI"
-                  src="https://app.powerbi.com/reportEmbed?reportId=eafd8179-e385-4514-b668-3bf73ef5d09c&autoAuth=true&ctid=85430b7f-f12c-48f1-b10e-f34a99e68727"
-                  className="w-full h-full rounded-lg border-0"
-                  allowFullScreen
-                ></iframe>
-              </Card>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" className="gap-2 text-slate-600 border-slate-300">
+                <Download className="w-4 h-4" />
+                Exportar PDF
+              </Button>
+              <Button 
+                onClick={handleOpenDesktop} 
+                size="sm" 
+                className="gap-2 bg-slate-900 hover:bg-slate-800 text-white"
+              >
+                <ExternalLink className="w-4 h-4" />
+                Editar en Desktop
+              </Button>
             </div>
           </div>
+
+          {/* --- 1. POWER BI (IFRAME) --- */}
+          <div className="w-full h-[600px] rounded-xl overflow-hidden shadow-sm border border-slate-200 bg-white relative mb-8">
+            <iframe 
+                title="reportes_estudio_juridico" 
+                width="100%" 
+                height="100%" 
+                src="https://app.powerbi.com/reportEmbed?reportId=26709efe-4a3d-4473-b6c4-fdcb3a0c9378&autoAuth=true&ctid=85430b7f-f12c-48f1-b10e-f34a99e68727" 
+                frameBorder="0" 
+                allowFullScreen={true}
+                className="absolute inset-0 w-full h-full"
+            ></iframe>
+          </div>
+
+          {/* --- SEPARADOR: GESTIÓN OPERATIVA --- */}
+          <div className="flex items-center gap-4 mb-4 mt-8">
+            <div className="h-px bg-slate-200 flex-1"></div>
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Gestión Diaria</span>
+            <div className="h-px bg-slate-200 flex-1"></div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-2">
+            
+            <Link href="/reportes/carga-trabajo" className="group">
+                <Card className="border-l-4 border-l-blue-500 hover:shadow-md transition-all cursor-pointer h-full hover:bg-blue-50/30 bg-white">
+                    <CardHeader className="pb-2 px-4 pt-4">
+                        <div className="flex justify-between items-start">
+                            <div className="p-2 bg-blue-100 rounded-lg text-blue-600 group-hover:bg-white transition">
+                                <Activity className="w-5 h-5" />
+                            </div>
+                            <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-blue-500 transition" />
+                        </div>
+                        <CardTitle className="text-base text-slate-800 mt-3 group-hover:text-blue-700 transition">
+                            Carga de Trabajo
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="px-4 pb-4">
+                        <p className="text-xs text-slate-500 line-clamp-2">
+                            Saturación y eficiencia del equipo.
+                        </p>
+                    </CardContent>
+                </Card>
+            </Link>
+
+            <Link href="/reportes/seguimiento-plazos" className="group">
+                <Card className="border-l-4 border-l-amber-500 hover:shadow-md transition-all cursor-pointer h-full hover:bg-amber-50/30 bg-white">
+                    <CardHeader className="pb-2 px-4 pt-4">
+                        <div className="flex justify-between items-start">
+                            <div className="p-2 bg-amber-100 rounded-lg text-amber-600 group-hover:bg-white transition">
+                                <CalendarClock className="w-5 h-5" />
+                            </div>
+                            <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-amber-500 transition" />
+                        </div>
+                        <CardTitle className="text-base text-slate-800 mt-3 group-hover:text-amber-700 transition">
+                            Seguimiento y Plazos
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="px-4 pb-4">
+                        <p className="text-xs text-slate-500 line-clamp-2">
+                            Vencimientos y agenda crítica.
+                        </p>
+                    </CardContent>
+                </Card>
+            </Link>
+
+            <Link href="/reportes/trazabilidad" className="group">
+                <Card className="border-l-4 border-l-purple-500 hover:shadow-md transition-all cursor-pointer h-full hover:bg-purple-50/30 bg-white">
+                    <CardHeader className="pb-2 px-4 pt-4">
+                        <div className="flex justify-between items-start">
+                            <div className="p-2 bg-purple-100 rounded-lg text-purple-600 group-hover:bg-white transition">
+                                <History className="w-5 h-5" />
+                            </div>
+                            <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-purple-500 transition" />
+                        </div>
+                        <CardTitle className="text-base text-slate-800 mt-3 group-hover:text-purple-700 transition">
+                            Bitácora de Auditoría
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="px-4 pb-4">
+                        <p className="text-xs text-slate-500 line-clamp-2">
+                            Historial de movimientos.
+                        </p>
+                    </CardContent>
+                </Card>
+            </Link>
+
+            <Link href="/reportes/ficha-digital" className="group">
+                <Card className="border-l-4 border-l-emerald-500 hover:shadow-md transition-all cursor-pointer h-full hover:bg-emerald-50/30 bg-white">
+                    <CardHeader className="pb-2 px-4 pt-4">
+                        <div className="flex justify-between items-start">
+                            <div className="p-2 bg-emerald-100 rounded-lg text-emerald-600 group-hover:bg-white transition">
+                                <FileText className="w-5 h-5" />
+                            </div>
+                            <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-emerald-500 transition" />
+                        </div>
+                        <CardTitle className="text-base text-slate-800 mt-3 group-hover:text-emerald-700 transition">
+                            Generador de Legajo
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="px-4 pb-4">
+                        <p className="text-xs text-slate-500 line-clamp-2">
+                            Exportación de fichas PDF.
+                        </p>
+                    </CardContent>
+                </Card>
+            </Link>
+          </div>
+
+          {/* --- SEPARADOR: INTELIGENCIA DE NEGOCIO (NUEVO) --- */}
+          <div className="flex items-center gap-4 mb-4 mt-8">
+            <div className="h-px bg-slate-200 flex-1"></div>
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Inteligencia de Negocio</span>
+            <div className="h-px bg-slate-200 flex-1"></div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-2">
+            
+            {/* 1. PIPELINE / EMBUDO */}
+            <Link href="/reportes/pipeline" className="group">
+                <Card className="border-l-4 border-l-cyan-500 hover:shadow-md transition-all cursor-pointer h-full hover:bg-cyan-50/30 bg-white">
+                    <CardHeader className="pb-2 px-4 pt-4">
+                        <div className="flex justify-between items-start">
+                            <div className="p-2 bg-cyan-100 rounded-lg text-cyan-600 group-hover:bg-white transition">
+                                <TrendingUp size={24} className="text-blue-600" />
+                            </div>
+                            <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-cyan-600 transition" />
+                        </div>
+                        <CardTitle className="text-base text-slate-800 mt-3 group-hover:text-cyan-700 transition">
+                            Desempeño y productividad de los abogados
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="px-4 pb-4">
+                        <p className="text-xs text-slate-500 line-clamp-2">
+                            Análisis de eficiencia, volumen de casos y puntos de retraso por abogado.
+                        </p>
+                    </CardContent>
+                </Card>
+            </Link>
+
+            {/* 2. HITOS CRÍTICOS */}
+            <Link href="/reportes/hitos" className="group">
+                <Card className="border-l-4 border-l-rose-500 hover:shadow-md transition-all cursor-pointer h-full hover:bg-rose-50/30 bg-white">
+                    <CardHeader className="pb-2 px-4 pt-4">
+                        <div className="flex justify-between items-start">
+                            <div className="p-2 bg-rose-100 rounded-lg text-rose-600 group-hover:bg-white transition">
+                                <Flag className="w-5 h-5" />
+                            </div>
+                            <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-rose-600 transition" />
+                        </div>
+                        <CardTitle className="text-base text-slate-800 mt-3 group-hover:text-rose-700 transition">
+                            Linea de tiempo de los expedientes
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="px-4 pb-4">
+                        <p className="text-xs text-slate-500 line-clamp-2">
+                            Historial y proximos ventos fatales/audiencias clave.
+                        </p>
+                    </CardContent>
+                </Card>
+            </Link>
+
+            {/* 3. LOGÍSTICA JUDICIAL */}
+            <Link href="/reportes/logistica" className="group">
+                <Card className="border-l-4 border-l-orange-500 hover:shadow-md transition-all cursor-pointer h-full hover:bg-orange-50/30 bg-white">
+                    <CardHeader className="pb-2 px-4 pt-4">
+                        <div className="flex justify-between items-start">
+                            <div className="p-2 bg-orange-100 rounded-lg text-orange-600 group-hover:bg-white transition">
+                                <MapPin className="w-5 h-5" />
+                            </div>
+                            <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-orange-600 transition" />
+                        </div>
+                        <CardTitle className="text-base text-slate-800 mt-3 group-hover:text-orange-700 transition">
+                            Logística Judicial
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="px-4 pb-4">
+                        <p className="text-xs text-slate-500 line-clamp-2">
+                            Organización de traslados y procuración por zonas.
+                        </p>
+                    </CardContent>
+                </Card>
+            </Link>
+
+          </div>
+
+          {/* --- SEPARADOR: CALCULADORAS --- */}
+          <div className="flex items-center gap-4 mb-4 mt-8">
+            <div className="h-px bg-slate-200 flex-1"></div>
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Herramientas de Cálculo</span>
+            <div className="h-px bg-slate-200 flex-1"></div>
+          </div>
+
+          {/* TARJETAS FILA 3: CALCULADORAS */}
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
+             <Link href="/reportes/sucesiones" className="group">
+                <Card className="border-l-4 border-l-indigo-600 hover:shadow-lg transition-all cursor-pointer h-full hover:bg-indigo-50/30 ring-1 ring-slate-100 bg-white">
+                    <CardHeader className="pb-2 px-4 pt-4">
+                        <div className="flex justify-between items-start">
+                            <div className="p-2 bg-indigo-100 rounded-lg text-indigo-600 group-hover:bg-white transition">
+                                <Calculator className="w-5 h-5" />
+                            </div>
+                            <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-indigo-600 transition" />
+                        </div>
+                        <CardTitle className="text-base text-slate-800 mt-3 group-hover:text-indigo-800 transition">
+                            Calculadora de Sucesiones
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="px-4 pb-4">
+                        <p className="text-xs text-slate-500 line-clamp-2">
+                            Estimación rápida de costos y honorarios sucesorios.
+                        </p>
+                    </CardContent>
+                </Card>
+            </Link>
+          </div>
+          
+          <p className="text-center text-xs text-slate-400 pb-4 mt-8">
+            Los datos se actualizan automáticamente cada 24hs.
+          </p>
+
         </main>
       </div>
     </div>

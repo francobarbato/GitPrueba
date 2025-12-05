@@ -8,121 +8,144 @@ datasource db {
 }
 
 // 1. MODELO USUARIO (Adaptado para Auth.js)
-model User  {
-  id            String       @id @default(uuid())
-  name          String?   // Auth.js usa 'name' por defecto, mapeamos a 'nombre'/'apellido'
+model User {
+  id            String    @id @default(uuid())
+  name          String?   // Auth.js usa 'name' por defecto
   email         String    @unique(map: "Usuario_email_key")
-  emailVerified DateTime? // Requerido por Auth.js
-  image         String?   // Requerido por Auth.js (foto de Google)
-  password      String?   // Para credenciales (opcional si es solo Google)
+  emailVerified DateTime?
+  image         String?
+  password      String?
   
   // Tus campos personalizados
-  nombre        String?   // Opcional porque Google da 'name' completo
-  apellido      String?   // Opcional porque Google da 'name' completo
-  rol           String   @default("abogado") //mysql no soporta arrays postgr si...
-  isActive      Boolean  @default(true)
+  nombre    String?
+  apellido  String?
+  rol       String   @default("abogado")
+  isActive  Boolean  @default(true)
 
-  createdAt     DateTime  @default(now()) 
-  updatedAt     DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tareas    Tarea[]
+  bitacoras Bitacora[]
 
   // Relaciones
   clientes Cliente[] @relation("AbogadoClientes")
-  casos     Caso[] @relation("AbogadoCasos")
+  casos    Caso[]    @relation("AbogadoCasos")
 
   // Relaciones de Auth.js
-  accounts      Account[]
-  sessions      Session[]
+  accounts Account[]
+  sessions Session[]
 
-  @@map("usuario") // Mantiene tu nombre de tabla original
+  @@map("usuario")
 }
 
-// 2. MODELO CLIENTE: Solo para datos de contacto
+// 2. MODELO CLIENTE
 model Cliente {
-  id                String       @id @default(uuid())
-  nombre            String
-  apellido          String
-  email             String?  @unique
-  numeroDocumento   String?  @unique
-  tipoDocumento     String?
-  direccion         String?
-  telefono          String?
-  estado            String? 
+  id              String   @id @default(uuid())
+  nombre          String
+  apellido        String
+  email           String?  @unique
+  numeroDocumento String?  @unique
+  tipoDocumento   String?
+  direccion       String?
+  telefono        String?
+  estado          String? 
 
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   // Relación con el abogado (usuario)
-  abogado     User   @relation("AbogadoClientes", fields: [abogadoId], references: [id])
-  abogadoId   String
+  abogado   User   @relation("AbogadoClientes", fields: [abogadoId], references: [id])
+  abogadoId String
 
   // Relación con casos del cliente
-  casos       Caso[] @relation("ClienteCasos")
+  casos     Caso[] @relation("ClienteCasos")
 
-  
-  
-
-  @@map("cliente") // NUEVA TABLA EN MYSQL
+  @@map("cliente")
 }
 
-// 3. MODELO CASO: Relaciones actualizadas
+// 3. MODELO CASO: Relaciones actualizadas con Ranking y Favoritos
 model Caso {
-  id                String    @id @default(uuid())
-  numero            String    @unique(map: "Caso_numero_key")
-  titulo            String
-  descripcion       String    @db.Text
-  tipo              String
-  estado            String
-  porcentajeAvance  Int       @default(0)
-  fechaInicio       DateTime
-  fechaCierre       DateTime?
+  id               String    @id @default(uuid())
+  numero           String    @unique(map: "Caso_numero_key")
+  titulo           String
+  descripcion      String    @db.Text
+  tipo             String
+  estado           String
+  porcentajeAvance Int       @default(0)
+  fechaInicio      DateTime
+  fechaCierre      DateTime?
 
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  
+  isFavorite       Boolean   @default(false) 
+  priority         Priority  @default(NORMAL)
+
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  tareas       Tarea[]
+  requirements Requirement[] 
 
   // Relación con el abogado
-  abogado      User   @relation("AbogadoCasos", fields: [abogadoId], references: [id])
-  abogadoId    String
+  abogado   User   @relation("AbogadoCasos", fields: [abogadoId], references: [id])
+  abogadoId String
 
   // Relación con el cliente
-  cliente      Cliente @relation("ClienteCasos", fields: [clienteId], references: [id])
-  clienteId    String
+  cliente   Cliente @relation("ClienteCasos", fields: [clienteId], references: [id])
+  clienteId String
+
+  bitacoras       Bitacora[]
   
   @@index([abogadoId], map: "Caso_abogadoId_fkey")
   @@index([clienteId], map: "Caso_clienteId_fkey")
   @@map("caso")
 }
 
+// 4. EL CHECKLIST (Tareas/Documentos con plazo - Matriz de Riesgo)
+model Requirement {
+  id          String    @id @default(uuid()) // CAMBIADO A STRING (UUID) para coincidir con el resto
+  description String    // "Traer Partida", "Pagar Bono"
+  dueDate     DateTime? // LA FECHA LÍMITE (Esto activa la "Bomba")
+  isCompleted Boolean   @default(false) // Si ya lo trajo o no
+  
+  // Relación con el caso
+  casoId      String    // CAMBIADO A STRING para coincidir con Caso.id
+  caso        Caso      @relation(fields: [casoId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime  @default(now())
+  
+  @@map("requirement")
+}
+
 // MODELOS DE AUTH.JS 
 // ======================
 
 model Account {
-  id                 String @id @default(uuid()) //cambiar a uuid
-  userId             String     // Cambiado a Int para coincidir con tu Usuario.id
-  type               String
-  provider           String
-  providerAccountId  String
-  refresh_token      String? @db.Text
-  
-  access_token       String? @db.Text
-  expires_at         Int?
-  token_type         String?
-  scope              String?
-  id_token           String? @db.Text
-  session_state      String?
-
+  id                String  @id @default(uuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
-  @@map("account") // Opcional: minúsculas para consistencia
+  @@map("account")
 }
 
 model Session {
   id           String   @id @default(uuid())
   sessionToken String   @unique
-  userId       String      // Cambiado a Int
+  userId       String
   expires      DateTime
-  user         User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   
   @@map("session")
 }
@@ -134,4 +157,54 @@ model VerificationToken {
 
   @@unique([identifier, token])
   @@map("verification_token")
+}
+
+model Tarea {
+  id         String   @id @default(uuid())
+  titulo     String
+  prioridad  String   @default("Media")
+  fatal      Boolean  @default(false)
+  fecha      String?
+  completada Boolean  @default(false)
+  
+  // relacion con el usuario
+  usuarioId  String
+  usuario    User     @relation(fields: [usuarioId], references: [id])
+
+  // relacion con el caso
+  casoId     String?
+  caso       Caso?    @relation(fields: [casoId], references: [id])
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("tarea")
+}
+
+model Bitacora {
+  id        String   @id @default(uuid())
+  texto     String   @db.Text
+  tipo      String   @default("manual")
+  accion      String   
+  detalle     String
+  
+  // Relación con Usuario
+  usuarioId String
+  usuario   User     @relation(fields: [usuarioId], references: [id])
+
+  casoId    String?     // Opcional, porque puede haber bitacoras generales
+  caso      Caso?    @relation(fields: [casoId], references: [id])
+
+  createdAt DateTime @default(now())
+  
+  @@index([usuarioId])
+  @@index([casoId])
+  @@map("bitacora")
+}
+
+// Enum para el Ranking manual
+enum Priority {
+  HIGH
+  NORMAL
+  LOW
 }

@@ -4,6 +4,7 @@ import { CasoService } from "@/lib/aplication/services/caso.service"
 import Link from "next/link"
 import { Sidebar } from "@/app/components/sidebar"
 import { Header } from "@/app/components/header"
+import { Star, Flame } from "lucide-react" // IMPORTANTE: Agregamos estos íconos
 
 const casoService = new CasoService()
 
@@ -17,7 +18,6 @@ export default async function CasoDetailPage({ params }: { params: { id: string 
   if (!caso) return notFound()
 
   // SEGURIDAD: Verificar que el caso pertenezca al abogado (o sea admin)
-  // Nota: Asegúrate de que 'rol' venga en tu sesión. Si no, usa solo la verificación de ID.
   const esAdmin = user.rol === 'admin'
   const esPropietario = caso.abogadoId === user.id
 
@@ -49,17 +49,34 @@ export default async function CasoDetailPage({ params }: { params: { id: string 
             <div className="flex-1 overflow-auto p-6">
                 
                 {/* Header del Caso */}
-                <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="mb-8 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                     <div>
-                        <div className="flex items-center gap-3 mb-1">
+                        {/* TÍTULO Y BADGES */}
+                        <div className="flex items-center gap-3 mb-2 flex-wrap">
+                            
+                            {/* 1. VISUALIZACIÓN DE FAVORITO */}
+                            {caso.isFavorite && (
+                                <Star className="h-6 w-6 text-yellow-400 fill-yellow-400 shrink-0" />
+                            )}
+
                             <h2 className="text-2xl font-bold text-slate-900">{caso.titulo}</h2>
+                            
+                            {/* Badge de Estado */}
                             <span className={`px-3 py-1 rounded-full text-xs font-medium border
                                 ${caso.estado === 'Abierto' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-blue-50 text-blue-700 border-blue-200'}
                             `}>
                                 {caso.estado}
                             </span>
+
+                            {/* 2. VISUALIZACIÓN DE PRIORIDAD ALTA */}
+                            {caso.priority === 'HIGH' && (
+                                <span className="flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700 border border-red-200 animate-pulse">
+                                    <Flame className="h-3 w-3" /> URGENTE
+                                </span>
+                            )}
                         </div>
-                        <p className="text-slate-500 flex items-center gap-2">
+
+                        <p className="text-slate-500 flex items-center gap-2 mt-1">
                             <span className="font-mono bg-slate-100 px-2 py-0.5 rounded text-xs text-slate-600">
                                 {caso.numero}
                             </span>
@@ -101,16 +118,16 @@ export default async function CasoDetailPage({ params }: { params: { id: string 
                                 <div className="flex items-start gap-4">
                                     <div className="h-12 w-12 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-lg">
                                         {/* @ts-ignore */}
-                                        {caso.cliente.nombre[0]}
+                                        {caso.cliente.nombre?.[0] || 'C'}
                                     </div>
                                     <div>
                                         {/* @ts-ignore */}
                                         <h4 className="text-base font-medium text-slate-900">{caso.cliente.nombre} {caso.cliente.apellido}</h4>
                                         <div className="mt-1 space-y-1">
                                             {/* @ts-ignore */}
-                                            <p className="text-sm text-slate-500 flex items-center gap-2">📧 {caso.cliente.email}</p>
+                                            <p className="text-sm text-slate-500 flex items-center gap-2">📧 {caso.cliente.email || 'Sin email'}</p>
                                             {/* @ts-ignore */}
-                                            <p className="text-sm text-slate-500 flex items-center gap-2">📱 {caso.cliente.telefono}</p>
+                                            <p className="text-sm text-slate-500 flex items-center gap-2">📱 {caso.cliente.telefono || 'Sin teléfono'}</p>
                                         </div>
                                     </div>
                                 </div>

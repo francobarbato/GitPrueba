@@ -9,13 +9,13 @@ import { useState } from "react"
 
 const menuItems = [
   { name: "Inicio", href: "/", icon: Home },
-  { name: "Reportes Power BI", href: "/reportes", icon: PieChart },
+  { name: "Reportes", href: "/reportes", icon: PieChart },
   { name: "Gestión de casos", href: "/casos", icon: FileText },
   { name: "Gestión de clientes", href: "/clientes", icon: Users },
-  { name: "Seguimiento y plazos", href: "/seguimiento-plazos", icon: Calendar },
+  { name: "Gestion de tareas", href: "/gestion-tareas", icon: Calendar },
   { name: "Plantillas de documentos", href: "/plantilla-documentos", icon: FileCheck },
   { name: "Cálculos de indemnización", href: "/calculos-indemnizacion", icon: Calculator },
-  { name: "Formulario de toma de casos", href: "/formulario-toma-casos", icon: UserPlus },
+  { name: "Expediemte", href: "/expediente", icon: UserPlus },
 ]
 
 export function Sidebar() {

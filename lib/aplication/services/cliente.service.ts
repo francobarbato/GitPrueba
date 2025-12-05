@@ -25,6 +25,10 @@ export class ClienteService {
     return await this.repository.create(data, usuarioId)
   }
 
+  async actualizarCliente(id: string, data: any) {
+    return await this.repository.update(id, data)
+  }
+
   async deleteCliente(id: string, usuarioId: string, esAdmin: boolean) {
     // 1. Buscamos el cliente
     const cliente = await this.repository.findById(id)
