@@ -20,8 +20,17 @@ export class ClienteService {
     return await this.repository.findById(id)
   }
 
-  async createCliente(data: any, usuarioId: string) {
+    async obtenerTodos(filtros: any = {}) {
+    // Si hay filtros específicos, podrías implementar lógica aquí
+    // Por ahora, devuelve todos
+    return await this.repository.findAll()
+  }
+
+  async createCliente(data: any, usuarioId?: string) {
     // Aquí podrías validar reglas de negocio (ej: límite de clientes)
+    if (!usuarioId) {
+      throw new Error("Se requiere ID de usuario para crear cliente")
+    }
     return await this.repository.create(data, usuarioId)
   }
 

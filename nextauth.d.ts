@@ -3,6 +3,7 @@ import { DefaultSession, DefaultUser } from "next-auth";
 
 
 interface IUser extends DefaultUser {
+  debeResetearPassword: boolean;
 
   id: string;
 

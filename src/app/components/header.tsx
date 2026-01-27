@@ -2,28 +2,41 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 
 export function Header() {
-  const router = useRouter();
   const { data: session } = useSession();
   const user = session?.user;
 
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
 
-  const handleSignOut = async () => {
-    await signOut({ redirect: false });
-    router.push("/api/auth/signin");
-  };
+  // ===== LOGOUT CORREGIDO =====
+  const handleSignOut = () => {
+    setShowUserMenu(false)
+    signOut({ callbackUrl: "/auth/signin" })
+  }
 
   const avatar =
     user?.image ??
     "https://tailus.io/sources/blocks/stats-cards/preview/images/second_user.webp";
 
   const nombre = user?.name ?? "Usuario";
-  const roles = Array.isArray(user?.rol) ? user.rol : [user?.rol ?? "sin rol"];
+  const rol = user?.rol ?? "sin rol";
+  
+  // Verificar si es admin (case-insensitive)
+  const isAdmin = typeof rol === 'string' && rol.toLowerCase() === "admin";
+
+  // Formatear rol para mostrar
+  const getRolLabel = (rol: string) => {
+    const roles: Record<string, string> = {
+      ADMIN: 'Administrador',
+      ABOGADO: 'Abogado',
+      ASISTENTE: 'Asistente',
+      CLIENTE: 'Cliente'
+    };
+    return roles[rol?.toUpperCase()] || rol;
+  };
 
   return (
     <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-white px-6">
@@ -54,23 +67,28 @@ export function Header() {
                 <p className="font-medium">{nombre}</p>
                 <p className="text-sm text-gray-500">{user?.email ?? ""}</p>
                 <p className="text-xs text-gray-500 mt-1">
-                  Rol: {roles.join(", ")}
+                  Rol: {getRolLabel(rol)}
                 </p>
               </div>
 
               <Link
                 href="/perfil"
+                onClick={() => setShowUserMenu(false)}
                 className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
               >
                 Mi Perfil
               </Link>
 
-              <Link
-                href="/configuracion"
-                className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-              >
-                Configuración
-              </Link>
+              {/* Solo mostrar Configuración si es ADMIN */}
+              {isAdmin && (
+                <Link
+                  href="/configuracion"
+                  onClick={() => setShowUserMenu(false)}
+                  className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                >
+                  Configuración
+                </Link>
+              )}
 
               <button
                 onClick={handleSignOut}

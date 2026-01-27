@@ -1,4 +1,6 @@
-import prisma from "../../../../lib/db/prisma";
+// src/app/api/auth/[...nextauth]/route.ts
+
+import prisma from "src/lib/db/prisma";
 import NextAuth, { NextAuthOptions } from "next-auth";
 import { Adapter } from "next-auth/adapters";
 import GithubProvider from "next-auth/providers/github";
@@ -22,56 +24,62 @@ export const authOptions: NextAuthOptions = {
     }),
 
     CredentialsProvider({
-      name:"Credentials",
-          credentials: {
-      email: { label: "correo electronico", type: "email", placeholder: "usuario@gmail.com" },
-      password: { label: "contraseña", type: "password", placeholder:"**********" }
-    },
-      // esto no es recomendable para produccion, creacion del usuario tiene q ser en un formulario de creacion de usuario
-      // crea en bd un log in con correos q no existen y se guardan en bd... queremos q ya todo este creado de antes...
-            async authorize(credentials) {
+      name: "Credentials",
+      credentials: {
+        email: { label: "Correo electrónico", type: "email", placeholder: "usuario@gmail.com" },
+        password: { label: "Contraseña", type: "password", placeholder: "**********" }
+      },
+      async authorize(credentials) {
         if (!credentials?.email || !credentials.password) return null;
 
         const user = await signInEmailPassword(credentials.email, credentials.password);
 
         if (!user) return null;
 
-          return {
+        return {
           id: String(user.id),
           name: user.name,
           email: user.email,
           rol: user.rol ?? "no-rol",
-          };
-        },
+        };
+      },
     }),
   ],
 
   session: { strategy: "jwt" },
 
+  pages: {
+    signIn: "/auth/signin",
+    error: "/auth/error",
+  },
+
   callbacks: {
-    async signIn() {
-      return true;
-    },
-
     async jwt({ token, user }): Promise<any> {
-      // Solo consultar DB una vez (primer inicio de sesión)
-      if (!token.rol) {
-        const dbUser = await prisma.user.findUnique({
-          where: { email: token.email ?? "" },
-        });
-
-        // VALIDACIÓN CORRECTA DE USUARIO INACTIVO
-        if (dbUser?.isActive === false) {
-          throw Error("Usuario no está activo");
+      // Siempre consultar la BD para tener datos actualizados del usuario
+      const dbUser = await prisma.user.findUnique({
+        where: { email: token.email ?? "" },
+        select: {
+          id: true,
+          rol: true,
+          isActive: true,
+          debeResetearPassword: true,
         }
+      });
 
-        if (dbUser) {
-          token.rol = dbUser.rol; // string
-          token.id = String(dbUser.id); // asegurar string
-        } else {
-          token.rol = "no-rol";
-          token.id = "no-id";
-        }
+      if (dbUser?.isActive === false) {
+        throw new Error("Usuario no está activo");
+      }
+
+      if (dbUser) {
+        token.id = String(dbUser.id);
+        token.rol = dbUser.rol;
+        token.isActive = dbUser.isActive;
+        token.debeResetearPassword = dbUser.debeResetearPassword;
+      } else {
+        token.rol = "no-rol";
+        token.id = "no-id";
+        token.isActive = false;
+        token.debeResetearPassword = false;
       }
 
       return token;
@@ -81,6 +89,8 @@ export const authOptions: NextAuthOptions = {
       if (session.user) {
         session.user.id = token.id as string;
         session.user.rol = token.rol as string;
+        session.user.isActive = token.isActive as boolean;
+        session.user.debeResetearPassword = token.debeResetearPassword as boolean;
       }
 
       return session;

@@ -1,3 +1,5 @@
+// src/app/clientes/page.tsx
+
 import { getUserSessionServer } from "@/auth/actions/auth-actions"
 import { redirect } from "next/navigation"
 import { ClienteService } from "@/lib/aplication/services/cliente.service"
@@ -7,38 +9,58 @@ import { Header } from "@/app/components/header"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { ArrowLeft, Plus, Edit, Trash2 } from "lucide-react"
+import { Plus, Edit, User, Building2, Eye } from "lucide-react"
 
-// Instancia del servicio
 const clienteService = new ClienteService()
+
+// Helper para verificar roles
+const isAdmin = (rol: string) => rol?.toUpperCase() === 'ADMIN'
+const isAbogado = (rol: string) => rol?.toUpperCase() === 'ABOGADO'
+const isAsistente = (rol: string) => rol?.toUpperCase() === 'ASISTENTE'
 
 export default async function ClientesPage({
   searchParams,
 }: {
   searchParams?: { buscar?: string; estado?: string }
 }) {
-  // 1. Sesión
   const user = await getUserSessionServer()
-  if (!user) redirect("/api/auth/signin")
+  if (!user) redirect("/auth/signin")
 
-  // 2. Obtener datos (Lógica de Roles)
+  const userRol = user.rol?.toUpperCase() || ''
+
+  // Obtener clientes según rol
   let clientes = []
-  if (user.rol === 'admin') {
+  if (isAdmin(userRol) || isAsistente(userRol)) {
+    // Admin y Asistente ven todos los clientes
     clientes = await clienteService.getAllClientes()
   } else {
+    // Abogado ve solo sus clientes
     clientes = await clienteService.getClientesByAbogado(user.id)
   }
 
-  // 3. Filtrado simple en memoria (o podrías pasarlo al repo)
+  // Filtrado
   const terminoBusqueda = searchParams?.buscar?.toLowerCase() || ""
   if (terminoBusqueda) {
     clientes = clientes.filter(c => 
       c.nombre.toLowerCase().includes(terminoBusqueda) || 
-      c.apellido.toLowerCase().includes(terminoBusqueda) ||
-      c.email?.toLowerCase().includes(terminoBusqueda)
+      c.apellido?.toLowerCase().includes(terminoBusqueda) ||
+      c.email?.toLowerCase().includes(terminoBusqueda) ||
+      c.numeroDocumento?.includes(terminoBusqueda)
     )
+  }
+
+  // Textos según rol
+  const getTitulo = () => {
+    if (isAdmin(userRol)) return 'Gestión de Clientes'
+    if (isAsistente(userRol)) return 'Clientes del Estudio'
+    return 'Mis Clientes'
+  }
+
+  const getSubtitulo = () => {
+    if (isAdmin(userRol)) return 'Administra todos los clientes del estudio'
+    if (isAsistente(userRol)) return 'Visualización y registro de clientes'
+    return 'Registra y administra los clientes de tus casos'
   }
 
   return (
@@ -52,12 +74,12 @@ export default async function ClientesPage({
           <div className="max-w-6xl mx-auto">
             {/* Header */}
             <div className="flex items-center justify-between mb-8">
-              <div className="flex items-center gap-4">
-                <div>
-                  <h1 className="text-3xl font-bold text-slate-800">Gestión de Clientes</h1>
-                  <p className="text-gray-600">Registra y administra los clientes del estudio</p>
-                </div>
+              <div>
+                <h1 className="text-3xl font-bold text-slate-800">{getTitulo()}</h1>
+                <p className="text-gray-600">{getSubtitulo()}</p>
               </div>
+              
+              {/* Botón Nuevo Cliente - Todos los roles pueden crear */}
               <Link href="/clientes/nuevo">
                 <Button className="gap-2 bg-blue-600 hover:bg-blue-700">
                   <Plus className="w-4 h-4" />
@@ -66,22 +88,28 @@ export default async function ClientesPage({
               </Link>
             </div>
 
-            {/* Filtros (Visual por ahora, funcionará con URL parameters luego) */}
+            {/* Indicador de rol para Asistente */}
+            {isAsistente(userRol) && (
+              <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm">
+                <strong>Modo Asistente:</strong> Puedes ver y registrar clientes. 
+                Los clientes creados quedarán disponibles para ser asignados a casos por los abogados.
+              </div>
+            )}
+
+            {/* Filtros */}
             <Card className="mb-6 shadow-sm border-slate-200">
               <CardHeader>
                 <CardTitle className="text-lg">Filtros</CardTitle>
               </CardHeader>
-              <CardContent className="flex gap-4">
-                <div className="flex-1">
-                  {/* Este input necesitaría ser un Client Component para actualizar la URL */}
-                  <form action="">
-                    <Input
-                        name="buscar"
-                        placeholder="Buscar por nombre, email... (Presiona Enter)"
-                        defaultValue={searchParams?.buscar}
-                    />
-                  </form>
-                </div>
+              <CardContent>
+                <form action="" className="flex gap-4">
+                  <Input
+                    name="buscar"
+                    placeholder="Buscar por nombre, DNI, email... (Presiona Enter)"
+                    defaultValue={searchParams?.buscar}
+                    className="flex-1"
+                  />
+                </form>
               </CardContent>
             </Card>
 
@@ -95,7 +123,7 @@ export default async function ClientesPage({
                   <div className="text-center py-12 text-gray-500">
                     <p className="text-lg">No hay clientes registrados</p>
                     <Link href="/clientes/nuevo" className="text-blue-600 hover:underline text-sm mt-2 block">
-                        Crear el primero
+                      Crear el primero
                     </Link>
                   </div>
                 ) : (
@@ -103,9 +131,10 @@ export default async function ClientesPage({
                     <Table>
                       <TableHeader className="bg-slate-50">
                         <TableRow>
-                          <TableHead className="font-semibold text-slate-600">Nombre</TableHead>
-                          <TableHead className="font-semibold text-slate-600">Email</TableHead>
+                          <TableHead className="font-semibold text-slate-600">Tipo</TableHead>
+                          <TableHead className="font-semibold text-slate-600">Cliente</TableHead>
                           <TableHead className="font-semibold text-slate-600">Documento</TableHead>
+                          <TableHead className="font-semibold text-slate-600">Email</TableHead>
                           <TableHead className="font-semibold text-slate-600">Teléfono</TableHead>
                           <TableHead className="font-semibold text-slate-600">Estado</TableHead>
                           <TableHead className="font-semibold text-slate-600">Acciones</TableHead>
@@ -114,31 +143,62 @@ export default async function ClientesPage({
                       <TableBody>
                         {clientes.map((cliente) => (
                           <TableRow key={cliente.id} className="hover:bg-slate-50 transition">
+                            {/* Indicador de tipo de persona */}
+                            <TableCell>
+                              <div title={cliente.tipoPersona === 'FISICA' ? "Persona Física" : "Persona Jurídica"}>
+                                {cliente.tipoPersona === 'FISICA' ? (
+                                  <User className="h-4 w-4 text-blue-600" />
+                                ) : (
+                                  <Building2 className="h-4 w-4 text-purple-600" />
+                                )}
+                              </div>
+                            </TableCell>
+                            
+                            {/* Nombre */}
                             <TableCell className="font-medium text-slate-900">
-                              {cliente.nombre} {cliente.apellido}
+                              {cliente.nombre} {cliente.apellido || ''}
                             </TableCell>
-                            <TableCell className="text-slate-600">{cliente.email || "-"}</TableCell>
+                            
+                            {/* Documento */}
                             <TableCell className="text-slate-600">
-                              {cliente.numeroDocumento ? `${cliente.tipoDocumento || 'DNI'}: ${cliente.numeroDocumento}` : "-"}
+                              {cliente.numeroDocumento ? (
+                                <span className="text-xs">
+                                  <span className="font-semibold">{cliente.tipoDocumento || 'DNI'}:</span> {cliente.numeroDocumento}
+                                </span>
+                              ) : "-"}
                             </TableCell>
-                            <TableCell className="text-slate-600">{cliente.telefono || "-"}</TableCell>
+                            
+                            {/* Email */}
+                            <TableCell className="text-slate-600 text-sm">{cliente.email || "-"}</TableCell>
+                            
+                            {/* Teléfono */}
+                            <TableCell className="text-slate-600 text-sm">{cliente.telefono || "-"}</TableCell>
+                            
+                            {/* Estado */}
                             <TableCell>
                               <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium 
-                                ${cliente.estado === "Activo" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}`}>
-                                {cliente.estado || 'Activo'}
+                                ${cliente.activo ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}`}>
+                                {cliente.activo ? 'Activo' : 'Inactivo'}
                               </span>
                             </TableCell>
+                            
+                            {/* Acciones */}
                             <TableCell>
                               <div className="flex gap-2">
+                                <Link href={`/clientes/${cliente.id}`}>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    className="h-8 w-8 p-0 hover:bg-blue-50"
+                                    title="Ver detalles">
+                                    <Eye className="w-4 h-4 text-blue-600" />
+                                  </Button>
+                                </Link>
                                 <Link href={`/clientes/${cliente.id}/editar`}>
                                   <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
                                     <Edit className="w-4 h-4 text-slate-500 hover:text-blue-600" />
                                   </Button>
                                 </Link>
-                                {/* El botón de eliminar requerirá un Server Action o Componente Cliente */}
-                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                                  <Trash2 className="w-4 h-4 text-slate-400 hover:text-red-600" />
-                                </Button>
                               </div>
                             </TableCell>
                           </TableRow>

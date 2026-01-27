@@ -4,11 +4,13 @@ import { actualizarClienteAction } from "src/lib/actions/clientes-actions"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ArrowLeft, Save } from "lucide-react"
+import { ArrowLeft, Save, User, Building2, FileText, Phone, Mail, MapPin, Hash, AlertCircle, CheckCircle2, Calendar } from "lucide-react"
 import Link from "next/link"
 import { useFormState, useFormStatus } from "react-dom"
+import { useState, useEffect } from "react"
 
 function SubmitButton() {
   const { pending } = useFormStatus()
@@ -20,115 +22,503 @@ function SubmitButton() {
   )
 }
 
-// Recibimos el objeto 'cliente' con sus datos actuales
 export function EditarClienteForm({ cliente }: { cliente: any }) {
   const initialState = { message: null, error: null }
   const [state, dispatch] = useFormState(actualizarClienteAction, initialState)
 
+  const [tipoPersona, setTipoPersona] = useState<"FISICA" | "JURIDICA">(cliente.tipoPersona || "FISICA")
+  const [documentoTipo, setDocumentoTipo] = useState<string>(cliente.tipoDocumento || "DNI")
+  const [numeroDocumento, setNumeroDocumento] = useState<string>(cliente.numeroDocumento || "")
+  const [email, setEmail] = useState<string>(cliente.email || "")
+  const [telefono, setTelefono] = useState<string>(cliente.telefono || "")
+  const [activo, setActivo] = useState<boolean>(cliente.activo ?? true)
+
+  // Validaciones en tiempo real
+  const [validaciones, setValidaciones] = useState({
+    email: { valido: true, mensaje: "" },
+    telefono: { valido: true, mensaje: "" },
+    documento: { valido: true, mensaje: "" }
+  })
+
+  // Validar email
+  useEffect(() => {
+    if (email.length === 0) {
+      setValidaciones(prev => ({ ...prev, email: { valido: true, mensaje: "" }}))
+      return
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    const esValido = emailRegex.test(email)
+    setValidaciones(prev => ({ 
+      ...prev, 
+      email: { 
+        valido: esValido, 
+        mensaje: esValido ? "" : "Formato de email inválido" 
+      }
+    }))
+  }, [email])
+
+  // Validar teléfono
+  useEffect(() => {
+    if (telefono.length === 0) {
+      setValidaciones(prev => ({ ...prev, telefono: { valido: true, mensaje: "" }}))
+      return
+    }
+    const telefonoRegex = /^(\+?54)?[\s-]?(\d{2,4})[\s-]?\d{4}[\s-]?\d{4}$/
+    const esValido = telefonoRegex.test(telefono)
+    setValidaciones(prev => ({ 
+      ...prev, 
+      telefono: { 
+        valido: esValido, 
+        mensaje: esValido ? "" : "Formato sugerido: +54 9 11 1234-5678" 
+      }
+    }))
+  }, [telefono])
+
+  // Validar documento
+  useEffect(() => {
+    if (numeroDocumento.length === 0) {
+      setValidaciones(prev => ({ ...prev, documento: { valido: true, mensaje: "" }}))
+      return
+    }
+
+    let esValido = false
+    let mensaje = ""
+
+    switch(documentoTipo) {
+      case "DNI":
+        esValido = /^\d{7,8}$/.test(numeroDocumento.replace(/\./g, ''))
+        mensaje = esValido ? "" : "DNI debe tener 7-8 dígitos"
+        break
+      case "CUIT":
+      case "CUIL":
+        esValido = /^\d{2}-?\d{8}-?\d{1}$/.test(numeroDocumento)
+        mensaje = esValido ? "" : "Formato: 20-12345678-9 (11 dígitos)"
+        break
+      case "PASAPORTE":
+        esValido = /^[A-Z0-9]{6,9}$/i.test(numeroDocumento)
+        mensaje = esValido ? "" : "6-9 caracteres alfanuméricos"
+        break
+      default:
+        esValido = numeroDocumento.length >= 5
+        mensaje = esValido ? "" : "Mínimo 5 caracteres"
+    }
+
+    setValidaciones(prev => ({ 
+      ...prev, 
+      documento: { valido: esValido, mensaje }
+    }))
+  }, [numeroDocumento, documentoTipo])
+
+  // Formatear fecha
+  const formatearFecha = (fecha: string | Date) => {
+    if (!fecha) return "No disponible"
+    const date = new Date(fecha)
+    return date.toLocaleDateString('es-AR', { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    })
+  }
+
   return (
-    <div className="max-w-2xl mx-auto">
-      {/* Header interno */}
-      <div className="flex items-center gap-4 mb-8">
-        <Link href="/clientes">
-          <Button variant="ghost" size="icon">
-            <ArrowLeft className="w-4 h-4" />
-          </Button>
-        </Link>
-        <div>
-          <h1 className="text-3xl font-bold text-slate-800">Editar Cliente</h1>
-          <p className="text-gray-500">{cliente.nombre} {cliente.apellido}</p>
+    <div className="min-h-screen bg-slate-50 p-6">
+      <div className="max-w-4xl mx-auto">
+        
+        {/* Header mejorado */}
+        <div className="mb-6 flex items-center gap-4">
+          <Link href="/clientes">
+            <Button variant="ghost" size="icon" className="h-10 w-10">
+              <ArrowLeft className="w-5 h-5" />
+            </Button>
+          </Link>
+          <div className="flex-1">
+            <h1 className="text-3xl font-bold text-slate-800 flex items-center gap-3">
+              {tipoPersona === 'FISICA' ? (
+                <User className="h-8 w-8 text-blue-600" />
+              ) : (
+                <Building2 className="h-8 w-8 text-purple-600" />
+              )}
+              Editar Cliente
+            </h1>
+            <p className="text-slate-600 mt-1">
+              {cliente.nombre} {cliente.apellido}
+              {cliente.numeroDocumento && ` • ${cliente.tipoDocumento}: ${cliente.numeroDocumento}`}
+            </p>
+          </div>
+          <div className={`px-4 py-2 rounded-full text-sm font-semibold ${
+            activo 
+              ? 'bg-green-100 text-green-700' 
+              : 'bg-gray-100 text-gray-700'
+          }`}>
+            {activo ? '● Activo' : '○ Inactivo'}
+          </div>
         </div>
+
+        <Card className="shadow-md border-slate-200">
+          <CardHeader className="bg-slate-50 border-b">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Información del Cliente</CardTitle>
+                <CardDescription>Actualiza los datos del cliente en el sistema</CardDescription>
+              </div>
+              {cliente.createdAt && (
+                <div className="text-right">
+                  <p className="text-xs text-slate-500 flex items-center gap-1">
+                    <Calendar className="h-3 w-3" />
+                    Creado: {formatearFecha(cliente.createdAt)}
+                  </p>
+                  {cliente.updatedAt && cliente.updatedAt !== cliente.createdAt && (
+                    <p className="text-xs text-slate-400">
+                      Modificado: {formatearFecha(cliente.updatedAt)}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          </CardHeader>
+
+          <CardContent className="pt-6">
+            
+            {state?.error && (
+              <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 text-red-700 rounded flex items-start gap-3">
+                <AlertCircle className="h-5 w-5 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="font-bold">Error al actualizar</p>
+                  <p>{state.error}</p>
+                </div>
+              </div>
+            )}
+
+            {state?.message && (
+              <div className="mb-6 p-4 bg-green-50 border-l-4 border-green-500 text-green-700 rounded flex items-start gap-3">
+                <CheckCircle2 className="h-5 w-5 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="font-bold">Actualización exitosa</p>
+                  <p>{state.message}</p>
+                </div>
+              </div>
+            )}
+
+            <form action={dispatch} className="space-y-8">
+              <input type="hidden" name="id" value={cliente.id} />
+
+              {/* SECCIÓN 1: TIPO DE PERSONA */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 pb-2 border-b border-slate-200">
+                  <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-sm">1</div>
+                  <h2 className="text-lg font-semibold text-slate-800">Tipo de Persona</h2>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <Label 
+                    className={`flex items-center gap-3 p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                      tipoPersona === 'FISICA' 
+                        ? 'border-blue-500 bg-blue-50 shadow-sm' 
+                        : 'border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="tipoPersona"
+                      value="FISICA"
+                      checked={tipoPersona === 'FISICA'}
+                      onChange={() => setTipoPersona('FISICA')}
+                      className="w-5 h-5 accent-blue-600"
+                    />
+                    <User className="h-5 w-5 text-blue-600" />
+                    <div>
+                      <p className="font-semibold text-slate-900">Persona Física</p>
+                      <p className="text-xs text-slate-600">Individuo</p>
+                    </div>
+                  </Label>
+
+                  <Label 
+                    className={`flex items-center gap-3 p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                      tipoPersona === 'JURIDICA' 
+                        ? 'border-purple-500 bg-purple-50 shadow-sm' 
+                        : 'border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="tipoPersona"
+                      value="JURIDICA"
+                      checked={tipoPersona === 'JURIDICA'}
+                      onChange={() => setTipoPersona('JURIDICA')}
+                      className="w-5 h-5 accent-purple-600"
+                    />
+                    <Building2 className="h-5 w-5 text-purple-600" />
+                    <div>
+                      <p className="font-semibold text-slate-900">Persona Jurídica</p>
+                      <p className="text-xs text-slate-600">Empresa / Sociedad</p>
+                    </div>
+                  </Label>
+                </div>
+              </div>
+
+              {/* SECCIÓN 2: DATOS PERSONALES */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 pb-2 border-b border-slate-200">
+                  <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-600 font-bold text-sm">2</div>
+                  <h2 className="text-lg font-semibold text-slate-800">
+                    {tipoPersona === 'FISICA' ? 'Datos Personales' : 'Razón Social'}
+                  </h2>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-slate-50 rounded-lg">
+                  <div className="space-y-2">
+                    <Label>
+                      {tipoPersona === 'FISICA' ? 'Nombre/s' : 'Razón Social'}
+                      <span className="text-red-500 ml-1">*</span>
+                    </Label>
+                    <Input 
+                      name="nombre" 
+                      defaultValue={cliente.nombre}
+                      minLength={2}
+                      required 
+                    />
+                  </div>
+
+                  {tipoPersona === 'FISICA' ? (
+                    <div className="space-y-2">
+                      <Label>
+                        Apellido/s
+                        <span className="text-red-500 ml-1">*</span>
+                      </Label>
+                      <Input 
+                        name="apellido" 
+                        defaultValue={cliente.apellido || ""}
+                        minLength={2}
+                        required 
+                      />
+                    </div>
+                  ) : (
+                    <input type="hidden" name="apellido" value="" />
+                  )}
+                </div>
+              </div>
+
+              {/* SECCIÓN 3: DOCUMENTACIÓN */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 pb-2 border-b border-slate-200">
+                  <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 font-bold text-sm">3</div>
+                  <h2 className="text-lg font-semibold text-slate-800">Documentación Fiscal</h2>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-slate-50 rounded-lg">
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
+                      <FileText className="h-4 w-4" />
+                      Tipo de Documento
+                      <span className="text-red-500">*</span>
+                    </Label>
+                    <Select 
+                      name="tipoDocumento"
+                      value={documentoTipo}
+                      onValueChange={setDocumentoTipo}
+                      required
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="DNI">DNI - Documento Nacional</SelectItem>
+                        <SelectItem value="CUIT">CUIT - Clave Única Tributaria</SelectItem>
+                        <SelectItem value="CUIL">CUIL - Clave Única Laboral</SelectItem>
+                        <SelectItem value="PASAPORTE">Pasaporte</SelectItem>
+                        <SelectItem value="OTRO">Otro Documento</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
+                      <Hash className="h-4 w-4" />
+                      Número
+                      <span className="text-red-500">*</span>
+                    </Label>
+                    <Input 
+                      name="numeroDocumento"
+                      value={numeroDocumento}
+                      onChange={(e) => setNumeroDocumento(e.target.value)}
+                      required
+                      className={`border-2 ${
+                        numeroDocumento.length > 0 
+                          ? validaciones.documento.valido 
+                            ? 'border-green-500' 
+                            : 'border-red-500'
+                          : 'border-slate-300'
+                      }`}
+                    />
+                    {numeroDocumento.length > 0 && (
+                      <p className={`text-xs flex items-center gap-1 ${
+                        validaciones.documento.valido ? 'text-green-600' : 'text-red-600'
+                      }`}>
+                        {validaciones.documento.valido ? (
+                          <>
+                            <CheckCircle2 className="h-3 w-3" />
+                            Formato válido
+                          </>
+                        ) : (
+                          <>
+                            <AlertCircle className="h-3 w-3" />
+                            {validaciones.documento.mensaje}
+                          </>
+                        )}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>Condición frente al IVA</Label>
+                    <Select 
+                      name="condicionIva" 
+                      defaultValue={cliente.condicionIva || "CONSUMIDOR_FINAL"}
+                      required
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="RESPONSABLE_INSCRIPTO">Responsable Inscripto</SelectItem>
+                        <SelectItem value="MONOTRIBUTISTA">Monotributista</SelectItem>
+                        <SelectItem value="EXENTO">Exento</SelectItem>
+                        <SelectItem value="CONSUMIDOR_FINAL">Consumidor Final</SelectItem>
+                        <SelectItem value="NO_CATEGORIZADO">No Categorizado</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+
+              {/* SECCIÓN 4: CONTACTO */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 pb-2 border-b border-slate-200">
+                  <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 font-bold text-sm">4</div>
+                  <h2 className="text-lg font-semibold text-slate-800">Datos de Contacto</h2>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-slate-50 rounded-lg">
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
+                      <Mail className="h-4 w-4" />
+                      Email
+                    </Label>
+                    <Input 
+                      type="email" 
+                      name="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className={`border-2 ${
+                        email.length > 0 
+                          ? validaciones.email.valido 
+                            ? 'border-green-500' 
+                            : 'border-red-500'
+                          : 'border-slate-300'
+                      }`}
+                    />
+                    {email.length > 0 && !validaciones.email.valido && (
+                      <p className="text-xs text-red-600 flex items-center gap-1">
+                        <AlertCircle className="h-3 w-3" />
+                        {validaciones.email.mensaje}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
+                      <Phone className="h-4 w-4" />
+                      Teléfono
+                    </Label>
+                    <Input 
+                      type="tel" 
+                      name="telefono"
+                      value={telefono}
+                      onChange={(e) => setTelefono(e.target.value)}
+                      className={`border-2 ${
+                        telefono.length > 0 
+                          ? validaciones.telefono.valido 
+                            ? 'border-green-500' 
+                            : 'border-yellow-500'
+                          : 'border-slate-300'
+                      }`}
+                    />
+                  </div>
+
+                  <div className="space-y-2 md:col-span-2">
+                    <Label className="flex items-center gap-2">
+                      <MapPin className="h-4 w-4" />
+                      Dirección
+                    </Label>
+                    <Input 
+                      name="direccion" 
+                      defaultValue={cliente.direccion || ""}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* SECCIÓN 5: ADICIONAL */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 pb-2 border-b border-slate-200">
+                  <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center text-teal-600 font-bold text-sm">5</div>
+                  <h2 className="text-lg font-semibold text-slate-800">Información Adicional</h2>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Notas Internas</Label>
+                    <Textarea
+                      name="notasInternas"
+                      rows={4}
+                      defaultValue={cliente.notasInternas || ""}
+                      placeholder="Observaciones, contexto del cliente..."
+                      className="resize-none"
+                    />
+                  </div>
+
+                  <div className={`flex items-start gap-3 p-4 border-2 rounded-lg transition-all ${
+                    activo 
+                      ? 'bg-green-50 border-green-200' 
+                      : 'bg-gray-50 border-gray-200'
+                  }`}>
+                    <input
+                      type="checkbox"
+                      name="activo"
+                      id="activo"
+                      checked={activo}
+                      onChange={(e) => setActivo(e.target.checked)}
+                      className={`w-5 h-5 mt-0.5 ${activo ? 'accent-green-600' : 'accent-gray-500'}`}
+                    />
+                    <Label htmlFor="activo" className="cursor-pointer flex-1">
+                      <p className={`font-semibold ${activo ? 'text-green-900' : 'text-gray-900'}`}>
+                        Cliente Activo
+                      </p>
+                      <p className={`text-sm ${activo ? 'text-green-700' : 'text-gray-600'}`}>
+                        {activo 
+                          ? 'El cliente aparece en listados y puede tener casos activos' 
+                          : 'El cliente se mantiene en historial pero no aparece en listados principales'
+                        }
+                      </p>
+                    </Label>
+                  </div>
+                </div>
+              </div>
+
+              {/* BOTONES */}
+              <div className="flex justify-end gap-4 pt-6 border-t-2 border-slate-200">
+                <Link href="/clientes">
+                  <Button variant="outline" type="button" className="gap-2">
+                    <ArrowLeft className="h-4 w-4" />
+                    Cancelar
+                  </Button>
+                </Link>
+                <SubmitButton />
+              </div>
+            </form>
+          </CardContent>
+        </Card>
       </div>
-
-      <Card className="shadow-md border-slate-200">
-        <CardHeader>
-          <CardTitle>Información Personal</CardTitle>
-          <CardDescription>Actualiza los datos del cliente</CardDescription>
-        </CardHeader>
-        <CardContent>
-          
-          {state?.error && (
-            <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 text-red-700 rounded">
-              <p className="font-bold">Error</p>
-              <p>{state.error}</p>
-            </div>
-          )}
-
-          <form action={dispatch} className="space-y-6">
-            {/* ID Oculto para saber a quién editar */}
-            <input type="hidden" name="id" value={cliente.id} />
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="nombre">Nombre</Label>
-                <Input id="nombre" name="nombre" defaultValue={cliente.nombre} required />
-              </div>
-              <div>
-                <Label htmlFor="apellido">Apellido</Label>
-                <Input id="apellido" name="apellido" defaultValue={cliente.apellido} required />
-              </div>
-            </div>
-
-            <div>
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" name="email" type="email" defaultValue={cliente.email} required />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="tipoDocumento">Tipo de Documento</Label>
-                <Select name="tipoDocumento" defaultValue={cliente.tipoDocumento || "DNI"}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="DNI">DNI</SelectItem>
-                    <SelectItem value="CUIT">CUIT</SelectItem>
-                    <SelectItem value="CUIL">CUIL</SelectItem>
-                    <SelectItem value="PASAPORTE">Pasaporte</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="numeroDocumento">Número</Label>
-                <Input id="numeroDocumento" name="numeroDocumento" defaultValue={cliente.numeroDocumento} />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="telefono">Teléfono</Label>
-                <Input id="telefono" name="telefono" defaultValue={cliente.telefono} />
-              </div>
-              <div>
-                <Label htmlFor="estado">Estado</Label>
-                <Select name="estado" defaultValue={cliente.estado || "Activo"}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Activo">Activo</SelectItem>
-                    <SelectItem value="Inactivo">Inactivo</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div>
-              <Label htmlFor="direccion">Dirección</Label>
-              <Input id="direccion" name="direccion" defaultValue={cliente.direccion} />
-            </div>
-
-            <div className="flex gap-4 justify-end pt-4 border-t">
-              <Link href="/clientes">
-                <Button variant="outline" type="button">Cancelar</Button>
-              </Link>
-              <SubmitButton />
-            </div>
-
-          </form>
-        </CardContent>
-      </Card>
     </div>
   )
 }

@@ -5,8 +5,9 @@ const clienteService = new ClienteService()
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const id = Number.parseInt(params.id)
-    const cliente = await clienteService.obtenerPorId(id)
+    const id = params.id
+    
+    const cliente = await clienteService.getClienteById(id)
     return Response.json(cliente)
   } catch (error: any) {
     console.error("[API] Error al obtener cliente:", error)
@@ -16,9 +17,9 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const id = Number.parseInt(params.id)
+    const id = params.id 
     const body = await req.json()
-    const { nombre, apellido, email, numeroDocumento, tipoDocumento, direccion, telefono, estado } = body
+    const { nombre, apellido, email, numeroDocumento, tipoDocumento, direccion, telefono, activo, condicionIva } = body
 
     const clienteActualizado = await clienteService.actualizarCliente(id, {
       nombre,
@@ -28,7 +29,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       tipoDocumento,
       direccion,
       telefono,
-      estado,
+      activo,
+      condicionIva
     })
 
     return Response.json(clienteActualizado)
@@ -40,8 +42,15 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const id = Number.parseInt(params.id)
-    await clienteService.eliminarCliente(id)
+    const id = params.id 
+    const { getUserSessionServer } = await import("@/auth/actions/auth-actions")
+    const user = await getUserSessionServer()
+    
+    if (!user) {
+      return Response.json({ error: "No autorizado" }, { status: 401 })
+    }
+    
+    await clienteService.deleteCliente(id, user.id, user.rol === 'admin')
     return Response.json({ mensaje: "Cliente eliminado" })
   } catch (error: any) {
     console.error("[API] Error al eliminar cliente:", error)

@@ -1,5 +1,27 @@
 import prisma from "src/lib/db/prisma"
-import { Caso } from "@prisma/client"
+import { Caso, Pago  } from "@prisma/client"
+
+type PagoType = Caso & {
+  pagos: Array<{
+    id: string
+    concepto: string
+    descripcion: string | null
+    monto: number
+    estado: string
+    comprobanteUrl: string | null
+    montoPagado: number | null
+    fechaPago: Date | null
+    fechaValidacion: Date | null
+    createdAt: Date
+  }>
+}
+
+
+type CasoConPagos = Caso & {
+  abogado?: any
+  cliente?: any
+  pagos: Pago[]
+}
 
 export class PrismaCasoRepository {
   
@@ -18,15 +40,17 @@ export class PrismaCasoRepository {
     return casos
   }
 
-  async findById(id: string): Promise<Caso | null> {
-    const caso = await prisma.caso.findUnique({
+  async findById(id: string): Promise<CasoConPagos | null> {
+    return await prisma.caso.findUnique({
       where: { id },
       include: {
         abogado: true,
         cliente: true,
+        pagos: {
+          orderBy: { createdAt: 'desc' }
+        }
       },
-    })
-    return caso
+    }) as CasoConPagos | null
   }
 
   // ESTE ES EL NUEVO IMPORTANTE: Filtrar por abogado logueado
@@ -69,7 +93,7 @@ async create(data: any): Promise<Caso> {
         titulo: data.titulo,
         descripcion: data.descripcion,
         tipo: data.tipo,
-        estado: 'Abierto', // Estado inicial por defecto
+        estado: 'Inicio / Demanda', // Estado inicial por defecto
         fechaInicio: new Date(), // Fecha actual por defecto
         porcentajeAvance: 0,
         abogadoId: data.abogadoId, // VINCULACIÓN AUTOMÁTICA
@@ -112,6 +136,52 @@ async create(data: any): Promise<Caso> {
     return caso
   }
 
+  // ---------------------------------------------------------
+  // NUEVOS MÉTODOS PARA PAGOS (Gestión Financiera)
+  // ---------------------------------------------------------
+
+  async crearPago(data: { 
+    casoId: string
+    concepto: string
+    descripcion?: string
+    monto: number 
+  }): Promise<Pago> {  // ← USAR TIPO PRISMA
+    return await prisma.pago.create({
+      data: {
+        casoId: data.casoId,
+        concepto: data.concepto,
+        descripcion: data.descripcion || null,
+        monto: data.monto,
+        estado: 'pendiente'
+      }
+    })
+  }
+
+  async validarPago(pagoId: string): Promise<Pago> {  // ← USAR TIPO PRISMA
+    const pago = await prisma.pago.findUnique({ where: { id: pagoId } })
+    
+    if (!pago) {
+      throw new Error("Pago no encontrado")
+    }
+
+    if (pago.estado === "validado") {
+      throw new Error("El pago ya fue validado")
+    }
+
+    return await prisma.pago.update({
+      where: { id: pagoId },
+      data: {
+        estado: 'validado',
+        fechaValidacion: new Date()
+      }
+    })
+  }
+
+  async eliminarPago(pagoId: string): Promise<void> {
+    await prisma.pago.delete({
+      where: { id: pagoId }
+    })
+  }
   // ---------------------------------------------------------
   // MÉTODOS PARA DASHBOARD Y REPORTES (Los que daban error)
   // ---------------------------------------------------------

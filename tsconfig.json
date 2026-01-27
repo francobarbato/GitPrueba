@@ -24,6 +24,6 @@
       "@/lib/*": ["./lib/*"]
     }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", "prisma/seed.js", "src/app/casos/[id]/page.tsx"],
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", "prisma/seed.js", "src/app/casos/[id]/page.tsx", "src/app/reportes/productividad/page.jsx"],
   "exclude": ["node_modules"]
 }

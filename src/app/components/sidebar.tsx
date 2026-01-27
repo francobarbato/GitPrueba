@@ -2,34 +2,109 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { FileText, PieChart, Users, Calendar, FileCheck, Calculator, UserPlus, Home, Menu } from "lucide-react"
+import { useSession } from "next-auth/react"
+import { 
+  FileText, PieChart, Users, Calendar, FileCheck, 
+  Calculator, UserPlus, Home, Menu, Settings, ShieldAlert 
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Sheet, SheetContent, SheetTrigger } from "../../components/ui/sheet"
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { useState } from "react"
 
-const menuItems = [
-  { name: "Inicio", href: "/", icon: Home },
-  { name: "Reportes", href: "/reportes", icon: PieChart },
-  { name: "Gestión de casos", href: "/casos", icon: FileText },
-  { name: "Gestión de clientes", href: "/clientes", icon: Users },
-  { name: "Gestion de tareas", href: "/gestion-tareas", icon: Calendar },
-  { name: "Plantillas de documentos", href: "/plantilla-documentos", icon: FileCheck },
-  { name: "Cálculos de indemnización", href: "/calculos-indemnizacion", icon: Calculator },
-  { name: "Expediemte", href: "/expediente", icon: UserPlus },
-]
+// Helper para verificar roles
+const isAdmin = (rol?: string) => rol?.toUpperCase() === 'ADMIN'
+const isAbogado = (rol?: string) => rol?.toUpperCase() === 'ABOGADO'
+const isAsistente = (rol?: string) => rol?.toUpperCase() === 'ASISTENTE'
+
+// Definición de items del menú con permisos
+const getMenuItems = (rol?: string) => {
+  const userRol = rol?.toUpperCase()
+  
+  const items = [
+    { 
+      name: "Inicio", 
+      href: "/", 
+      icon: Home,
+      roles: ['ADMIN', 'ABOGADO', 'ASISTENTE'] 
+    },
+    { 
+      name: "Gestión de casos", 
+      href: "/casos", 
+      icon: FileText,
+      roles: ['ADMIN', 'ABOGADO', 'ASISTENTE']
+    },
+    { 
+      name: "Gestión de clientes", 
+      href: "/clientes", 
+      icon: Users,
+      roles: ['ADMIN', 'ABOGADO', 'ASISTENTE']
+    },
+    { 
+      name: "Gestión de tareas", 
+      href: "/gestion-tareas", 
+      icon: Calendar,
+      roles: ['ADMIN', 'ABOGADO', 'ASISTENTE']
+    },
+    { 
+      name: "Plantillas de documentos", 
+      href: "/plantilla-documentos", 
+      icon: FileCheck,
+      roles: ['ADMIN', 'ABOGADO', 'ASISTENTE']
+    },
+    { 
+      name: "Cálculos de indemnización", 
+      href: "/calculos-indemnizacion", 
+      icon: Calculator,
+      roles: ['ADMIN', 'ABOGADO'] // ❌ Asistente NO puede
+    },
+    { 
+      name: "Expedientes", 
+      href: "/expediente", 
+      icon: UserPlus,
+      roles: ['ADMIN', 'ABOGADO', 'ASISTENTE']
+    },
+    { 
+      name: "Reportes", 
+      href: "/reportes", 
+      icon: PieChart,
+      roles: ['ADMIN', 'ABOGADO', 'ASISTENTE'] // Asistente ve reportes básicos
+    },
+  ]
+
+  // Agregar Configuración solo para Admin
+  if (isAdmin(rol)) {
+    items.push({
+      name: "Configuración",
+      href: "/configuracion",
+      icon: Settings,
+      roles: ['ADMIN']
+    })
+  }
+
+  // Filtrar según rol
+  return items.filter(item => item.roles.includes(userRol || ''))
+}
 
 export function Sidebar() {
   const pathname = usePathname()
+  const { data: session } = useSession()
+  const userRol = session?.user?.rol ?? undefined
+
+  const menuItems = getMenuItems(userRol)
 
   return (
     <>
       {/* Sidebar Desktop */}
       <aside className="hidden md:flex w-64 bg-card border-r min-h-screen flex-col">
-        {/* <div className="p-6 border-b">
-          <h2 className="text-xl font-bold">Sistema Legval</h2>
-          <p className="text-sm text-muted-foreground">Gestión de Casos</p>
-        </div> */}
         <nav className="flex-1 p-4">
+          {/* Indicador de rol */}
+          {isAsistente(userRol) && (
+            <div className="mb-4 p-2 bg-amber-50 border border-amber-200 rounded-lg text-amber-700 text-xs flex items-center gap-2">
+              <ShieldAlert className="w-4 h-4" />
+              <span>Modo Asistente</span>
+            </div>
+          )}
+
           <div className="space-y-1">
             {menuItems.map((item) => {
               const Icon = item.icon
@@ -65,7 +140,11 @@ export function Sidebar() {
 
 export function MobileSidebar() {
   const pathname = usePathname()
+  const { data: session } = useSession()
+  const userRol = session?.user?.rol ?? undefined
   const [open, setOpen] = useState(false)
+
+  const menuItems = getMenuItems(userRol)
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -81,6 +160,14 @@ export function MobileSidebar() {
           <p className="text-sm text-muted-foreground">Gestión de Casos</p>
         </div>
         <nav className="p-4">
+          {/* Indicador de rol */}
+          {isAsistente(userRol) && (
+            <div className="mb-4 p-2 bg-amber-50 border border-amber-200 rounded-lg text-amber-700 text-xs flex items-center gap-2">
+              <ShieldAlert className="w-4 h-4" />
+              <span>Modo Asistente</span>
+            </div>
+          )}
+
           <div className="space-y-1">
             {menuItems.map((item) => {
               const Icon = item.icon

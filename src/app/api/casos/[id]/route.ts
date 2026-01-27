@@ -1,31 +1,24 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { CasoService } from "@/lib/aplication/services/caso.service"
-import { PrismaCasoRepository } from "@/lib/infrastructure/repositories/prisma/caso.repository"
+
+// Instanciamos el servicio una vez (sin argumentos)
+const casoService = new CasoService()
 
 // GET /api/casos/[id]
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    console.log("=== GET CASO ===")
-    console.log("ID recibido:", params.id)
+    const id = params.id // Es un String (UUID)
 
-    const id = Number(params.id)
-
-    if (isNaN(id)) {
-      console.log("ID inválido:", params.id)
+    if (!id) {
       return NextResponse.json({ success: false, error: "ID inválido" }, { status: 400 })
     }
-
-    const casoRepository = new PrismaCasoRepository()
-    const casoService = new CasoService(casoRepository)
 
     const caso = await casoService.getCasoById(id)
 
     if (!caso) {
-      console.log("Caso no encontrado para ID:", id)
       return NextResponse.json({ success: false, error: "Caso no encontrado" }, { status: 404 })
     }
 
-    console.log("Caso encontrado:", caso.numero)
     return NextResponse.json({
       success: true,
       data: caso,
@@ -39,52 +32,38 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 // PUT /api/casos/[id]
 export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    console.log("=== PUT CASO ===")
-    console.log("ID recibido:", params.id)
-    console.log("Método:", request.method)
-    console.log("URL:", request.url)
+    const id = params.id // String (UUID)
 
-    const id = Number(params.id)
-
-    if (isNaN(id)) {
-      console.log("ERROR: ID inválido:", params.id)
+    if (!id) {
       return NextResponse.json({ success: false, error: "ID inválido" }, { status: 400 })
     }
 
     const body = await request.json()
-    console.log("Body recibido:", JSON.stringify(body, null, 2))
 
-    // Formatear fechas correctamente
+    // Formatear fechas correctamente si vienen en el body
     const dataToUpdate = { ...body }
+    
     if (body.fechaInicio) {
       dataToUpdate.fechaInicio = new Date(body.fechaInicio)
-      console.log("Fecha inicio formateada:", dataToUpdate.fechaInicio)
     }
 
     if (body.fechaCierre) {
       dataToUpdate.fechaCierre = new Date(body.fechaCierre)
-      console.log("Fecha cierre formateada:", dataToUpdate.fechaCierre)
+    }
+    
+    // Si viene fechaFin (nuestra nueva lógica), también la convertimos
+    if (body.fechaFin) {
+        dataToUpdate.fechaFin = new Date(body.fechaFin)
     }
 
-    console.log("Datos a actualizar:", JSON.stringify(dataToUpdate, null, 2))
-
-    const casoRepository = new PrismaCasoRepository()
-    const casoService = new CasoService(casoRepository)
-
-    console.log("Llamando a updateCaso...")
     const casoActualizado = await casoService.updateCaso(id, dataToUpdate)
-
-    console.log("Caso actualizado exitosamente:", casoActualizado.numero)
 
     return NextResponse.json({
       success: true,
       data: casoActualizado,
     })
   } catch (error: any) {
-    console.error("=== ERROR EN PUT ===")
-    console.error("Error completo:", error)
-    console.error("Stack trace:", error.stack)
-
+    console.error("Error al actualizar caso:", error)
     return NextResponse.json(
       {
         success: false,
@@ -99,17 +78,11 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 // DELETE /api/casos/[id]
 export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    console.log("=== DELETE CASO ===")
-    console.log("ID recibido:", params.id)
+    const id = params.id // String (UUID)
 
-    const id = Number(params.id)
-
-    if (isNaN(id)) {
+    if (!id) {
       return NextResponse.json({ success: false, error: "ID inválido" }, { status: 400 })
     }
-
-    const casoRepository = new PrismaCasoRepository()
-    const casoService = new CasoService(casoRepository)
 
     await casoService.deleteCaso(id)
 

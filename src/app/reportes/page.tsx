@@ -174,8 +174,8 @@ export default function ReportesPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-2">
             
-            {/* 1. PIPELINE / EMBUDO */}
-            <Link href="/reportes/pipeline" className="group">
+            {/* 1. productividad  */}
+            <Link href="/reportes/productividad" className="group">
                 <Card className="border-l-4 border-l-cyan-500 hover:shadow-md transition-all cursor-pointer h-full hover:bg-cyan-50/30 bg-white">
                     <CardHeader className="pb-2 px-4 pt-4">
                         <div className="flex justify-between items-start">
@@ -271,7 +271,29 @@ export default function ReportesPage() {
                     </CardContent>
                 </Card>
             </Link>
+                                  {/* TIEMPO POR ETAPA */}
+            <Link href="/reportes/tiempo-por-etapa" className="group">
+                <Card className="border-l-4 border-l-orange-500 hover:shadow-md transition-all cursor-pointer h-full hover:bg-orange-50/30 bg-white">
+                    <CardHeader className="pb-2 px-4 pt-4">
+                        <div className="flex justify-between items-start">
+                            <div className="p-2 bg-orange-100 rounded-lg text-orange-600 group-hover:bg-white transition">
+                                <MapPin className="w-5 h-5" />
+                            </div>
+                            <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-orange-600 transition" />
+                        </div>
+                        <CardTitle className="text-base text-slate-800 mt-3 group-hover:text-orange-700 transition">
+                            Tiempo por etapa procesal
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="px-4 pb-4">
+                        <p className="text-xs text-slate-500 line-clamp-2">
+                            Organización de traslados y procuración por zonas.
+                        </p>
+                    </CardContent>
+                </Card>
+            </Link>
           </div>
+
           
           <p className="text-center text-xs text-slate-400 pb-4 mt-8">
             Los datos se actualizan automáticamente cada 24hs.

@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const { nombre, apellido, email, numeroDocumento, tipoDocumento, direccion, telefono, estado } = body
 
-    const nuevoCliente = await clienteService.crearCliente({
+    const nuevoCliente = await clienteService.createCliente({
       nombre,
       apellido,
       email,

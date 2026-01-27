@@ -26,6 +26,25 @@ export class CasoService {
     return await this.casoRepository.findByCliente(clienteId)
   }
 
+   // --- NUEVOS MÉTODOS DE PAGOS ---
+  
+  async agregarPago(casoId: string, data: any) {
+    return await this.casoRepository.crearPago({
+        casoId,
+        concepto: data.concepto,
+        descripcion: data.descripcion,
+        monto: data.monto
+    })
+  }
+
+  async validarPago(pagoId: string) {
+    return await this.casoRepository.validarPago(pagoId)
+  }
+
+  async eliminarPago(pagoId: string) {
+    return await this.casoRepository.eliminarPago(pagoId)
+  }
+
   // --- MÉTODOS DE ESCRITURA ---
 
   async createCaso(data: any, abogadoId: string) {
@@ -43,8 +62,8 @@ export class CasoService {
           description: req.description,
           // Convertimos el string de fecha a objeto Date, o null si está vacío
           dueDate: req.dueDate ? new Date(req.dueDate) : null,
-          isCompleted: false
-        }))
+          isCompleted: false,
+        })),
       }
     }
 
@@ -58,13 +77,13 @@ export class CasoService {
       fechaInicio: fechaInicio,
       clienteId: data.clienteId,
       abogadoId: abogadoId, // Inyectamos el ID del abogado logueado
-      
+
       // Nuevos campos de Prioridad y Favorito
       priority: data.priority,
       isFavorite: data.isFavorite,
 
       // Aquí pasamos la estructura mágica para que Prisma cree los hijos
-      requirements: requirementsFormat 
+      requirements: requirementsFormat,
     }
 
     return await this.casoRepository.create(datosParaGuardar)
