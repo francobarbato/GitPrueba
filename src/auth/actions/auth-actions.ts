@@ -48,19 +48,21 @@ export const signInEmailPassword = async(email: string, password: string) => {
     return null
   }
 
-  console.log("✅ Login exitoso:", email)
+  console.log("✅ Login exitoso:", email, "- Rol:", user.rol)
 
-  // Actualizar último acceso (opcional pero útil)
+  // Actualizar último acceso
   await prisma.user.update({
     where: { id: user.id },
     data: { ultimoAcceso: new Date() }
   }).catch(err => console.warn("Error actualizando ultimoAcceso:", err))
 
+  // Retornar todos los campos necesarios incluyendo debeResetearPassword
   return {
     id: user.id,
     name: user.name || `${user.nombre} ${user.apellido}`,
     email: user.email,
     rol: user.rol,
-    isActive: user.isActive
+    isActive: user.isActive,
+    debeResetearPassword: user.debeResetearPassword  // ← AGREGADO
   }
 }

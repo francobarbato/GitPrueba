@@ -142,27 +142,6 @@ export default function ReportesPage() {
                     </CardContent>
                 </Card>
             </Link>
-
-            <Link href="/reportes/ficha-digital" className="group">
-                <Card className="border-l-4 border-l-emerald-500 hover:shadow-md transition-all cursor-pointer h-full hover:bg-emerald-50/30 bg-white">
-                    <CardHeader className="pb-2 px-4 pt-4">
-                        <div className="flex justify-between items-start">
-                            <div className="p-2 bg-emerald-100 rounded-lg text-emerald-600 group-hover:bg-white transition">
-                                <FileText className="w-5 h-5" />
-                            </div>
-                            <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-emerald-500 transition" />
-                        </div>
-                        <CardTitle className="text-base text-slate-800 mt-3 group-hover:text-emerald-700 transition">
-                            Generador de Legajo
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="px-4 pb-4">
-                        <p className="text-xs text-slate-500 line-clamp-2">
-                            Exportación de fichas PDF.
-                        </p>
-                    </CardContent>
-                </Card>
-            </Link>
           </div>
 
           {/* --- SEPARADOR: INTELIGENCIA DE NEGOCIO (NUEVO) --- */}
@@ -251,27 +230,7 @@ export default function ReportesPage() {
 
           {/* TARJETAS FILA 3: CALCULADORAS */}
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
-             <Link href="/reportes/sucesiones" className="group">
-                <Card className="border-l-4 border-l-indigo-600 hover:shadow-lg transition-all cursor-pointer h-full hover:bg-indigo-50/30 ring-1 ring-slate-100 bg-white">
-                    <CardHeader className="pb-2 px-4 pt-4">
-                        <div className="flex justify-between items-start">
-                            <div className="p-2 bg-indigo-100 rounded-lg text-indigo-600 group-hover:bg-white transition">
-                                <Calculator className="w-5 h-5" />
-                            </div>
-                            <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-indigo-600 transition" />
-                        </div>
-                        <CardTitle className="text-base text-slate-800 mt-3 group-hover:text-indigo-800 transition">
-                            Calculadora de Sucesiones
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="px-4 pb-4">
-                        <p className="text-xs text-slate-500 line-clamp-2">
-                            Estimación rápida de costos y honorarios sucesorios.
-                        </p>
-                    </CardContent>
-                </Card>
-            </Link>
-                                  {/* TIEMPO POR ETAPA */}
+            {/* TIEMPO POR ETAPA */}
             <Link href="/reportes/tiempo-por-etapa" className="group">
                 <Card className="border-l-4 border-l-orange-500 hover:shadow-md transition-all cursor-pointer h-full hover:bg-orange-50/30 bg-white">
                     <CardHeader className="pb-2 px-4 pt-4">

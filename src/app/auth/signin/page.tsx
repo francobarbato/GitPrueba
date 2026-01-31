@@ -2,14 +2,14 @@
 
 "use client"
 
-import { signIn } from "next-auth/react"
+import { signIn, getSession } from "next-auth/react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useState } from "react"
 
 export default function SignInPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const callbackUrl = searchParams.get("callbackUrl") || "/"
+  const callbackUrl = searchParams.get("callbackUrl")
   const error = searchParams.get("error")
 
   const [email, setEmail] = useState("")
@@ -35,13 +35,40 @@ export default function SignInPage() {
         return
       }
 
-      // Redirigir - el middleware se encargará de enviar a /perfil si debe cambiar contraseña
-      router.push(callbackUrl)
+      // Obtener la sesión para saber el rol del usuario
+      const session = await getSession()
+      const userRol = session?.user?.rol?.toUpperCase()
+
+      // Determinar la URL de redirección según el rol
+      let redirectUrl = callbackUrl || "/"
+
+      if (userRol === "CLIENTE") {
+        // Cliente siempre va al portal (a menos que tenga un callbackUrl específico del portal)
+        if (!callbackUrl || !callbackUrl.startsWith("/portal")) {
+          redirectUrl = "/portal"
+        }
+      } else {
+        // Otros roles van al dashboard o al callbackUrl
+        if (!callbackUrl) {
+          redirectUrl = "/"
+        }
+      }
+
+      console.log("Redirigiendo a:", redirectUrl, "- Rol:", userRol)
+
+      router.push(redirectUrl)
       router.refresh()
     } catch (err) {
       setErrorMsg("Error al iniciar sesión")
       setLoading(false)
     }
+  }
+
+  // Handler para OAuth que también considera el rol
+  const handleOAuthSignIn = (provider: string) => {
+    // Para OAuth, el middleware se encargará de la redirección
+    // porque no podemos obtener el rol antes del redirect
+    signIn(provider, { callbackUrl: "/" })
   }
 
   return (
@@ -126,7 +153,7 @@ export default function SignInPage() {
 
             <div className="mt-6 grid grid-cols-2 gap-3">
               <button
-                onClick={() => signIn("google", { callbackUrl: "/" })}
+                onClick={() => handleOAuthSignIn("google")}
                 className="flex items-center justify-center px-4 py-2 border border-slate-300 rounded-lg hover:bg-slate-50 transition"
               >
                 <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -139,7 +166,7 @@ export default function SignInPage() {
               </button>
 
               <button
-                onClick={() => signIn("github", { callbackUrl: "/" })}
+                onClick={() => handleOAuthSignIn("github")}
                 className="flex items-center justify-center px-4 py-2 border border-slate-300 rounded-lg hover:bg-slate-50 transition"
               >
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">

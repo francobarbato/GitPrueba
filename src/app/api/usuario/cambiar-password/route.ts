@@ -1,152 +1,118 @@
 // src/app/api/usuario/cambiar-password/route.ts
-// 
-// USO: El usuario cambia SU PROPIA contraseña
+// ACTUALIZADO: Redirige a /portal si es CLIENTE
 
-import { NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 import { getUserSessionServer } from "@/auth/actions/auth-actions"
 import prisma from "src/lib/db/prisma"
 import bcrypt from "bcryptjs"
 
-// ===== VALIDACIÓN DE CONTRASEÑA =====
-function validatePasswordStrength(password: string): { valid: boolean; errors: string[] } {
-  const errors: string[] = []
-  
-  if (password.length < 8) {
-    errors.push("La contraseña debe tener al menos 8 caracteres")
-  }
-  if (!/[A-Z]/.test(password)) {
-    errors.push("Debe contener al menos una letra mayúscula")
-  }
-  if (!/[a-z]/.test(password)) {
-    errors.push("Debe contener al menos una letra minúscula")
-  }
-  if (!/[0-9]/.test(password)) {
-    errors.push("Debe contener al menos un número")
-  }
-  if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
-    errors.push("Debe contener al menos un carácter especial (!@#$%...)")
-  }
-
-  return { valid: errors.length === 0, errors }
-}
-
-// ===== POST: Usuario cambia su propia contraseña =====
-export async function POST(req: NextRequest) {
+export async function POST(request: Request) {
   try {
-    // Obtener sesión del usuario actual
-    const session = await getUserSessionServer()
+    const user = await getUserSessionServer()
+    
+    if (!user || !user.id) {
+      return NextResponse.json({ error: "No autorizado" }, { status: 401 })
+    }
 
-    if (!session) {
+    const body = await request.json()
+    const { currentPassword, newPassword } = body
+
+    // Validaciones
+    if (!currentPassword || !newPassword) {
       return NextResponse.json(
-        { error: "No autorizado" },
-        { status: 401 }
+        { error: "Todos los campos son requeridos" },
+        { status: 400 }
       )
     }
 
-    const body = await req.json()
-    const { currentPassword, newPassword } = body
+    if (newPassword.length < 8) {
+      return NextResponse.json(
+        { error: "La nueva contraseña debe tener al menos 8 caracteres" },
+        { status: 400 }
+      )
+    }
+
+    // Validar requisitos de contraseña
+    const hasUpperCase = /[A-Z]/.test(newPassword)
+    const hasLowerCase = /[a-z]/.test(newPassword)
+    const hasNumbers = /\d/.test(newPassword)
+    const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(newPassword)
+
+    if (!hasUpperCase || !hasLowerCase || !hasNumbers || !hasSpecialChar) {
+      return NextResponse.json(
+        { error: "La contraseña debe contener mayúsculas, minúsculas, números y caracteres especiales" },
+        { status: 400 }
+      )
+    }
 
     // Obtener usuario de la BD
-    const user = await prisma.user.findUnique({
-      where: { id: session.id },
-      select: {
-        id: true,
-        password: true,
-        debeResetearPassword: true,
-        email: true
+    const dbUser = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: { 
+        id: true, 
+        password: true, 
+        rol: true,
+        debeResetearPassword: true 
       }
     })
 
-    if (!user) {
+    if (!dbUser || !dbUser.password) {
       return NextResponse.json(
-        { error: "Usuario no encontrado" },
+        { error: "Usuario no encontrado o sin contraseña configurada" },
         { status: 404 }
       )
     }
 
-    // Si el usuario NO tiene que resetear, debe proporcionar contraseña actual
-    if (!user.debeResetearPassword) {
-      if (!currentPassword) {
-        return NextResponse.json(
-          { error: "Debe proporcionar la contraseña actual" },
-          { status: 400 }
-        )
-      }
-
-      // Verificar contraseña actual
-      const isValidPassword = await bcrypt.compare(currentPassword, user.password || '')
-      if (!isValidPassword) {
-        return NextResponse.json(
-          { error: "La contraseña actual es incorrecta" },
-          { status: 400 }
-        )
-      }
-    }
-
-    // Validar que venga la nueva contraseña
-    if (!newPassword) {
+    // Verificar contraseña actual
+    const isValid = await bcrypt.compare(currentPassword, dbUser.password)
+    
+    if (!isValid) {
       return NextResponse.json(
-        { error: "Debe proporcionar la nueva contraseña" },
+        { error: "La contraseña actual es incorrecta" },
         { status: 400 }
       )
     }
 
-    // Validar fortaleza de nueva contraseña
-    const passwordValidation = validatePasswordStrength(newPassword)
-    if (!passwordValidation.valid) {
+    // Verificar que la nueva sea diferente a la actual
+    const isSamePassword = await bcrypt.compare(newPassword, dbUser.password)
+    if (isSamePassword) {
       return NextResponse.json(
-        { 
-          error: "La nueva contraseña no cumple con los requisitos de seguridad",
-          detalles: passwordValidation.errors
-        },
+        { error: "La nueva contraseña debe ser diferente a la actual" },
         { status: 400 }
       )
     }
 
-    // Verificar que la nueva contraseña sea diferente a la actual
-    if (user.password) {
-      const isSamePassword = await bcrypt.compare(newPassword, user.password)
-      if (isSamePassword) {
-        return NextResponse.json(
-          { error: "La nueva contraseña debe ser diferente a la actual" },
-          { status: 400 }
-        )
-      }
-    }
-
-    // Hashear nueva contraseña
-    const hashedPassword = await bcrypt.hash(newPassword, 10)
-
-    // Actualizar en BD
+    // Hashear y guardar nueva contraseña
+    const hashedPassword = await bcrypt.hash(newPassword, 12)
+    
     await prisma.user.update({
       where: { id: user.id },
       data: {
         password: hashedPassword,
-        debeResetearPassword: false  // ← Ya no necesita cambiarla
+        debeResetearPassword: false // Ya no necesita resetear
       }
     })
 
-    // Registrar en bitácora
-    await prisma.bitacora.create({
-      data: {
-        texto: `Usuario cambió su contraseña`,
-        tipo: 'auto',
-        accion: 'Cambio de Contraseña',
-        usuarioId: user.id
-      }
-    }).catch(err => console.warn("No se pudo crear bitácora:", err))
+    // Determinar URL de redirección según el rol
+    const userRol = dbUser.rol?.toUpperCase()
+    let redirectUrl = '/'
+    
+    if (userRol === 'CLIENTE') {
+      redirectUrl = '/portal'
+    }
 
-    console.log(`✅ Usuario ${user.email} cambió su contraseña`)
+    console.log(`✅ Contraseña cambiada para usuario ${user.id} (rol: ${userRol})`)
 
     return NextResponse.json({ 
       success: true,
-      message: "Contraseña actualizada correctamente"
+      message: "Contraseña actualizada correctamente",
+      redirectUrl: redirectUrl
     })
 
   } catch (error: any) {
-    console.error("Error al cambiar contraseña:", error)
+    console.error("Error cambiando contraseña:", error)
     return NextResponse.json(
-      { error: error.message || "Error al cambiar contraseña" },
+      { error: "Error interno del servidor" },
       { status: 500 }
     )
   }

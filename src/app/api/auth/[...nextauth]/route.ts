@@ -1,4 +1,5 @@
 // src/app/api/auth/[...nextauth]/route.ts
+// VERSIÓN CORREGIDA
 
 import prisma from "src/lib/db/prisma";
 import NextAuth, { NextAuthOptions } from "next-auth";
@@ -36,6 +37,8 @@ export const authOptions: NextAuthOptions = {
 
         if (!user) return null;
 
+        // Solo retornamos los campos básicos
+        // El callback jwt se encarga de obtener debeResetearPassword de la BD
         return {
           id: String(user.id),
           name: user.name,
@@ -55,14 +58,17 @@ export const authOptions: NextAuthOptions = {
 
   callbacks: {
     async jwt({ token, user }): Promise<any> {
-      // Siempre consultar la BD para tener datos actualizados del usuario
+      // Siempre consultar la BD para tener datos actualizados
       const dbUser = await prisma.user.findUnique({
         where: { email: token.email ?? "" },
         select: {
           id: true,
           rol: true,
+          nombre: true,
+          apellido: true,
           isActive: true,
           debeResetearPassword: true,
+          ultimoAcceso: true,
         }
       });
 
@@ -72,9 +78,12 @@ export const authOptions: NextAuthOptions = {
 
       if (dbUser) {
         token.id = String(dbUser.id);
-        token.rol = dbUser.rol;
+        token.rol = String(dbUser.rol);
+        token.nombre = dbUser.nombre;
+        token.apellido = dbUser.apellido;
         token.isActive = dbUser.isActive;
         token.debeResetearPassword = dbUser.debeResetearPassword;
+        token.ultimoAcceso = dbUser.ultimoAcceso;
       } else {
         token.rol = "no-rol";
         token.id = "no-id";
@@ -89,8 +98,11 @@ export const authOptions: NextAuthOptions = {
       if (session.user) {
         session.user.id = token.id as string;
         session.user.rol = token.rol as string;
+        session.user.nombre = token.nombre as string;
+        session.user.apellido = token.apellido as string;
         session.user.isActive = token.isActive as boolean;
         session.user.debeResetearPassword = token.debeResetearPassword as boolean;
+        session.user.ultimoAcceso = token.ultimoAcceso as Date;
       }
 
       return session;

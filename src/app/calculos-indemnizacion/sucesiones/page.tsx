@@ -6,10 +6,7 @@ import {
   Calculator, Printer, Building2, Scale, ArrowLeft, Trash2, Plus 
 } from 'lucide-react';
 
-// IMPORTACIONES REALES
-import { Sidebar } from "@/app/components/sidebar";
-import { Header } from "@/app/components/header";
-import { Button } from '@/components/ui/button';
+
 
 // 1. DEFINICIÓN DE TIPOS PARA SOLUCIONAR ERRORES
 interface Bien {
@@ -61,14 +58,9 @@ export default function CalculadoraSucesionPage() {
 
   return (
     <div className="flex h-screen bg-slate-50 font-sans text-slate-800">
-      
-      {/* 1. SIDEBAR REAL */}
-      <Sidebar />
 
-      <div className="flex flex-col flex-1 overflow-hidden">
-        
-        {/* 2. HEADER REAL */}
-        <Header />
+      <div className="flex flex-col flex-1 overflow-hidden">  
+    
 
         {/* 3. CONTENIDO PRINCIPAL */}
         <main className="flex-1 overflow-auto p-6">
@@ -78,10 +70,6 @@ export default function CalculadoraSucesionPage() {
             <div className="flex items-center gap-4">
               <div>
                 <Link href="/reportes">
-                    <Button variant="ghost" size="sm" className="text-slate-500 hover:text-slate-800 pl-0 gap-2">
-                        <ArrowLeft className="w-4 h-4" />
-                        Volver al Tablero Principal
-                    </Button>
                 </Link>
                 <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
                   <Calculator className="w-6 h-6 text-blue-600" />

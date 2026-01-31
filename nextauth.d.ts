@@ -10,6 +10,7 @@ interface IUser extends DefaultUser {
   isActive?: boolean;
   nombre?: string | null;
   apellido?: string | null;
+  ultimoAcceso?: Date | null 
   /**
    * Roles del usuario
    */

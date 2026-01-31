@@ -16,6 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import DespidoView from "./components/DespidosView";
 import LrtView from "./components/LrtView";
 import CapitalizacionView from "./components/CapitalizacionView";
+import CalculadoraSucesionPage from "./sucesiones/page";
 
 // Tipos para asegurar la consistencia del cálculo
 interface CalculoResult {
@@ -30,6 +31,7 @@ const TABS = [
   { id: 'despido', name: 'Despido', icon: Briefcase, component: DespidoView },
   { id: 'lrt', name: 'Accidente - LRT', icon: Truck, component: LrtView },
   { id: 'capitalizacion', name: 'Accidente - Capitalización', icon: Scale, component: CapitalizacionView },
+  { id: 'sucesiones', name: 'Calculo de sucesiones', icon: Scale, component: CalculadoraSucesionPage },
 ];
 
 export default function CalculadoraIndemnizacionesPage() {

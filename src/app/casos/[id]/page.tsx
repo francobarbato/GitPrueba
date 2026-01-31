@@ -10,8 +10,9 @@ import prisma from "src/lib/db/prisma"
 import { TaskManager } from "./components/TaskManager"
 import { TimelineAuditoria } from "./components/TimelineAuditoria"
 import { PagosManager } from "./components/PagosManager"
+import { CasoHeader } from "./components/caso-header"
 import { 
-  Edit, MapPin, Archive, Calendar, 
+  MapPin, Archive, Calendar, 
   Clock, User, Building2, Mail, Phone, Eye, AlertTriangle,
   TrendingUp, ShieldAlert
 } from 'lucide-react'
@@ -69,43 +70,45 @@ export default async function CasoDetailPage({ params }: { params: { id: string 
   }
 
   const getStateColor = (estado: string) => {
-    if (estado === "Abierto") return "bg-blue-100 text-blue-700"
-    if (estado === "Cerrado") return "bg-gray-100 text-gray-700"
+    if (estado === "Cerrado") return "bg-slate-100 text-slate-700"
+    if (estado === "Abierto" || estado === "Inicio / Demanda") return "bg-blue-100 text-blue-700"
     return "bg-purple-100 text-purple-700"
   }
 
   // ===== PERMISOS POR ROL =====
-  const puedeEditar = isAdmin(userRol) || isAbogado(userRol) // Asistente NO puede editar
-  const puedeVerPagos = isAdmin(userRol) || isAbogado(userRol) // Asistente NO ve pagos
-  const puedeVerAuditoria = isAdmin(userRol) // Solo Admin ve auditoría
-  const puedeVerMontoDisputa = isAdmin(userRol) || isAbogado(userRol) // Asistente NO ve montos
+  const puedeEditar = (isAdmin(userRol) || isAbogado(userRol)) && !caso.estaCerrado // No editar si está cerrado
+  const puedeVerPagos = isAdmin(userRol) || isAbogado(userRol)
+  const puedeVerAuditoria = isAdmin(userRol)
+  const puedeVerMontoDisputa = isAdmin(userRol) || isAbogado(userRol)
+
+  // Verificar si el caso está cerrado
+  const casoCerrado = caso.estaCerrado === true
 
   // Calcular cantidad de pestañas visibles para el grid
   const cantidadPestanas = 3 + (puedeVerPagos ? 1 : 0) + (puedeVerAuditoria ? 1 : 0)
 
   return (
     <div className="container mx-auto py-8 px-4">
-      {/* Header del Caso */}
-      <div className="mb-6">
-        <div className="flex items-center justify-between mb-2">
-          <h1 className="text-3xl font-bold text-slate-900">{caso.titulo}</h1>
-          <Badge className={getPriorityColor(caso.priority)}>
-            {caso.priority === "HIGH" ? "Alta Prioridad" : caso.priority === "NORMAL" ? "Media" : "Baja"}
-          </Badge>
-        </div>
-        <div className="flex items-center gap-4 text-sm text-slate-600">
-          <span className="flex items-center gap-1">
-            <FileText className="w-4 h-4" />
-            {caso.numero}
-          </span>
-          <Badge className={getStateColor(caso.estado)}>{caso.estado}</Badge>
-          {caso.abogado && (
-            <span>
-              Abogado: <strong>{caso.abogado.nombre}</strong>
-            </span>
-          )}
-        </div>
-      </div>
+      
+      {/* ===== NUEVO: Header con botones de Cierre/Reapertura ===== */}
+      <CasoHeader 
+        caso={{
+          id: caso.id,
+          numero: caso.numero,
+          titulo: caso.titulo,
+          estado: caso.estado,
+          priority: caso.priority,
+          isFavorite: caso.isFavorite,
+          montoDisputa: caso.montoDisputa ? Number(caso.montoDisputa) : null,
+          estaCerrado: caso.estaCerrado,
+          motivoCierre: caso.motivoCierre,
+          fechaCierre: caso.fechaCierre?.toISOString() || null,
+          observacionCierre: caso.observacionCierre,
+          estadoAntesCierre: caso.estadoAntesCierre
+        }}
+        userRol={userRol}
+        puedeEditar={isAdmin(userRol) || isAbogado(userRol)}
+      />
 
       {/* Indicador de modo Asistente */}
       {isAsistente(userRol) && (
@@ -156,18 +159,6 @@ export default async function CasoDetailPage({ params }: { params: { id: string 
         {/* TAB 1: RESUMEN COMPLETO DEL CASO */}
         <TabsContent value="resumen" className="animate-in fade-in-50">
           <div className="space-y-6">
-            
-            {/* Botón de Editar Caso - Solo Admin y Abogado */}
-            {puedeEditar && (
-              <div className="flex justify-end">
-                <Link href={`/casos/${caso.id}/editar`}>
-                  <Button className="gap-2 bg-blue-600 hover:bg-blue-700">
-                    <Edit className="w-4 h-4" />
-                    Editar Caso
-                  </Button>
-                </Link>
-              </div>
-            )}
 
             {/* Descripción y Estrategia */}
             <Card>
@@ -245,6 +236,11 @@ export default async function CasoDetailPage({ params }: { params: { id: string 
                         <Badge className={getStateColor(caso.estado)}>
                           {caso.estado}
                         </Badge>
+                        {casoCerrado && (
+                          <Badge variant="secondary" className="ml-2 bg-slate-200">
+                            Caso Cerrado
+                          </Badge>
+                        )}
                       </div>
                     </div>
 
@@ -257,12 +253,12 @@ export default async function CasoDetailPage({ params }: { params: { id: string 
                         <div className="flex items-center gap-3">
                           <div className="flex-1 bg-slate-200 rounded-full h-2">
                             <div 
-                              className="bg-blue-600 h-2 rounded-full transition-all duration-500"
-                              style={{ width: `${caso.porcentajeAvance || 0}%` }}
+                              className={`h-2 rounded-full transition-all duration-500 ${casoCerrado ? 'bg-slate-500' : 'bg-blue-600'}`}
+                              style={{ width: casoCerrado ? '100%' : `${caso.porcentajeAvance || 0}%` }}
                             ></div>
                           </div>
                           <span className="text-sm font-semibold text-slate-900 w-12 text-right">
-                            {caso.porcentajeAvance || 0}%
+                            {casoCerrado ? '100%' : `${caso.porcentajeAvance || 0}%`}
                           </span>
                         </div>
                       </div>
@@ -297,7 +293,7 @@ export default async function CasoDetailPage({ params }: { params: { id: string 
             </Card>
 
             {/* Información Financiera - Solo Admin y Abogado */}
-            {puedeVerMontoDisputa && caso.montoDisputa && (
+            {puedeVerMontoDisputa && (caso.montoDisputa || caso.montoFinal) && (
               <Card>
                 <CardHeader className="border-b bg-slate-50/50">
                   <CardTitle className="flex items-center gap-2">
@@ -306,11 +302,33 @@ export default async function CasoDetailPage({ params }: { params: { id: string 
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="p-6">
-                  <div>
-                    <label className="text-sm font-semibold text-slate-600">Monto en Disputa</label>
-                    <p className="mt-1 text-2xl font-bold text-green-600">
-                      ${Number(caso.montoDisputa).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {caso.montoDisputa && (
+                      <div>
+                        <label className="text-sm font-semibold text-slate-600">Monto en Disputa</label>
+                        <p className="mt-1 text-2xl font-bold text-slate-700">
+                          ${Number(caso.montoDisputa).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </p>
+                      </div>
+                    )}
+                    
+                    {/* Monto Final (si el caso está cerrado) */}
+                    {casoCerrado && caso.montoFinal && (
+                      <div>
+                        <label className="text-sm font-semibold text-slate-600">Monto Final (Cierre)</label>
+                        <p className="mt-1 text-2xl font-bold text-green-600">
+                          ${Number(caso.montoFinal).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </p>
+                        {caso.montoDisputa && (
+                          <p className="text-sm text-slate-500 mt-1">
+                            {Number(caso.montoFinal) >= Number(caso.montoDisputa) 
+                              ? `✅ ${((Number(caso.montoFinal) / Number(caso.montoDisputa)) * 100).toFixed(1)}% del monto en disputa`
+                              : `📉 ${((Number(caso.montoFinal) / Number(caso.montoDisputa)) * 100).toFixed(1)}% del monto en disputa`
+                            }
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -361,11 +379,11 @@ export default async function CasoDetailPage({ params }: { params: { id: string 
                     </p>
                   </div>
 
-                  {caso.fechaFin && (
+                  {caso.fechaCierre && (
                     <div>
                       <label className="text-sm font-semibold text-slate-600">Fecha de Cierre</label>
                       <p className="mt-1 text-slate-900">
-                        {new Date(caso.fechaFin).toLocaleDateString('es-AR', { 
+                        {new Date(caso.fechaCierre).toLocaleDateString('es-AR', { 
                           year: 'numeric', 
                           month: 'long', 
                           day: 'numeric' 
@@ -377,8 +395,8 @@ export default async function CasoDetailPage({ params }: { params: { id: string 
                   <div>
                     <label className="text-sm font-semibold text-slate-600">Duración</label>
                     <p className="mt-1 text-slate-900">
-                      {caso.fechaFin 
-                        ? `${Math.floor((new Date(caso.fechaFin).getTime() - new Date(caso.fechaInicio).getTime()) / (1000 * 60 * 60 * 24))} días`
+                      {caso.fechaCierre 
+                        ? `${Math.floor((new Date(caso.fechaCierre).getTime() - new Date(caso.fechaInicio).getTime()) / (1000 * 60 * 60 * 24))} días (finalizado)`
                         : `${Math.floor((new Date().getTime() - new Date(caso.fechaInicio).getTime()) / (1000 * 60 * 60 * 24))} días (en curso)`
                       }
                     </p>

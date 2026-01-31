@@ -70,6 +70,8 @@ model User {
   debeResetearPassword Boolean @default(false)  // Para contraseñas temporales
   ultimoAcceso  DateTime?
 
+  clienteVinculado  Cliente?  @relation("ClienteUsuarioPortal")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -124,7 +126,12 @@ model Cliente {
   casos             Caso[]         @relation("ClienteCasos")
   
   creadoPorId       String?
+
+  usuarioPortalId   String?   @unique
+  usuarioPortal     User?     @relation("ClienteUsuarioPortal", fields: [usuarioPortalId], references: [id])
+
   
+  @@index([usuarioPortalId])
   @@index([creadoPorId])
   @@index([numeroDocumento])
   @@index([email])
@@ -166,6 +173,13 @@ model Caso {
   fechaInicio       DateTime
   fechaFin          DateTime? // Se llena automáticamente al cerrar
 
+  estaCerrado       Boolean   @default(false)
+  motivoCierre      String?   // FAVORABLE, DESFAVORABLE, ACUERDO, DESISTIMIENTO, ARCHIVO
+  montoFinal        Decimal?  @db.Decimal(15, 2)
+  fechaCierre       DateTime?
+  observacionCierre String?   @db.Text
+  cerradoPorId      String?
+  estadoAntesCierre String?   // Para restaurar si se reabre
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 

@@ -9,6 +9,7 @@ import { Header } from "@/app/components/header"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { PortalAccesoSection } from "./components/PortalAccesoSection"
 import { 
   ArrowLeft, 
   Edit, 
@@ -39,7 +40,9 @@ export default async function ClienteDetallePage({
   const user = await getUserSessionServer()
   if (!user) redirect("/api/auth/signin")
 
-  // Obtener cliente con casos relacionados
+  const userRol = user.rol?.toUpperCase() || ''
+
+  // Obtener cliente con casos relacionados Y usuario de portal
   const cliente = await prisma.cliente.findUnique({
     where: { id: params.id },
     include: {
@@ -52,7 +55,18 @@ export default async function ClienteDetallePage({
           name: true,
           email: true
         }
+      },
+      // ===== NUEVO: Incluir usuario del portal =====
+      usuarioPortal: {
+        select: {
+          id: true,
+          email: true,
+          isActive: true,
+          createdAt: true,
+          ultimoAcceso: true
+        }
       }
+      // =============================================
     }
   })
 
@@ -60,14 +74,17 @@ export default async function ClienteDetallePage({
     notFound()
   }
 
-  // Verificar permisos
-  if (user.rol !== 'admin' && cliente.abogadoId !== user.id) {
+  // Verificar permisos (Admin ve todo, Abogado solo sus clientes, Asistente ve todo)
+  const isAdmin = userRol === 'ADMIN'
+  const isAsistente = userRol === 'ASISTENTE'
+  
+  if (!isAdmin && !isAsistente && cliente.abogadoId !== user.id) {
     redirect("/clientes")
   }
 
   // Calcular estadísticas de casos
-  const casosActivos = cliente.casos.filter(c => c.estado !== 'CERRADO').length
-  const casosCerrados = cliente.casos.filter(c => c.estado === 'CERRADO').length
+  const casosActivos = cliente.casos.filter(c => !c.estaCerrado).length
+  const casosCerrados = cliente.casos.filter(c => c.estaCerrado).length
   const totalCasos = cliente.casos.length
 
   // Formatear fecha
@@ -130,6 +147,15 @@ export default async function ClienteDetallePage({
                     <span className="text-sm">
                       {cliente.tipoPersona === 'FISICA' ? 'Persona Física' : 'Persona Jurídica'}
                     </span>
+                    {/* Badge de acceso al portal */}
+                    {cliente.usuarioPortalId && (
+                      <>
+                        <span className="text-slate-400">•</span>
+                        <Badge variant="outline" className="text-xs bg-indigo-50 text-indigo-700 border-indigo-200">
+                          🌐 Portal Habilitado
+                        </Badge>
+                      </>
+                    )}
                   </p>
                 </div>
               </div>
@@ -359,8 +385,8 @@ export default async function ClienteDetallePage({
                                     <span className="font-mono text-xs text-slate-500">
                                       #{caso.numero}
                                     </span>
-                                    <Badge variant={caso.estado === 'CERRADO' ? 'secondary' : 'default'} className="text-xs">
-                                      {caso.estado}
+                                    <Badge variant={caso.estaCerrado ? 'secondary' : 'default'} className="text-xs">
+                                      {caso.estaCerrado ? 'Cerrado' : caso.estado}
                                     </Badge>
                                   </div>
                                   <h4 className="font-semibold text-slate-900">{caso.titulo}</h4>
@@ -399,9 +425,23 @@ export default async function ClienteDetallePage({
                 </Card>
               </div>
 
-              {/* COLUMNA DERECHA - Estadísticas y Metadata */}
+              {/* COLUMNA DERECHA - Estadísticas, Portal y Metadata */}
               <div className="space-y-6">
                 
+                {/* ===== NUEVO: Sección de Acceso al Portal ===== */}
+                <PortalAccesoSection 
+                  cliente={{
+                    id: cliente.id,
+                    nombre: cliente.nombre,
+                    apellido: cliente.apellido,
+                    email: cliente.email,
+                    usuarioPortalId: cliente.usuarioPortalId,
+                    usuarioPortal: cliente.usuarioPortal
+                  }}
+                  userRol={userRol}
+                />
+                {/* ============================================== */}
+
                 {/* Estadísticas de Casos */}
                 <Card className="shadow-sm border-slate-200">
                   <CardHeader className="bg-slate-50 border-b">

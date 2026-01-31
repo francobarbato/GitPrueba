@@ -7,23 +7,23 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { ArrowLeft, Save, Star, AlertCircle, Scale, User, Lock, AlertTriangle, MapPin } from 'lucide-react' 
+import { ArrowLeft, Save, Star, AlertCircle, Scale, User, Lock, AlertTriangle, MapPin, Ban } from 'lucide-react' 
 import Link from "next/link"
 import { useFormState, useFormStatus } from "react-dom"
 import { useState, FormEvent } from "react"
 
 const TIPOS_CASO = ["LABORAL", "CIVIL", "COMERCIAL", "FAMILIA", "PENAL", "SUCESIONES", "OTRO"]
 
-const ESTADOS_CASO = [
+// ========== ESTADOS ACTIVOS SOLAMENTE (Sin Terminado/Archivado) ==========
+const ESTADOS_CASO_ACTIVOS = [
   "Inicio / Demanda",
   "Mediación / Previo",
   "Prueba (Oficios/Pericias)",
   "Alegatos / Conclusiones",
   "Sentencia / Resolución",
   "Apelación",
-  "Ejecución de Sentencia",
-  "Terminado",
-  "Archivado"
+  "Ejecución de Sentencia"
+  // REMOVIDOS: "Terminado", "Archivado" - Ahora se manejan con el flujo de cierre
 ]
 
 const FUEROS = [
@@ -56,6 +56,9 @@ export function EditarCasoForm({ caso, clientes }: { caso: any, clientes: any[] 
   const [etapaActual, setEtapaActual] = useState(caso.estado)
   const etapaOriginal = caso.estado
 
+  // Verificar si el caso está cerrado
+  const casoCerrado = caso.estaCerrado === true
+
   // Función auxiliar para formatear fecha
   const formatDateForInput = (dateString: string | null) => {
     if (!dateString) return ""
@@ -78,9 +81,60 @@ export function EditarCasoForm({ caso, clientes }: { caso: any, clientes: any[] 
             `⚠️ ATENCIÓN: Estás a punto de cambiar la etapa procesal de:\n\n"${etapaOriginal}"  ➡️  "${etapaActual}"\n\n¿Estás seguro de que el expediente avanzó de fase?`
         )
         if (!confirmado) {
-            e.preventDefault() // Cancela el envío si dice que no
+            e.preventDefault()
         }
     }
+  }
+
+  // Si el caso está cerrado, mostrar mensaje y no permitir edición
+  if (casoCerrado) {
+    return (
+      <Card className="shadow-md border-red-200 max-w-5xl mx-auto">
+        <CardHeader className="bg-red-50">
+          <div className="flex items-center gap-3">
+            <Ban className="h-8 w-8 text-red-600" />
+            <div className="flex-1">
+              <CardTitle className="text-red-800">Caso Cerrado</CardTitle>
+              <CardDescription className="text-red-600">
+                Este expediente ha sido cerrado y no puede editarse
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-6">
+          <div className="space-y-4">
+            <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-red-800">
+                <strong>Motivo de cierre:</strong> {caso.motivoCierre || 'No especificado'}
+              </p>
+              {caso.fechaCierre && (
+                <p className="text-red-700 text-sm mt-2">
+                  Cerrado el: {new Date(caso.fechaCierre).toLocaleDateString('es-AR')}
+                </p>
+              )}
+              {caso.observacionCierre && (
+                <p className="text-red-700 text-sm mt-2">
+                  <strong>Observaciones:</strong> {caso.observacionCierre}
+                </p>
+              )}
+            </div>
+            
+            <p className="text-sm text-slate-600">
+              Si necesita reabrir este caso, contacte al Administrador del sistema.
+            </p>
+
+            <div className="flex justify-end gap-3 pt-4 border-t">
+              <Link href={`/casos/${caso.id}`}>
+                <Button variant="outline">
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Volver al Caso
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    )
   }
 
   return (
@@ -106,7 +160,13 @@ export function EditarCasoForm({ caso, clientes }: { caso: any, clientes: any[] 
             </div>
           )}
 
-          {/* Agregamos onSubmit para interceptar y preguntar */}
+          {/* AVISO: Para cerrar el caso usar el botón específico */}
+          <div className="mb-6 p-3 bg-blue-50 border border-blue-200 rounded-lg text-blue-800 text-sm">
+            <strong>💡 Tip:</strong> Para cerrar o archivar este caso, use el botón 
+            <span className="font-semibold"> "Cerrar Caso"</span> en la vista del expediente. 
+            El cierre requiere información adicional (motivo, monto final, etc.) para los reportes.
+          </div>
+
           <form action={dispatch} onSubmit={handleSubmit} className="space-y-8">
             
             <input type="hidden" name="id" value={caso.id} />
@@ -131,7 +191,6 @@ export function EditarCasoForm({ caso, clientes }: { caso: any, clientes: any[] 
                     disabled 
                     className="bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed"
                   />
-                  {/* Input oculto para enviar el valor aunque esté disabled */}
                   <input type="hidden" name="numero" value={caso.numero} />
                 </div>
 
@@ -151,7 +210,7 @@ export function EditarCasoForm({ caso, clientes }: { caso: any, clientes: any[] 
                   <input type="hidden" name="tipo" value={caso.tipo} />
                 </div>
 
-                {/* ESTADO - EDITABLE CON ADVERTENCIA */}
+                {/* ESTADO - EDITABLE (SOLO ESTADOS ACTIVOS) */}
                 <div className="space-y-2">
                   <Label htmlFor="estado" className="font-bold text-blue-700">Etapa Procesal (Modificable)</Label>
                   <Select name="estado" value={etapaActual} onValueChange={setEtapaActual}>
@@ -159,11 +218,14 @@ export function EditarCasoForm({ caso, clientes }: { caso: any, clientes: any[] 
                         <SelectValue placeholder="Estado actual" />
                     </SelectTrigger>
                     <SelectContent>
-                      {ESTADOS_CASO.map(estado => (
+                      {ESTADOS_CASO_ACTIVOS.map(estado => (
                         <SelectItem key={estado} value={estado}>{estado}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                  <p className="text-xs text-slate-500">
+                    Solo estados activos. Para cerrar, use el botón "Cerrar Caso".
+                  </p>
                 </div>
               </div>
 
@@ -209,7 +271,6 @@ export function EditarCasoForm({ caso, clientes }: { caso: any, clientes: any[] 
                     Cliente Asignado <Lock className="w-3 h-3 text-slate-400"/>
                   </Label>
                   
-                  {/* Select deshabilitado para mostrar quién es */}
                   <Select defaultValue={caso.clienteId} disabled>
                     <SelectTrigger className="bg-slate-100 text-slate-500 border-slate-200">
                         <SelectValue placeholder="Seleccionar cliente" />
@@ -223,17 +284,16 @@ export function EditarCasoForm({ caso, clientes }: { caso: any, clientes: any[] 
                     </SelectContent>
                   </Select>
                   
-                  {/* Input oculto vital para el form action */}
                   <input type="hidden" name="clienteId" value={caso.clienteId} />
                   
                   <p className="text-xs text-slate-500 mt-1">
-                    * El cliente no puede modificarse una vez creado el expediente. Si hubo un error, archive este caso y cree uno nuevo.
+                    * El cliente no puede modificarse una vez creado el expediente.
                   </p>
                 </div>
               </div>
             </div>
 
-            {/* SECCIÓN 3: RADICACIÓN Y DATOS FINANCIEROS (NUEVA) */}
+            {/* SECCIÓN 3: RADICACIÓN Y DATOS FINANCIEROS */}
             <div className="space-y-4">
               <div className="flex items-center gap-2 pb-2 border-b border-slate-200">
                 <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 font-bold text-sm">3</div>
@@ -289,7 +349,7 @@ export function EditarCasoForm({ caso, clientes }: { caso: any, clientes: any[] 
               </div>
             </div>
 
-            {/* SECCIÓN 4: PRIORIDAD (ANTES 3) */}
+            {/* SECCIÓN 4: PRIORIDAD */}
             <div className="space-y-4">
               <div className="flex items-center gap-2 pb-2 border-b border-slate-200">
                 <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 font-bold text-sm">4</div>
@@ -332,7 +392,6 @@ export function EditarCasoForm({ caso, clientes }: { caso: any, clientes: any[] 
               </div>
             </div>
 
-            {/* Input oculto para mantener requisitos si no se tocan (opcional según tu lógica de controller) */}
             <input type="hidden" name="requirements" value={JSON.stringify(requisitos)} />
 
             <div className="flex justify-end gap-3 pt-4 border-t">
