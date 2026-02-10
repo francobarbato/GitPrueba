@@ -7,7 +7,227 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ========== ENUMS ==========
+model User {
+  id                   String     @id @default(uuid())
+  email                String     @unique(map: "Usuario_email_key")
+  nombre               String?
+  apellido             String?
+  password             String?
+  rol                  UserRole   @default(ABOGADO)
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
+  emailVerified        DateTime?
+  image                String?
+  name                 String?
+  isActive             Boolean    @default(true)
+  creadoPor            String?
+  debeResetearPassword Boolean    @default(false)
+  ultimoAcceso         DateTime?
+  accounts             Account[]
+  bitacoras            Bitacora[]
+  casos                Caso[]     @relation("AbogadoCasos")
+  clientes             Cliente[]  @relation("AbogadoClientes")
+  clienteVinculado     Cliente?   @relation("ClienteUsuarioPortal")
+  pagosValidados       Pago[]
+  sessions             Session[]
+  tareas               Tarea[]
+
+  @@map("usuario")
+}
+
+model Cliente {
+  id              String        @id @default(uuid())
+  nombre          String
+  apellido        String?
+  email           String?
+  numeroDocumento String        @unique
+  tipoDocumento   TipoDocumento @default(DNI)
+  direccion       String?
+  telefono        String?
+  estado          String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  abogadoId       String
+  activo          Boolean       @default(true)
+  condicionIva    CondicionIVA  @default(CONSUMIDOR_FINAL)
+  notasInternas   String?       @db.Text
+  tipoPersona     TipoPersona   @default(FISICA)
+  creadoPorId     String?
+  usuarioPortalId String?       @unique
+  casos           Caso[]        @relation("ClienteCasos")
+  abogado         User          @relation("AbogadoClientes", fields: [abogadoId], references: [id])
+  usuarioPortal   User?         @relation("ClienteUsuarioPortal", fields: [usuarioPortalId], references: [id])
+
+  @@index([usuarioPortalId])
+  @@index([creadoPorId])
+  @@index([numeroDocumento])
+  @@index([email])
+  @@index([abogadoId])
+  @@map("cliente")
+}
+
+model Caso {
+  id                String        @id @default(uuid())
+  numero            String        @unique(map: "Caso_numero_key")
+  titulo            String
+  descripcion       String        @db.Text
+  tipo              TipoCaso
+  estado            String
+  porcentajeAvance  Int           @default(0)
+  fechaInicio       DateTime
+  abogadoId         String
+  clienteId         String
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  isFavorite        Boolean       @default(false)
+  priority          Priority      @default(NORMAL)
+  fechaFin          DateTime?
+  contraparteDni    String?
+  contraparteNombre String?
+  fuero             String?
+  juzgado           String?
+  montoDisputa      Decimal?      @db.Decimal(15, 2)
+  ubicacionFisica   String?
+  cerradoPorId      String?
+  estaCerrado       Boolean       @default(false)
+  estadoAntesCierre String?
+  fechaCierre       DateTime?
+  montoFinal        Decimal?      @db.Decimal(15, 2)
+  motivoCierre      String?
+  observacionCierre String?       @db.Text
+  bitacoras         Bitacora[]
+  abogado           User          @relation("AbogadoCasos", fields: [abogadoId], references: [id])
+  cliente           Cliente       @relation("ClienteCasos", fields: [clienteId], references: [id])
+  pagos             Pago[]
+  requirements      Requirement[]
+  tareas            Tarea[]
+
+  @@index([abogadoId], map: "Caso_abogadoId_fkey")
+  @@index([clienteId], map: "Caso_clienteId_fkey")
+  @@index([tipo])
+  @@index([estado])
+  @@index([contraparteDni])
+  @@map("caso")
+}
+
+model Requirement {
+  id          String    @id @default(uuid())
+  description String
+  dueDate     DateTime?
+  isCompleted Boolean   @default(false)
+  casoId      String
+  createdAt   DateTime  @default(now())
+  caso        Caso      @relation(fields: [casoId], references: [id], onDelete: Cascade)
+
+  @@index([casoId], map: "requirement_casoId_fkey")
+  @@map("requirement")
+}
+
+model Tarea {
+  id         String   @id @default(uuid())
+  titulo     String
+  prioridad  String   @default("Media")
+  fatal      Boolean  @default(false)
+  fecha      String?
+  completada Boolean  @default(false)
+  usuarioId  String
+  casoId     String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  caso       Caso?    @relation(fields: [casoId], references: [id], onDelete: Cascade)
+  usuario    User     @relation(fields: [usuarioId], references: [id])
+
+  @@index([casoId], map: "tarea_casoId_fkey")
+  @@index([usuarioId], map: "tarea_usuarioId_fkey")
+  @@map("tarea")
+}
+
+model Bitacora {
+  id             String   @id @default(uuid())
+  texto          String   @db.Text
+  tipo           String   @default("manual")
+  usuarioId      String
+  createdAt      DateTime @default(now())
+  accion         String?
+  casoId         String?
+  detalle        String?  @db.Text
+  estadoAnterior String?
+  estadoNuevo    String?
+  caso           Caso?    @relation(fields: [casoId], references: [id], onDelete: Cascade)
+  usuario        User     @relation(fields: [usuarioId], references: [id])
+
+  @@index([usuarioId])
+  @@index([casoId])
+  @@index([createdAt])
+  @@index([accion])
+  @@map("bitacora")
+}
+
+model Pago {
+  id              String    @id @default(cuid())
+  concepto        String
+  descripcion     String?   @db.Text
+  monto           Float
+  estado          String    @default("pendiente")
+  comprobanteUrl  String?   @db.Text
+  comprobanteTipo String?
+  montoPagado     Float?
+  fechaPago       DateTime?
+  validadoPor     String?
+  fechaValidacion DateTime?
+  notaValidacion  String?   @db.Text
+  casoId          String
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  caso            Caso      @relation(fields: [casoId], references: [id], onDelete: Cascade)
+  validador       User?     @relation(fields: [validadoPor], references: [id])
+
+  @@index([casoId])
+  @@index([estado])
+  @@index([validadoPor], map: "pago_validadoPor_fkey")
+  @@map("pago")
+}
+
+model Account {
+  id                String  @id @default(uuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId], map: "account_userId_fkey")
+  @@map("account")
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId], map: "session_userId_fkey")
+  @@map("session")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_token")
+}
+
 enum Priority {
   HIGH
   NORMAL
@@ -37,305 +257,17 @@ enum CondicionIVA {
 
 enum TipoCaso {
   LABORAL
-  CIVIL
-  COMERCIAL
+  CIVIL_COMERCIAL
   FAMILIA
   PENAL
   SUCESIONES
+  CONTENCIOSO_ADMINISTRATIVO
   OTRO
 }
 
 enum UserRole {
-  ADMIN       // Gestiona todo el sistema
-  ABOGADO     // Gestiona casos y clientes
-  ASISTENTE   // Apoya a abogados, acceso limitado
-  CLIENTE     // Solo ve sus propios casos (futuro)
-}
-
-// ========== 1. MODELO USUARIO ==========
-model User {
-  id            String    @id @default(uuid())
-  name          String?   
-  email         String    @unique(map: "Usuario_email_key")
-  emailVerified DateTime?
-  image         String?
-  password      String?
-  
-  nombre    String?
-  apellido  String?
-  rol       UserRole    @default(ABOGADO)
-  isActive  Boolean  @default(true)
-
-  creadoPor     String?    // ID del admin que lo creó
-  debeResetearPassword Boolean @default(false)  // Para contraseñas temporales
-  ultimoAcceso  DateTime?
-
-  clienteVinculado  Cliente?  @relation("ClienteUsuarioPortal")
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-
-
-
- // Relaciones del sistema
-  clientes Cliente[] @relation("AbogadoClientes")
-  casos    Caso[]    @relation("AbogadoCasos")
-  pagosValidados Pago[]
-  tareas    Tarea[]
-  bitacoras Bitacora[]
-  
-  accounts Account[]
-  sessions Session[]
-
-  @@map("usuario")
-}
-
-// ========== 2. MODELO CLIENTE ==========
-model Cliente {
-  id                String         @id @default(uuid())
-  
-  // Datos de Identidad
-  tipoPersona       TipoPersona    @default(FISICA)
-  nombre            String
-  apellido          String?        // Opcional si es Jurídica
-  
-  // Documentación ÚNICA (CRÍTICO)
-  tipoDocumento     TipoDocumento  @default(DNI)
-  numeroDocumento   String         @unique // ← EVITA DUPLICADOS
-  
-  // Contacto
-  email             String?
-  telefono          String?
-  direccion         String?
-  
-  // Tributario (para facturación futura)
-  condicionIva      CondicionIVA   @default(CONSUMIDOR_FINAL)
-  
-  // Metadata
-  notasInternas     String?        @db.Text
-  estado            String?        // Campo legacy (mantener por compatibilidad)
-  activo            Boolean        @default(true) // Soft delete
-
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
-
-  // Relaciones
-  abogado           User           @relation("AbogadoClientes", fields: [abogadoId], references: [id])
-  abogadoId         String
-  casos             Caso[]         @relation("ClienteCasos")
-  
-  creadoPorId       String?
-
-  usuarioPortalId   String?   @unique
-  usuarioPortal     User?     @relation("ClienteUsuarioPortal", fields: [usuarioPortalId], references: [id])
-
-  
-  @@index([usuarioPortalId])
-  @@index([creadoPorId])
-  @@index([numeroDocumento])
-  @@index([email])
-  @@index([abogadoId])
-  @@map("cliente")
-}
-
-// ========== 3. MODELO CASO ==========
-model Caso {
-  id                String    @id @default(uuid())
-  numero            String    @unique(map: "Caso_numero_key")
-  titulo            String
-  descripcion       String    @db.Text
-  
-  // Clasificación (AHORA ES ENUM)
-  tipo              TipoCaso
-  estado            String    // Mantener String por flexibilidad procesal
-  
-  // Geolocalización Judicial
-  juzgado           String?   // "Juzgado Nº 45 en lo Civil"
-  fuero             String?   // "Capital Federal"
-  
-  // Conflicto de Interés 
-  contraparteNombre String?
-  contraparteDni    String?
-  
-  // Financiero 
-  montoDisputa      Decimal?  @db.Decimal(15, 2)
-  
-  // Ubicación Física 
-  ubicacionFisica   String?   // "Bibliorato A - Estante 2"
-  
-  // Control
-  porcentajeAvance  Int       @default(0)
-  priority          Priority  @default(NORMAL)
-  isFavorite        Boolean   @default(false)
-  
-  // Fechas
-  fechaInicio       DateTime
-  fechaFin          DateTime? // Se llena automáticamente al cerrar
-
-  estaCerrado       Boolean   @default(false)
-  motivoCierre      String?   // FAVORABLE, DESFAVORABLE, ACUERDO, DESISTIMIENTO, ARCHIVO
-  montoFinal        Decimal?  @db.Decimal(15, 2)
-  fechaCierre       DateTime?
-  observacionCierre String?   @db.Text
-  cerradoPorId      String?
-  estadoAntesCierre String?   // Para restaurar si se reabre
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-
-  // Relaciones adicionales
-  pagos            Pago[]
-
-  // Relaciones
-  tareas            Tarea[]
-  requirements      Requirement[] 
-  bitacoras         Bitacora[]
-
-  abogado           User      @relation("AbogadoCasos", fields: [abogadoId], references: [id])
-  abogadoId         String
-
-  cliente           Cliente   @relation("ClienteCasos", fields: [clienteId], references: [id])
-  clienteId         String
-  
-  @@index([abogadoId], map: "Caso_abogadoId_fkey")
-  @@index([clienteId], map: "Caso_clienteId_fkey")
-  @@index([tipo])
-  @@index([estado])
-  @@index([contraparteDni]) // Para búsqueda de conflictos
-  @@map("caso")
-}
-
-// ========== 4. CHECKLIST (Requisitos iniciales) ==========
-model Requirement {
-  id          String    @id @default(uuid()) 
-  description String    
-  dueDate     DateTime? 
-  isCompleted Boolean   @default(false) 
-  
-  casoId      String    
-  caso        Caso      @relation(fields: [casoId], references: [id], onDelete: Cascade)
-
-  createdAt   DateTime  @default(now())
-  
-  @@map("requirement")
-}
-
-// ========== 5. TAREAS (Agenda dentro del caso) ==========
-model Tarea {
-  id         String   @id @default(uuid())
-  titulo     String
-  prioridad  String   @default("Media")
-  fatal      Boolean  @default(false)
-  fecha      String?  // Fecha límite
-  completada Boolean  @default(false)
-  
-  usuarioId  String
-  usuario    User     @relation(fields: [usuarioId], references: [id])
-
-  casoId     String?
-  caso       Caso?    @relation(fields: [casoId], references: [id], onDelete: Cascade)
-
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  @@map("tarea")
-}
-
-// ========== 6. BITÁCORA (Historial de movimientos) ==========
-model Bitacora {
-  id        String   @id @default(uuid())
-  texto     String   @db.Text
-  tipo      String   @default("manual") // 'manual', 'auto'
-  accion    String?  // Ej: "Cambio de Estado"
-  detalle   String?   @db.Text
-
-  estadoAnterior String?  // Estado previo (para calcular tiempos)
-  estadoNuevo    String?  // Estado nuevo
-  
-  usuarioId String
-  usuario   User     @relation(fields: [usuarioId], references: [id])
-
-  casoId    String?  
-  caso      Caso?    @relation(fields: [casoId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-  
-  @@index([usuarioId])
-  @@index([casoId])
-  @@index([createdAt])
-  @@index([accion]) // Para filtrar por tipo de acción
-  @@map("bitacora")
-}
-
-// Modelo para gestión de pagos y gastos del caso
-model Pago {
-  id               String   @id @default(cuid())
-  concepto         String   // Honorarios, Sellados, Tasas, Gastos, etc.
-  descripcion      String?  @db.Text
-  monto            Float
-  estado           String   @default("pendiente") // pendiente, pagado, validado
-  
-  // Comprobante subido por el cliente
-  comprobanteUrl   String?  @db.Text
-  comprobanteTipo  String?  // imagen, pdf
-  montoPagado      Float?   // Monto que el cliente dice haber pagado
-  fechaPago        DateTime?
-  
-  // Validación del abogado
-  validadoPor      String?
-  validador        User? @relation(fields: [validadoPor], references: [id])
-  fechaValidacion  DateTime?
-  notaValidacion   String?  @db.Text
-  
-  // Relación con caso
-  casoId           String
-  caso             Caso     @relation(fields: [casoId], references: [id], onDelete: Cascade)
-  
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-
-  @@index([casoId])
-  @@index([estado])
-
-  @@map("pago")
-}
-
-// ========== AUTH.JS ==========
-model Account {
-  id                String  @id @default(uuid())
-  userId            String
-  type              String
-  provider          String
-  providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
-  expires_at        Int?
-  token_type        String?
-  scope             String?
-  id_token          String? @db.Text
-  session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([provider, providerAccountId])
-  @@map("account")
-}
-
-model Session {
-  id           String   @id @default(uuid())
-  sessionToken String   @unique
-  userId       String
-  expires      DateTime
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  @@map("session")
-}
-
-model VerificationToken {
-  identifier String
-  token      String   @unique
-  expires    DateTime
-
-  @@unique([identifier, token])
-  @@map("verification_token")
+  ADMIN
+  ABOGADO
+  ASISTENTE
+  CLIENTE
 }

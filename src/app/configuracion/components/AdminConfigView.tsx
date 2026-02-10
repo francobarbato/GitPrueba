@@ -1,9 +1,29 @@
 'use client'
 
 import { useState, useEffect, useMemo } from "react"
-import { Trash2, UserPlus, Shield, AlertCircle, CheckCircle2, Eye, EyeOff, Loader2, Check, X } from "lucide-react"
+import { 
+  Trash2, UserPlus, Shield, AlertCircle, CheckCircle2, Eye, EyeOff, 
+  Loader2, Check, X, RotateCcw, AlertTriangle, Users, Key
+} from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Switch } from "@/components/ui/switch"
+import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 type Usuario = {
   id: string
@@ -13,6 +33,7 @@ type Usuario = {
   rol: 'ADMIN' | 'ABOGADO' | 'ASISTENTE'
   isActive: boolean
   createdAt: Date
+  ultimoAcceso: Date | null
   _count?: {
     casos: number
     clientes: number
@@ -57,7 +78,6 @@ function getPasswordStrength(validation: ReturnType<typeof validatePassword>) {
   return { label: 'Fuerte', color: 'bg-green-500', width: '100%' }
 }
 
-// ===== COMPONENTE DE REQUISITOS DE CONTRASEÑA =====
 function PasswordRequirements({ password }: { password: string }) {
   const validation = validatePassword(password)
   const strength = getPasswordStrength(validation)
@@ -74,7 +94,6 @@ function PasswordRequirements({ password }: { password: string }) {
 
   return (
     <div className="mt-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
-      {/* Barra de fortaleza */}
       <div className="mb-3">
         <div className="flex justify-between text-xs mb-1">
           <span className="text-slate-600">Fortaleza:</span>
@@ -94,7 +113,6 @@ function PasswordRequirements({ password }: { password: string }) {
         </div>
       </div>
 
-      {/* Lista de requisitos */}
       <ul className="space-y-1">
         {requirements.map(req => (
           <li key={req.key} className="flex items-center gap-2 text-xs">
@@ -121,30 +139,55 @@ export function AdminConfigView() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
+  // ===== NUEVO: Toggle para mostrar inactivos =====
+  const [mostrarInactivos, setMostrarInactivos] = useState(false)
+
+  // ===== NUEVO: Modal de reasignación =====
+  const [modalReasignar, setModalReasignar] = useState<Usuario | null>(null)
+  const [abogadoDestino, setAbogadoDestino] = useState<string>("")
+  const [procesandoEliminacion, setProcesandoEliminacion] = useState(false)
+
+  // ===== NUEVO: Modal de confirmación de reactivación =====
+  const [modalReactivar, setModalReactivar] = useState<Usuario | null>(null)
+
   // Estado del formulario
   const [formData, setFormData] = useState({
     nombre: '',
     apellido: '',
     email: '',
     password: '',
-    confirmPassword: '', // ← NUEVO: Confirmar contraseña
+    confirmPassword: '',
     rol: 'ABOGADO' as 'ADMIN' | 'ABOGADO' | 'ASISTENTE'
   })
 
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
-  // Validación de contraseña en tiempo real
   const passwordValidation = useMemo(() => validatePassword(formData.password), [formData.password])
   const isPasswordValid = useMemo(() => Object.values(passwordValidation).every(Boolean), [passwordValidation])
   const passwordsMatch = formData.password === formData.confirmPassword && formData.confirmPassword !== ''
 
-  // Cargar usuarios
+  // Filtrar usuarios según toggle
+  const usuariosFiltrados = useMemo(() => {
+    if (mostrarInactivos) {
+      return usuarios
+    }
+    return usuarios.filter(u => u.isActive)
+  }, [usuarios, mostrarInactivos])
+
+  // Obtener abogados activos para reasignación (excluyendo al que se va a eliminar)
+  const abogadosParaReasignar = useMemo(() => {
+    return usuarios.filter(u => 
+      u.rol === 'ABOGADO' && 
+      u.isActive && 
+      u.id !== modalReasignar?.id
+    )
+  }, [usuarios, modalReasignar])
+
   useEffect(() => {
     cargarUsuarios()
   }, [])
 
-  // Auto-limpiar mensajes después de 5 segundos
   useEffect(() => {
     if (success) {
       const timer = setTimeout(() => setSuccess(null), 5000)
@@ -167,13 +210,11 @@ export function AdminConfigView() {
     }
   }
 
-  // Crear usuario
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
     setSuccess(null)
 
-    // Validaciones frontend
     if (!isPasswordValid) {
       setError('La contraseña no cumple con todos los requisitos de seguridad')
       return
@@ -222,15 +263,34 @@ export function AdminConfigView() {
     }
   }
 
-  // Eliminar usuario
-  const handleDelete = async (id: string) => {
-    if (!confirm('¿Estás seguro de eliminar este usuario? Esta acción no se puede deshacer.')) {
+  // ===== MEJORADO: Eliminar usuario con verificación de casos =====
+  const handleDelete = async (usuario: Usuario) => {
+    // Verificar si tiene casos activos
+    const casosActivos = usuario._count?.casos || 0
+    
+    if (casosActivos > 0) {
+      // Mostrar modal de reasignación
+      setModalReasignar(usuario)
+      setAbogadoDestino("")
       return
     }
 
+    // Si no tiene casos, confirmar eliminación simple
+    if (!confirm(`¿Estás seguro de desactivar a ${usuario.nombre} ${usuario.apellido}? El usuario no podrá acceder al sistema.`)) {
+      return
+    }
+
+    await ejecutarEliminacion(usuario.id)
+  }
+
+  // ===== NUEVO: Ejecutar eliminación (con o sin reasignación) =====
+  const ejecutarEliminacion = async (usuarioId: string, reasignarA?: string) => {
+    setProcesandoEliminacion(true)
     try {
-      const response = await fetch(`/api/admin/usuarios/${id}`, {
-        method: 'DELETE'
+      const response = await fetch(`/api/admin/usuarios/${usuarioId}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reasignarA })
       })
 
       const data = await response.json()
@@ -239,26 +299,67 @@ export function AdminConfigView() {
         throw new Error(data.error || 'Error al eliminar usuario')
       }
 
-      setSuccess('Usuario eliminado correctamente')
+      setSuccess(reasignarA 
+        ? 'Usuario desactivado y casos reasignados correctamente' 
+        : 'Usuario desactivado correctamente'
+      )
+      setModalReasignar(null)
       cargarUsuarios()
     } catch (err: any) {
       setError(err.message)
+    } finally {
+      setProcesandoEliminacion(false)
     }
   }
 
-  // Toggle activación
-  const handleToggleActive = async (id: string) => {
+  // ===== NUEVO: Reactivar usuario =====
+  const handleReactivar = async (usuario: Usuario) => {
+    setModalReactivar(usuario)
+  }
+
+  const confirmarReactivacion = async () => {
+    if (!modalReactivar) return
+
+    setProcesandoEliminacion(true)
     try {
-      const response = await fetch(`/api/admin/usuarios/${id}/toggle`, {
-        method: 'PATCH'
+      const response = await fetch(`/api/admin/usuarios/${modalReactivar.id}/reactivar`, {
+        method: 'POST'
       })
 
+      const data = await response.json()
+
       if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Error al cambiar estado')
+        throw new Error(data.error || 'Error al reactivar usuario')
       }
 
+      setSuccess(`Usuario ${modalReactivar.nombre} ${modalReactivar.apellido} reactivado correctamente`)
+      setModalReactivar(null)
       cargarUsuarios()
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setProcesandoEliminacion(false)
+    }
+  }
+
+  // ===== NUEVO: Resetear contraseña =====
+  const handleResetPassword = async (usuario: Usuario) => {
+    if (!confirm(`¿Generar nueva contraseña temporal para ${usuario.nombre} ${usuario.apellido}?`)) {
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/admin/usuarios/${usuario.id}/reset-password`, {
+        method: 'POST'
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Error al resetear contraseña')
+      }
+
+      setSuccess(`Nueva contraseña temporal: ${data.tempPassword} - El usuario deberá cambiarla al iniciar sesión`)
     } catch (err: any) {
       setError(err.message)
     }
@@ -290,6 +391,15 @@ export function AdminConfigView() {
     setError(null)
   }
 
+  const formatearFecha = (fecha: Date | null) => {
+    if (!fecha) return 'Nunca'
+    return new Date(fecha).toLocaleDateString('es-AR', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    })
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -316,12 +426,12 @@ export function AdminConfigView() {
       {error && (
         <div className="p-4 bg-red-50 border-l-4 border-red-500 text-red-700 rounded flex items-start gap-3">
           <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
-          <div>
+          <div className="flex-1">
             <p className="font-semibold">Error</p>
             <p className="text-sm">{error}</p>
           </div>
-          <button onClick={() => setError(null)} className="ml-auto text-red-500 hover:text-red-700">
-            ×
+          <button onClick={() => setError(null)} className="text-red-500 hover:text-red-700">
+            <X className="w-4 h-4" />
           </button>
         </div>
       )}
@@ -329,28 +439,34 @@ export function AdminConfigView() {
       {success && (
         <div className="p-4 bg-green-50 border-l-4 border-green-500 text-green-700 rounded flex items-start gap-3">
           <CheckCircle2 className="h-5 w-5 flex-shrink-0 mt-0.5" />
-          <div>
+          <div className="flex-1">
             <p className="font-semibold">Éxito</p>
             <p className="text-sm">{success}</p>
           </div>
-          <button onClick={() => setSuccess(null)} className="ml-auto text-green-500 hover:text-green-700">
-            ×
+          <button onClick={() => setSuccess(null)} className="text-green-500 hover:text-green-700">
+            <X className="w-4 h-4" />
           </button>
         </div>
       )}
 
       {/* Estadísticas */}
       {estadisticas && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card className="border-l-4 border-l-blue-600">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <Card className="border-l-4 border-l-slate-600">
             <CardContent className="p-4">
-              <p className="text-xs font-semibold text-slate-500 uppercase">Total Usuarios</p>
+              <p className="text-xs font-semibold text-slate-500 uppercase">Total</p>
               <p className="text-2xl font-bold text-slate-900 mt-1">{estadisticas.total}</p>
+            </CardContent>
+          </Card>
+          <Card className="border-l-4 border-l-green-600">
+            <CardContent className="p-4">
+              <p className="text-xs font-semibold text-slate-500 uppercase">Activos</p>
+              <p className="text-2xl font-bold text-green-600 mt-1">{estadisticas.activos}</p>
             </CardContent>
           </Card>
           <Card className="border-l-4 border-l-purple-600">
             <CardContent className="p-4">
-              <p className="text-xs font-semibold text-slate-500 uppercase">Administradores</p>
+              <p className="text-xs font-semibold text-slate-500 uppercase">Admins</p>
               <p className="text-2xl font-bold text-purple-600 mt-1">{estadisticas.porRol.admins}</p>
             </CardContent>
           </Card>
@@ -360,10 +476,10 @@ export function AdminConfigView() {
               <p className="text-2xl font-bold text-blue-600 mt-1">{estadisticas.porRol.abogados}</p>
             </CardContent>
           </Card>
-          <Card className="border-l-4 border-l-green-600">
+          <Card className="border-l-4 border-l-amber-600">
             <CardContent className="p-4">
               <p className="text-xs font-semibold text-slate-500 uppercase">Asistentes</p>
-              <p className="text-2xl font-bold text-green-600 mt-1">{estadisticas.porRol.asistentes}</p>
+              <p className="text-2xl font-bold text-amber-600 mt-1">{estadisticas.porRol.asistentes}</p>
             </CardContent>
           </Card>
         </div>
@@ -440,10 +556,8 @@ export function AdminConfigView() {
               </p>
             </div>
 
-            {/* Campo vacío para alineación en grid */}
             <div className="hidden md:block" />
 
-            {/* CONTRASEÑA */}
             <div>
               <label className="text-sm font-medium text-slate-700">
                 Contraseña Temporal <span className="text-red-500">*</span>
@@ -467,12 +581,9 @@ export function AdminConfigView() {
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
-              
-              {/* Requisitos de contraseña */}
               <PasswordRequirements password={formData.password} />
             </div>
 
-            {/* CONFIRMAR CONTRASEÑA */}
             <div>
               <label className="text-sm font-medium text-slate-700">
                 Confirmar Contraseña <span className="text-red-500">*</span>
@@ -498,26 +609,15 @@ export function AdminConfigView() {
                 </button>
               </div>
               
-              {/* Indicador de coincidencia */}
               {formData.confirmPassword && (
                 <p className={`text-xs mt-2 flex items-center gap-1 ${passwordsMatch ? 'text-green-600' : 'text-red-600'}`}>
                   {passwordsMatch ? (
-                    <>
-                      <Check className="w-3.5 h-3.5" />
-                      Las contraseñas coinciden
-                    </>
+                    <><Check className="w-3.5 h-3.5" /> Las contraseñas coinciden</>
                   ) : (
-                    <>
-                      <X className="w-3.5 h-3.5" />
-                      Las contraseñas no coinciden
-                    </>
+                    <><X className="w-3.5 h-3.5" /> Las contraseñas no coinciden</>
                   )}
                 </p>
               )}
-              
-              <p className="text-xs text-slate-500 mt-2">
-                El usuario deberá cambiarla en su primer inicio de sesión
-              </p>
             </div>
           </div>
 
@@ -543,10 +643,25 @@ export function AdminConfigView() {
 
       {/* PANEL 2 — LISTA DE USUARIOS */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="p-6 border-b border-slate-100">
-          <h2 className="text-lg font-semibold text-slate-800">
-            Usuarios Registrados ({usuarios.length})
+        <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+            <Users className="w-5 h-5 text-slate-600" />
+            Usuarios Registrados ({usuariosFiltrados.length})
           </h2>
+          
+          {/* Toggle mostrar inactivos */}
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-slate-600">Mostrar inactivos</span>
+            <Switch 
+              checked={mostrarInactivos}
+              onCheckedChange={setMostrarInactivos}
+            />
+            {mostrarInactivos && estadisticas && estadisticas.inactivos > 0 && (
+              <Badge variant="outline" className="text-slate-500">
+                {estadisticas.inactivos} inactivos
+              </Badge>
+            )}
+          </div>
         </div>
         
         <div className="overflow-x-auto">
@@ -555,17 +670,25 @@ export function AdminConfigView() {
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Usuario</th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Rol</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Casos</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Casos Activos</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Último Acceso</th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Estado</th>
                 <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {usuarios.map((user) => (
-                <tr key={user.id} className="hover:bg-slate-50 transition">
+              {usuariosFiltrados.map((user) => (
+                <tr 
+                  key={user.id} 
+                  className={`hover:bg-slate-50 transition ${!user.isActive ? 'opacity-60 bg-slate-50' : ''}`}
+                >
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white font-bold text-sm">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm ${
+                        user.isActive 
+                          ? 'bg-gradient-to-br from-blue-400 to-purple-500' 
+                          : 'bg-slate-400'
+                      }`}>
                         {user.nombre?.[0]}{user.apellido?.[0]}
                       </div>
                       <div>
@@ -581,39 +704,174 @@ export function AdminConfigView() {
                   </td>
                   <td className="px-6 py-4">
                     <div className="text-sm text-slate-600">
-                      {user._count ? (
-                        <>
-                          <p>{user._count.casos} casos</p>
-                          <p className="text-xs text-slate-400">{user._count.clientes} clientes</p>
-                        </>
-                      ) : '-'}
+                      {user._count?.casos || 0} casos
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="text-sm text-slate-500">
+                      {formatearFecha(user.ultimoAcceso)}
                     </div>
                   </td>
                   <td className="px-6 py-4">
                     <Badge className={user.isActive 
                       ? 'bg-green-100 text-green-700 border-green-200' 
-                      : 'bg-gray-100 text-gray-700 border-gray-200'
+                      : 'bg-red-100 text-red-700 border-red-200'
                     }>
                       {user.isActive ? 'Activo' : 'Inactivo'}
                     </Badge>
                   </td>
                   <td className="px-6 py-4 text-right">
-                    <div className="flex justify-end gap-2">
-                      <button 
-                        className="p-1.5 text-slate-400 hover:text-red-600 transition"
-                        onClick={() => handleDelete(user.id)}
-                        title="Eliminar usuario"
-                      >
-                        <Trash2 className="w-4 h-4"/>
-                      </button>
+                    <div className="flex justify-end gap-1">
+                      {user.isActive ? (
+                        <>
+                          {/* Reset Password */}
+                          <button 
+                            className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
+                            onClick={() => handleResetPassword(user)}
+                            title="Resetear contraseña"
+                          >
+                            <Key className="w-4 h-4"/>
+                          </button>
+                          {/* Eliminar/Desactivar */}
+                          <button 
+                            className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                            onClick={() => handleDelete(user)}
+                            title="Desactivar usuario"
+                          >
+                            <Trash2 className="w-4 h-4"/>
+                          </button>
+                        </>
+                      ) : (
+                        /* Reactivar */
+                        <button 
+                          className="p-2 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition"
+                          onClick={() => handleReactivar(user)}
+                          title="Reactivar usuario"
+                        >
+                          <RotateCcw className="w-4 h-4"/>
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+
+          {usuariosFiltrados.length === 0 && (
+            <div className="p-8 text-center text-slate-500">
+              <Users className="w-12 h-12 mx-auto mb-3 text-slate-300" />
+              <p>No hay usuarios para mostrar</p>
+              {!mostrarInactivos && (
+                <p className="text-sm mt-1">
+                  Activá "Mostrar inactivos" para ver usuarios desactivados
+                </p>
+              )}
+            </div>
+          )}
         </div>
       </div>
+
+      {/* ===== MODAL: REASIGNAR CASOS ===== */}
+      <Dialog open={!!modalReasignar} onOpenChange={() => setModalReasignar(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-600">
+              <AlertTriangle className="w-5 h-5" />
+              Reasignar Casos
+            </DialogTitle>
+            <DialogDescription>
+              {modalReasignar?.nombre} {modalReasignar?.apellido} tiene{' '}
+              <strong>{modalReasignar?._count?.casos || 0} casos activos</strong>.
+              Debés reasignarlos antes de desactivar el usuario.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4">
+            <label className="text-sm font-medium text-slate-700 mb-2 block">
+              Reasignar todos los casos a:
+            </label>
+            <Select value={abogadoDestino} onValueChange={setAbogadoDestino}>
+              <SelectTrigger>
+                <SelectValue placeholder="Seleccionar abogado..." />
+              </SelectTrigger>
+              <SelectContent>
+                {abogadosParaReasignar.map((abogado) => (
+                  <SelectItem key={abogado.id} value={abogado.id}>
+                    {abogado.nombre} {abogado.apellido}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {abogadosParaReasignar.length === 0 && (
+              <p className="text-sm text-red-600 mt-2">
+                No hay otros abogados activos disponibles para reasignar los casos.
+              </p>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setModalReasignar(null)}
+              disabled={procesandoEliminacion}
+            >
+              Cancelar
+            </Button>
+            <Button 
+              variant="destructive"
+              onClick={() => modalReasignar && ejecutarEliminacion(modalReasignar.id, abogadoDestino)}
+              disabled={!abogadoDestino || procesandoEliminacion}
+            >
+              {procesandoEliminacion ? (
+                <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Procesando...</>
+              ) : (
+                'Reasignar y Desactivar'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ===== MODAL: REACTIVAR USUARIO ===== */}
+      <Dialog open={!!modalReactivar} onOpenChange={() => setModalReactivar(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-green-600">
+              <RotateCcw className="w-5 h-5" />
+              Reactivar Usuario
+            </DialogTitle>
+            <DialogDescription>
+              ¿Estás seguro de reactivar a{' '}
+              <strong>{modalReactivar?.nombre} {modalReactivar?.apellido}</strong>?
+              <br />
+              El usuario podrá volver a acceder al sistema.
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setModalReactivar(null)}
+              disabled={procesandoEliminacion}
+            >
+              Cancelar
+            </Button>
+            <Button 
+              onClick={confirmarReactivacion}
+              disabled={procesandoEliminacion}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              {procesandoEliminacion ? (
+                <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Procesando...</>
+              ) : (
+                'Reactivar Usuario'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

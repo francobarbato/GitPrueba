@@ -8,8 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { 
   ExternalLink, BarChart3, Download, Activity, 
   CalendarClock, History, FileText, Calculator, 
-  Filter, Flag, MapPin, ArrowRight, // Usamos Filter en lugar de Funnel para evitar errores
-  TrendingUp
+  Filter, Flag, MapPin, ArrowRight, Scale,
+  TrendingUp, Trophy
 } from "lucide-react"
 
 export default function ReportesPage() {
@@ -74,7 +74,7 @@ export default function ReportesPage() {
           {/* --- SEPARADOR: GESTIÓN OPERATIVA --- */}
           <div className="flex items-center gap-4 mb-4 mt-8">
             <div className="h-px bg-slate-200 flex-1"></div>
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Gestión Diaria</span>
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider"></span>
             <div className="h-px bg-slate-200 flex-1"></div>
           </div>
 
@@ -101,7 +101,7 @@ export default function ReportesPage() {
                 </Card>
             </Link>
 
-            <Link href="/reportes/seguimiento-plazos" className="group">
+            {/* <Link href="/reportes/seguimiento-plazos" className="group">
                 <Card className="border-l-4 border-l-amber-500 hover:shadow-md transition-all cursor-pointer h-full hover:bg-amber-50/30 bg-white">
                     <CardHeader className="pb-2 px-4 pt-4">
                         <div className="flex justify-between items-start">
@@ -111,7 +111,7 @@ export default function ReportesPage() {
                             <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-amber-500 transition" />
                         </div>
                         <CardTitle className="text-base text-slate-800 mt-3 group-hover:text-amber-700 transition">
-                            Seguimiento y Plazos
+                            Seguimiento y Plazos(futuro de tareas)
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="px-4 pb-4">
@@ -120,7 +120,7 @@ export default function ReportesPage() {
                         </p>
                     </CardContent>
                 </Card>
-            </Link>
+            </Link> */}
 
             <Link href="/reportes/trazabilidad" className="group">
                 <Card className="border-l-4 border-l-purple-500 hover:shadow-md transition-all cursor-pointer h-full hover:bg-purple-50/30 bg-white">
@@ -147,14 +147,14 @@ export default function ReportesPage() {
           {/* --- SEPARADOR: INTELIGENCIA DE NEGOCIO (NUEVO) --- */}
           <div className="flex items-center gap-4 mb-4 mt-8">
             <div className="h-px bg-slate-200 flex-1"></div>
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Inteligencia de Negocio</span>
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider"></span>
             <div className="h-px bg-slate-200 flex-1"></div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-2">
             
             {/* 1. productividad  */}
-            <Link href="/reportes/productividad" className="group">
+            <Link href="/reportes/rendimiento" className="group">
                 <Card className="border-l-4 border-l-cyan-500 hover:shadow-md transition-all cursor-pointer h-full hover:bg-cyan-50/30 bg-white">
                     <CardHeader className="pb-2 px-4 pt-4">
                         <div className="flex justify-between items-start">
@@ -176,7 +176,7 @@ export default function ReportesPage() {
             </Link>
 
             {/* 2. HITOS CRÍTICOS */}
-            <Link href="/reportes/hitos" className="group">
+            {/* <Link href="/reportes/hitos" className="group">
                 <Card className="border-l-4 border-l-rose-500 hover:shadow-md transition-all cursor-pointer h-full hover:bg-rose-50/30 bg-white">
                     <CardHeader className="pb-2 px-4 pt-4">
                         <div className="flex justify-between items-start">
@@ -195,10 +195,10 @@ export default function ReportesPage() {
                         </p>
                     </CardContent>
                 </Card>
-            </Link>
+            </Link> */}
 
             {/* 3. LOGÍSTICA JUDICIAL */}
-            <Link href="/reportes/logistica" className="group">
+            <Link href="/reportes/ubicacion-geografica" className="group">
                 <Card className="border-l-4 border-l-orange-500 hover:shadow-md transition-all cursor-pointer h-full hover:bg-orange-50/30 bg-white">
                     <CardHeader className="pb-2 px-4 pt-4">
                         <div className="flex justify-between items-start">
@@ -219,12 +219,56 @@ export default function ReportesPage() {
                 </Card>
             </Link>
 
+            {/* 4. CARTERA POR FUERO (NUEVO) */}
+            <Link href="/reportes/cartera-fuero" className="group">
+                <Card className="border-l-4 border-l-indigo-500 hover:shadow-md transition-all cursor-pointer h-full hover:bg-indigo-50/30 bg-white">
+                    <CardHeader className="pb-2 px-4 pt-4">
+                        <div className="flex justify-between items-start">
+                            <div className="p-2 bg-indigo-100 rounded-lg text-indigo-600 group-hover:bg-white transition">
+                                <Scale className="w-5 h-5" />
+                            </div>
+                            <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-indigo-600 transition" />
+                        </div>
+                        <CardTitle className="text-base text-slate-800 mt-3 group-hover:text-indigo-700 transition">
+                            Composición de Cartera
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="px-4 pb-4">
+                        <p className="text-xs text-slate-500 line-clamp-2">
+                            Volumen vs. valor económico por fuero. Análisis estratégico del estudio.
+                        </p>
+                    </CardContent>
+                </Card>
+            </Link>
+
+            {/* 5. ANÁLISIS DE RESULTADOS (NUEVO) */}
+            <Link href="/reportes/analisis-resultados" className="group">
+                <Card className="border-l-4 border-l-amber-500 hover:shadow-md transition-all cursor-pointer h-full hover:bg-amber-50/30 bg-white">
+                    <CardHeader className="pb-2 px-4 pt-4">
+                        <div className="flex justify-between items-start">
+                            <div className="p-2 bg-amber-100 rounded-lg text-amber-600 group-hover:bg-white transition">
+                                <Trophy className="w-5 h-5" />
+                            </div>
+                            <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-amber-600 transition" />
+                        </div>
+                        <CardTitle className="text-base text-slate-800 mt-3 group-hover:text-amber-700 transition">
+                            Análisis de Resultados
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="px-4 pb-4">
+                        <p className="text-xs text-slate-500 line-clamp-2">
+                            Tasa de éxito, recupero económico y duración de casos cerrados.
+                        </p>
+                    </CardContent>
+                </Card>
+            </Link>
+
           </div>
 
           {/* --- SEPARADOR: CALCULADORAS --- */}
           <div className="flex items-center gap-4 mb-4 mt-8">
             <div className="h-px bg-slate-200 flex-1"></div>
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Herramientas de Cálculo</span>
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider"></span>
             <div className="h-px bg-slate-200 flex-1"></div>
           </div>
 

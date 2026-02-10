@@ -9,7 +9,7 @@ export class ReportesService {
 
   async getCargaTrabajo() {
     const abogados = await prisma.user.findMany({
-      where: { rol: "abogado", isActive: true },
+      where: { rol: "ABOGADO", isActive: true },
       include: {
         casos: {
           select: { estado: true, priority: true, updatedAt: true },

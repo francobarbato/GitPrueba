@@ -1,6 +1,7 @@
+// src/app/casos/[id]/editar/page.tsx
+
 import { getUserSessionServer } from "@/auth/actions/auth-actions"
 import { redirect, notFound } from "next/navigation"
-// Recuerda: 'aplication' por tu estructura actual
 import { CasoService } from "@/lib/aplication/services/caso.service"
 import { ClienteService } from "@/lib/aplication/services/cliente.service"
 import { EditarCasoForm } from "./editar-caso-form"
@@ -16,12 +17,12 @@ export default async function EditarCasoPage({ params }: { params: { id: string 
   if (!user) redirect("/api/auth/signin")
 
   // 1. Obtener el caso
-  const caso = await casoService.getCasoById(params.id)
-  if (!caso) return notFound()
+  const casoRaw = await casoService.getCasoById(params.id)
+  if (!casoRaw) return notFound()
 
-  // 2. SEGURIDAD: Verificar permisos (Igual que en detalle)
-  const esAdmin = user.rol === 'admin'
-  const esPropietario = caso.abogadoId === user.id
+  // 2. SEGURIDAD: Verificar permisos
+  const esAdmin = user.rol?.toUpperCase() === 'ADMIN'
+  const esPropietario = casoRaw.abogadoId === user.id
 
   if (!esAdmin && !esPropietario) {
     return (
@@ -37,13 +38,32 @@ export default async function EditarCasoPage({ params }: { params: { id: string 
     )
   }
 
-  // 3. Obtener clientes del abogado (para poder cambiar el cliente si quiere)
-  // Si es admin, quizás quieras traer todos, pero por ahora traemos los del dueño del caso
+  // 3. ========== CONVERTIR DECIMAL A NUMBER ==========
+  // Prisma devuelve Decimal objects que no son serializables a Client Components
+  // Convertimos a number o null antes de pasar al componente
+  const caso = {
+    ...casoRaw,
+    // Convertir Decimal a number (o null si no existe)
+    montoDisputa: casoRaw.montoDisputa 
+      ? Number(casoRaw.montoDisputa) 
+      : null,
+    montoFinal: casoRaw.montoFinal 
+      ? Number(casoRaw.montoFinal) 
+      : null,
+    // Asegurar que las fechas sean serializables
+    createdAt: casoRaw.createdAt?.toISOString() ?? null,
+    updatedAt: casoRaw.updatedAt?.toISOString() ?? null,
+    fechaInicio: casoRaw.fechaInicio?.toISOString() ?? null,
+    fechaFin: casoRaw.fechaFin?.toISOString() ?? null,
+    fechaCierre: casoRaw.fechaCierre?.toISOString() ?? null,
+  }
+
+  // 4. Obtener clientes del abogado
   const clientes = await clienteService.getClientesByAbogado(user.id)
 
   return (
     <div className="min-h-screen bg-slate-50 p-6">
-      <div className="max-w-2xl mx-auto">
+      <div className="max-w-5xl mx-auto">
         <div className="flex items-center gap-4 mb-6">
             <Link href={`/casos/${params.id}`}>
                 <Button variant="outline" size="sm">

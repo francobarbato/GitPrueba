@@ -58,12 +58,6 @@ const getMenuItems = (rol?: string) => {
       roles: ['ADMIN', 'ABOGADO'] // ❌ Asistente NO puede
     },
     { 
-      name: "Expedientes", 
-      href: "/expediente", 
-      icon: UserPlus,
-      roles: ['ADMIN', 'ABOGADO', 'ASISTENTE']
-    },
-    { 
       name: "Reportes", 
       href: "/reportes", 
       icon: PieChart,

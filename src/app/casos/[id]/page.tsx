@@ -204,8 +204,7 @@ export default async function CasoDetailPage({ params }: { params: { id: string 
                       <div className="mt-1">
                         <Badge variant="outline" className="text-sm">
                           {caso.tipo === 'LABORAL' ? 'Laboral' :
-                           caso.tipo === 'CIVIL' ? 'Civil' :
-                           caso.tipo === 'COMERCIAL' ? 'Comercial' :
+                           caso.tipo === 'CIVIL_COMERCIAL' ? 'Civil Y Comercial' :
                            caso.tipo === 'FAMILIA' ? 'Familia' :
                            caso.tipo === 'PENAL' ? 'Penal' :
                            caso.tipo === 'SUCESIONES' ? 'Sucesiones' :

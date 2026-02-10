@@ -10,31 +10,33 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { ArrowLeft, Save, Star, AlertCircle, Scale, User, Lock, AlertTriangle, MapPin, Ban } from 'lucide-react' 
 import Link from "next/link"
 import { useFormState, useFormStatus } from "react-dom"
-import { useState, FormEvent } from "react"
+import { useState, useEffect, FormEvent } from "react"
+import { 
+  getProvinciasParaSelect, 
+  getDepartamentosParaSelect 
+} from "src/lib/data/argentina-ubicaciones"
 
-const TIPOS_CASO = ["LABORAL", "CIVIL", "COMERCIAL", "FAMILIA", "PENAL", "SUCESIONES", "OTRO"]
+// ========== TIPOS DE CASO ACTUALIZADOS ==========
+const TIPOS_CASO = [
+  { value: "LABORAL", label: "Laboral" },
+  { value: "CIVIL_COMERCIAL", label: "Civil y Comercial" },
+  { value: "FAMILIA", label: "Familia" },
+  { value: "PENAL", label: "Penal" },
+  { value: "SUCESIONES", label: "Sucesiones" },
+  { value: "CONTENCIOSO_ADMINISTRATIVO", label: "Contencioso Administrativo" },
+  { value: "OTRO", label: "Otro" }
+]
 
-// ========== ESTADOS ACTIVOS SOLAMENTE (Sin Terminado/Archivado) ==========
+// ========== ESTADOS ACTIVOS (sin duplicados) ==========
 const ESTADOS_CASO_ACTIVOS = [
   "Inicio / Demanda",
   "Mediación / Previo",
   "Prueba (Oficios/Pericias)",
   "Alegatos / Conclusiones",
-  "Sentencia / Resolución",
-  "Apelación",
+  "Sentencia de 1ra Instancia",
+  "Apelación / 2da Instancia",
   "Ejecución de Sentencia"
   // REMOVIDOS: "Terminado", "Archivado" - Ahora se manejan con el flujo de cierre
-]
-
-const FUEROS = [
-  "Capital Federal",
-  "Provincia de Buenos Aires",
-  "Córdoba",
-  "Santa Fe",
-  "Mendoza",
-  "Tucumán",
-  "Salta",
-  "Federal"
 ]
 
 function SubmitButton() {
@@ -45,6 +47,19 @@ function SubmitButton() {
       {pending ? "Guardando..." : "Guardar Cambios"}
     </Button>
   )
+}
+
+// Función para extraer provincia y departamento del fuero existente
+function extraerProvinciaYDepartamento(fuero: string | null): { provincia: string; departamento: string } {
+  if (!fuero) return { provincia: '', departamento: '' }
+  
+  const partes = fuero.split(',').map(p => p.trim())
+  if (partes.length >= 2) {
+    return { departamento: partes[0], provincia: partes[1] }
+  }
+  
+  // Si no tiene coma, intentar detectar si es una provincia conocida
+  return { provincia: '', departamento: partes[0] || '' }
 }
 
 export function EditarCasoForm({ caso, clientes }: { caso: any, clientes: any[] }) {
@@ -59,10 +74,48 @@ export function EditarCasoForm({ caso, clientes }: { caso: any, clientes: any[] 
   // Verificar si el caso está cerrado
   const casoCerrado = caso.estaCerrado === true
 
+  // ========== ESTADOS PARA UBICACIÓN GEOGRÁFICA ==========
+  const { provincia: provInicial, departamento: deptoInicial } = extraerProvinciaYDepartamento(caso.fuero)
+  const [provinciaSeleccionada, setProvinciaSeleccionada] = useState(provInicial)
+  const [departamentoSeleccionado, setDepartamentoSeleccionado] = useState(deptoInicial)
+  const [departamentosDisponibles, setDepartamentosDisponibles] = useState<{value: string; label: string}[]>([])
+
+  // Cargar provincias
+  const provincias: { value: string; label: string }[] = getProvinciasParaSelect()
+
+  // Cargar departamentos cuando cambia la provincia
+  useEffect(() => {
+    if (provinciaSeleccionada) {
+      const deptos = getDepartamentosParaSelect(provinciaSeleccionada)
+      setDepartamentosDisponibles(deptos)
+      
+      // Si el departamento actual no está en la lista, limpiar
+      if (departamentoSeleccionado && !deptos.find(d => d.value === departamentoSeleccionado)) {
+        // Mantener el valor original si viene del caso existente
+        if (deptoInicial && provinciaSeleccionada === provInicial) {
+          // No limpiar, mantener el valor original
+        } else {
+          setDepartamentoSeleccionado('')
+        }
+      }
+    } else {
+      setDepartamentosDisponibles([])
+    }
+  }, [provinciaSeleccionada])
+
+  // Construir el valor del fuero
+  const fueroValue = departamentoSeleccionado && provinciaSeleccionada 
+    ? `${departamentoSeleccionado}, ${provinciaSeleccionada}`
+    : caso.fuero || ''
+
   // Función auxiliar para formatear fecha
   const formatDateForInput = (dateString: string | null) => {
     if (!dateString) return ""
-    return new Date(dateString).toISOString().split('T')[0]
+    try {
+      return new Date(dateString).toISOString().split('T')[0]
+    } catch {
+      return ""
+    }
   }
 
   // Estado del checklist con datos iniciales
@@ -84,6 +137,16 @@ export function EditarCasoForm({ caso, clientes }: { caso: any, clientes: any[] 
             e.preventDefault()
         }
     }
+  }
+
+  // Obtener el label del tipo actual (para casos con tipos legacy)
+  const getTipoLabel = (tipoValue: string) => {
+    // Mapear tipos legacy a nuevos
+    if (tipoValue === 'CIVIL' || tipoValue === 'COMERCIAL') {
+      return 'Civil y Comercial (Legacy)'
+    }
+    const tipo = TIPOS_CASO.find(t => t.value === tipoValue)
+    return tipo?.label || tipoValue
   }
 
   // Si el caso está cerrado, mostrar mensaje y no permitir edición
@@ -194,19 +257,17 @@ export function EditarCasoForm({ caso, clientes }: { caso: any, clientes: any[] 
                   <input type="hidden" name="numero" value={caso.numero} />
                 </div>
 
-                {/* FUERO - BLOQUEADO */}
+                {/* TIPO - BLOQUEADO (muestra el tipo actual) */}
                 <div className="space-y-2">
                   <Label htmlFor="tipo" className="flex items-center gap-2">
                     Materia / Tipo <Lock className="w-3 h-3 text-slate-400"/>
                   </Label>
-                  <Select defaultValue={caso.tipo} disabled>
-                    <SelectTrigger className="bg-slate-100 text-slate-500 border-slate-200"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {TIPOS_CASO.map(tipo => (
-                        <SelectItem key={tipo} value={tipo}>{tipo}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Input 
+                    id="tipo-display" 
+                    value={getTipoLabel(caso.tipo)} 
+                    disabled 
+                    className="bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed"
+                  />
                   <input type="hidden" name="tipo" value={caso.tipo} />
                 </div>
 
@@ -221,6 +282,12 @@ export function EditarCasoForm({ caso, clientes }: { caso: any, clientes: any[] 
                       {ESTADOS_CASO_ACTIVOS.map(estado => (
                         <SelectItem key={estado} value={estado}>{estado}</SelectItem>
                       ))}
+                      {/* Si el estado actual no está en la lista, mostrarlo igual */}
+                      {!ESTADOS_CASO_ACTIVOS.includes(etapaActual) && etapaActual && (
+                        <SelectItem key={etapaActual} value={etapaActual}>
+                          {etapaActual} (Estado anterior)
+                        </SelectItem>
+                      )}
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-slate-500">
@@ -300,29 +367,72 @@ export function EditarCasoForm({ caso, clientes }: { caso: any, clientes: any[] 
                 <h2 className="text-lg font-semibold text-slate-800">Radicación y Datos Financieros</h2>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-slate-50 rounded-lg">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-slate-50 rounded-lg">
+                {/* PROVINCIA */}
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2">
                     <MapPin className="h-4 w-4" />
-                    Fuero Jurisdiccional
+                    Provincia
                   </Label>
-                  <Select name="fuero" defaultValue={caso.fuero || ""}>
-                    <SelectTrigger className="bg-white"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
+                  <Select 
+                    value={provinciaSeleccionada} 
+                    onValueChange={(value) => {
+                      setProvinciaSeleccionada(value)
+                      setDepartamentoSeleccionado('')
+                    }}
+                  >
+                    <SelectTrigger className="bg-white">
+                      <SelectValue placeholder="Seleccionar provincia..." />
+                    </SelectTrigger>
                     <SelectContent>
-                      {FUEROS.map(fuero => (
-                        <SelectItem key={fuero} value={fuero}>{fuero}</SelectItem>
+                      {provincias.map(prov => (
+                        <SelectItem key={prov.value} value={prov.value}>
+                          {prov.label}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
 
+                {/* CIUDAD/DEPARTAMENTO */}
+                <div className="space-y-2">
+                  <Label>Ciudad / Departamento</Label>
+                  <Select 
+                    value={departamentoSeleccionado} 
+                    onValueChange={setDepartamentoSeleccionado}
+                    disabled={!provinciaSeleccionada}
+                  >
+                    <SelectTrigger className={provinciaSeleccionada ? "bg-white" : "bg-slate-100"}>
+                      <SelectValue placeholder={provinciaSeleccionada ? "Seleccionar ciudad..." : "Primero seleccione provincia"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {departamentosDisponibles.map(depto => (
+                        <SelectItem key={depto.value} value={depto.value}>
+                          {depto.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Campo oculto con el fuero combinado */}
+                <input type="hidden" name="fuero" value={fueroValue} />
+
+                {/* Preview de ubicación seleccionada */}
+                {fueroValue && (
+                  <div className="md:col-span-2 p-2 bg-blue-50 border border-blue-200 rounded text-sm text-blue-700">
+                    <strong>Ubicación:</strong> {fueroValue}
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Juzgado / Secretaría</Label>
                   <Input 
                     name="juzgado" 
                     placeholder="Ej: Juzgado Nº 45 Civ. y Com."
                     defaultValue={caso.juzgado || ""}
-                    className="bg-white"
                   />
                 </div>
 
@@ -334,7 +444,6 @@ export function EditarCasoForm({ caso, clientes }: { caso: any, clientes: any[] 
                     step="0.01" 
                     placeholder="0.00"
                     defaultValue={caso.montoDisputa || ""}
-                    className="bg-white"
                   />
                 </div>
               </div>
@@ -395,7 +504,7 @@ export function EditarCasoForm({ caso, clientes }: { caso: any, clientes: any[] 
             <input type="hidden" name="requirements" value={JSON.stringify(requisitos)} />
 
             <div className="flex justify-end gap-3 pt-4 border-t">
-              <Link href="/casos">
+              <Link href={`/casos/${caso.id}`}>
                 <Button variant="outline" type="button">
                     <ArrowLeft className="h-4 w-4 mr-2" />
                     Cancelar

@@ -10,32 +10,35 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ArrowLeft, Save, Plus, Trash2, Star, Flame, AlertTriangle, Building, User, MapPin, Scale, Briefcase, UserPlus } from 'lucide-react' 
 import Link from "next/link"
 import { useFormState, useFormStatus } from "react-dom"
-import { useState } from "react" 
+import { useState, useEffect } from "react" 
 import { ClienteSearchCombobox } from "../components/ClienteSearchCombobox"
+import { 
+  PROVINCIAS_ARGENTINA, 
+  getDepartamentosParaSelect,
+  getProvinciasParaSelect 
+} from "src/lib/data/argentina-ubicaciones"
 
-// ENUM de tipos (debe coincidir con Prisma)
-const TIPOS_CASO = ["LABORAL", "CIVIL", "COMERCIAL", "FAMILIA", "PENAL", "SUCESIONES", "OTRO"]
+// ENUM de tipos (CIVIL y COMERCIAL unificados)
+const TIPOS_CASO = [
+  { value: "LABORAL", label: "Laboral" },
+  { value: "CIVIL_COMERCIAL", label: "Civil y Comercial" },
+  { value: "FAMILIA", label: "Familia" },
+  { value: "PENAL", label: "Penal" },
+  { value: "SUCESIONES", label: "Sucesiones" },
+  { value: "CONTENCIOSO_ADMINISTRATIVO", label: "Contencioso Administrativo" },
+  { value: "OTRO", label: "Otro" }
+]
 
 const ESTADOS_CASO = [
   "Inicio / Demanda",
   "Mediación / Previo",
   "Prueba (Oficios/Pericias)",
   "Alegatos / Conclusiones",
-  "Sentencia / Resolución",
-  "Apelación",
+  "Sentencia de 1ra Instancia",
+  "Apelación / 2da Instancia",
   "Ejecución de Sentencia",
   "Terminado",
   "Archivado"
-]
-
-const FUEROS = [
-  "Capital Federal",
-  "Provincia de Buenos Aires",
-  "Córdoba",
-  "Santa Fe",
-  "Mendoza",
-  "Tucumán",
-  "Salta"
 ]
 
 // Tipos
@@ -83,6 +86,26 @@ export function NuevoCasoForm({ clientes, abogados, userRol, currentUserId }: Nu
   const [clienteSeleccionado, setClienteSeleccionado] = useState("")
   const [mostrarAlertaConflicto, setMostrarAlertaConflicto] = useState(false)
 
+  // Estados para ubicación geográfica
+  const [provinciaSeleccionada, setProvinciaSeleccionada] = useState("")
+  const [departamentoSeleccionado, setDepartamentoSeleccionado] = useState("")
+  const [departamentosDisponibles, setDepartamentosDisponibles] = useState<{ value: string; label: string }[]>([])
+
+  // Obtener lista de provincias para el select
+  const provinciasParaSelect = getProvinciasParaSelect()
+
+  // Actualizar departamentos cuando cambia la provincia
+  useEffect(() => {
+    if (provinciaSeleccionada) {
+      const deptos = getDepartamentosParaSelect(provinciaSeleccionada)
+      setDepartamentosDisponibles(deptos)
+      setDepartamentoSeleccionado("") // Reset departamento al cambiar provincia
+    } else {
+      setDepartamentosDisponibles([])
+      setDepartamentoSeleccionado("")
+    }
+  }, [provinciaSeleccionada])
+
   // Verificar si el usuario puede seleccionar abogado
   const puedeSeleccionarAbogado = userRol === 'ASISTENTE' || userRol === 'ADMIN'
   const esAbogado = userRol === 'ABOGADO'
@@ -110,6 +133,11 @@ export function NuevoCasoForm({ clientes, abogados, userRol, currentUserId }: Nu
     const esCliente = clientes.some(c => c.numeroDocumento === dni)
     setMostrarAlertaConflicto(esCliente)
   }
+
+  // Construir el valor del fuero combinando provincia y departamento
+  const fueroValue = departamentoSeleccionado && provinciaSeleccionada
+    ? `${departamentoSeleccionado}, ${PROVINCIAS_ARGENTINA.find(p => p.id === provinciaSeleccionada)?.nombre || ''}`
+    : ''
 
   return (
     <Card className="max-w-5xl shadow-md border-slate-200">
@@ -189,7 +217,7 @@ export function NuevoCasoForm({ clientes, abogados, userRol, currentUserId }: Nu
                   <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
                   <SelectContent>
                     {TIPOS_CASO.map(tipo => (
-                      <SelectItem key={tipo} value={tipo}>{tipo}</SelectItem>
+                      <SelectItem key={tipo.value} value={tipo.value}>{tipo.label}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -340,44 +368,99 @@ export function NuevoCasoForm({ clientes, abogados, userRol, currentUserId }: Nu
             </div>
           </div>
 
-          {/* SECCIÓN 3: RADICACIÓN */}
+          {/* SECCIÓN 3: RADICACIÓN - ACTUALIZADA CON PROVINCIAS/DEPARTAMENTOS */}
           <div className="space-y-4">
             <div className="flex items-center gap-2 pb-2 border-b border-slate-200">
               <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 font-bold text-sm">3</div>
-              <h2 className="text-lg font-semibold text-slate-800">Radicación y Datos Financieros</h2>
+              <h2 className="text-lg font-semibold text-slate-800">Radicación y Ubicación</h2>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-slate-50 rounded-lg">
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2">
-                  <MapPin className="h-4 w-4" />
-                  Fuero Jurisdiccional
-                </Label>
-                <Select name="fuero">
-                  <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
-                  <SelectContent>
-                    {FUEROS.map(fuero => (
-                      <SelectItem key={fuero} value={fuero}>{fuero}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            <div className="p-4 bg-slate-50 rounded-lg space-y-4">
+              {/* Fila 1: Provincia y Ciudad/Departamento */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <MapPin className="h-4 w-4" />
+                    Provincia *
+                  </Label>
+                  <Select 
+                    value={provinciaSeleccionada}
+                    onValueChange={setProvinciaSeleccionada}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar provincia..." />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[300px]">
+                      {provinciasParaSelect.map(prov => (
+                        <SelectItem key={prov.value} value={prov.value}>
+                          {prov.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <Building className="h-4 w-4" />
+                    Ciudad / Departamento *
+                  </Label>
+                  <Select 
+                    value={departamentoSeleccionado}
+                    onValueChange={setDepartamentoSeleccionado}
+                    disabled={!provinciaSeleccionada}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={provinciaSeleccionada ? "Seleccionar ciudad..." : "Primero seleccione provincia"} />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[300px]">
+                      {departamentosDisponibles.map(depto => (
+                        <SelectItem key={depto.value} value={depto.value}>
+                          {depto.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {provinciaSeleccionada && departamentosDisponibles.length === 0 && (
+                    <p className="text-xs text-amber-600">No hay ciudades cargadas para esta provincia</p>
+                  )}
+                </div>
               </div>
 
-              <div className="space-y-2">
-                <Label>Juzgado / Secretaría</Label>
-                <Input name="juzgado" placeholder="Ej: Juzgado Nº 45 Civ. y Com." />
+              {/* Campo oculto con el fuero combinado */}
+              <input type="hidden" name="fuero" value={fueroValue} />
+
+              {/* Mostrar ubicación seleccionada */}
+              {fueroValue && (
+                <div className="p-3 bg-white border border-slate-200 rounded-lg">
+                  <p className="text-xs text-slate-500 mb-1">Ubicación seleccionada:</p>
+                  <p className="font-medium text-slate-800 flex items-center gap-2">
+                    <MapPin className="h-4 w-4 text-purple-500" />
+                    {fueroValue}
+                  </p>
+                </div>
+              )}
+
+              {/* Fila 2: Juzgado y Monto */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Juzgado / Secretaría</Label>
+                  <Input name="juzgado" placeholder="Ej: Juzgado Nº 45 Civil y Comercial" />
+                  <p className="text-xs text-slate-500">Nombre completo del juzgado asignado</p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Monto en Disputa ($)</Label>
+                  <Input name="monto_disputa" type="number" step="0.01" placeholder="0.00" />
+                  <p className="text-xs text-slate-500">Para reportes de cartera</p>
+                </div>
               </div>
 
+              {/* Fila 3: Ubicación física */}
               <div className="space-y-2">
-                <Label>Monto en Disputa ($)</Label>
-                <Input name="monto_disputa" type="number" step="0.01" placeholder="0.00" />
-                <p className="text-xs text-slate-500">Para reportes de cartera</p>
+                <Label>Ubicación Física del Expediente</Label>
+                <Input name="ubicacion_fisica" placeholder="Ej: Bibliorato A - Estante 2 - Sector Laborales" />
               </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Ubicación Física del Expediente</Label>
-              <Input name="ubicacion_fisica" placeholder="Ej: Bibliorato A - Estante 2 - Sector Laborales" />
             </div>
           </div>
 

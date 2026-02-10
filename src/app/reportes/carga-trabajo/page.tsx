@@ -1,252 +1,345 @@
-import { WorkloadTable } from "./components/WorkloadTable"
-import { InactivityAlerts } from "./components/InactivityAlerts"
-import { RiskMatrix } from "./components/RiskMatrix"
-import { Button } from "@/components/ui/button"
-import { ArrowLeft } from "lucide-react"
+// app/reportes/matriz-trabajo/page.tsx
+// REPORTE: Matriz de Trabajo (RRHH)
+// ACTUALIZADO: Ahora los abogados pueden ver la carga del equipo (versión limitada)
+
 import Link from "next/link"
+import { Sidebar } from "@/app/components/sidebar"
+import { Header } from "@/app/components/header"
+import { getUserSessionServer } from "@/auth/actions/auth-actions"
+import { redirect } from "next/navigation"
 import prisma from "src/lib/db/prisma"
-import { subDays, differenceInDays } from "date-fns"
+import { differenceInDays, subDays, startOfMonth } from "date-fns"
+import { ArrowLeft, Users } from "lucide-react"
+import { Button } from "@/components/ui/button"
 
-async function getCargaTrabajo() {
-  const abogados = await prisma.user.findMany({
-    where: { rol: "ABOGADO", isActive: true },
-    include: {
-      casos: {
-        select: { estado: true, priority: true, updatedAt: true },
-      },
-    },
-  })
+// Componentes
+import { KPICards } from "./components/KPICards"
+import { MatrizCargaEquipo } from "./components/MatrizCargaEquipo"
+import { CasosProblematicos } from "./components/CasosProblematicos"
 
-  return abogados.map((abogado) => {
-    const total = abogado.casos.length
-    const casosActivos = abogado.casos.filter((c) => c.estado !== "Cerrado" && c.estado !== "Archivado")
-    const cantidadActivos = casosActivos.length
-    const cerrados = total - cantidadActivos
-    const casosUrgentes = casosActivos.filter((c) => c.priority === "HIGH").length
+// ============================================================================
+// TIPOS
+// ============================================================================
 
-    let estadoCarga = "Disponible"
-    if (cantidadActivos >= 8) estadoCarga = "Ocupado"
-    if (cantidadActivos >= 15) estadoCarga = "Saturado"
-    if (casosUrgentes >= 3) estadoCarga = "Sobrecargado"
-
-    const eficiencia = total > 0 ? Math.round((cerrados / total) * 100) : 0
-
-    return {
-      id: abogado.id,
-      nombre: abogado.nombre ? `${abogado.nombre} ${abogado.apellido}` : abogado.name || "Sin Nombre",
-      email: abogado.email,
-      activos: cantidadActivos,
-      enProceso: casosUrgentes,
-      eficiencia,
-      estadoCarga,
-    }
-  })
+export type KPIData = {
+  cargaTotal: number
+  enDemora: number
+  eficiencia: number
+  altaPrioridad: number
 }
 
-async function getMatrizRiesgos(userId?: string, esAdmin = true) {
-  const whereUser = esAdmin ? {} : { abogadoId: userId }
+export type AbogadoCarga = {
+  id: string
+  nombre: string
+  email: string
+  avatar?: string | null
+  cargaTotal: number       // Casos activos asignados
+  casosDormidos: number    // Sin movimiento en 15 días
+  cerradosMes: number      // Cerrados en últimos 30 días
+  estado: 'Disponible' | 'Activo' | 'Saturado'
+  // Solo visible para Admin
+  casosDetalle?: {
+    id: string
+    numero: string
+    titulo: string
+    diasInactivo: number
+  }[]
+}
 
-  const casos = await prisma.caso.findMany({
+export type CasoProblematico = {
+  id: string
+  numero: string
+  titulo: string
+  abogadoNombre: string
+  abogadoId: string
+  diasInactivo: number
+  ultimaAccion: Date
+}
+
+// ============================================================================
+// FUNCIONES DE DATOS
+// ============================================================================
+
+async function getKPIs(userId: string, esAdmin: boolean): Promise<KPIData> {
+  const whereClause = esAdmin ? {} : { abogadoId: userId }
+  const hoy = new Date()
+  const hace45Dias = subDays(hoy, 45)
+  const inicioMes = startOfMonth(hoy)
+
+  // Casos activos (no cerrados ni archivados)
+  const casosActivos = await prisma.caso.count({
     where: {
-      ...whereUser,
-      NOT: { estado: { in: ["Cerrado", "Archivado"] } },
+      ...whereClause,
+      estaCerrado: false,
+      estado: { notIn: ['Cerrado', 'Archivado', 'CERRADO', 'ARCHIVADO'] }
+    }
+  })
+
+  // Casos en demora (sin movimiento en 45 días)
+  const casosEnDemora = await prisma.caso.count({
+    where: {
+      ...whereClause,
+      estaCerrado: false,
+      estado: { notIn: ['Cerrado', 'Archivado', 'CERRADO', 'ARCHIVADO'] },
+      updatedAt: { lt: hace45Dias }
+    }
+  })
+
+  // Casos cerrados este mes
+  const cerradosEsteMes = await prisma.caso.count({
+    where: {
+      ...whereClause,
+      estaCerrado: true,
+      fechaCierre: { gte: inicioMes }
+    }
+  })
+
+  // Tasa de eficiencia: (cerrados este mes / activos) * 100
+  const eficiencia = casosActivos > 0 
+    ? Math.round((cerradosEsteMes / casosActivos) * 100) 
+    : 0
+
+  // Casos de alta prioridad
+  const altaPrioridad = await prisma.caso.count({
+    where: {
+      ...whereClause,
+      estaCerrado: false,
+      estado: { notIn: ['Cerrado', 'Archivado', 'CERRADO', 'ARCHIVADO'] },
+      priority: 'HIGH'
+    }
+  })
+
+  return {
+    cargaTotal: casosActivos,
+    enDemora: casosEnDemora,
+    eficiencia,
+    altaPrioridad
+  }
+}
+
+async function getMatrizCargaEquipo(esAdmin: boolean): Promise<AbogadoCarga[]> {
+  const hoy = new Date()
+  const hace15Dias = subDays(hoy, 15)
+  const hace30Dias = subDays(hoy, 30)
+
+  // Obtener todos los abogados activos
+  const abogados = await prisma.user.findMany({
+    where: { 
+      rol: 'ABOGADO', 
+      isActive: true 
     },
     select: {
       id: true,
-      numero: true,
-      titulo: true,
-      priority: true,
-      updatedAt: true,
-      cliente: { select: { nombre: true, apellido: true } },
-      requirements: {
-        where: { isCompleted: false },
-        orderBy: { dueDate: "asc" },
-      },
-    },
+      nombre: true,
+      apellido: true,
+      email: true,
+      image: true,
+      casos: {
+        select: {
+          id: true,
+          numero: true,
+          titulo: true,
+          estado: true,
+          estaCerrado: true,
+          updatedAt: true,
+          fechaCierre: true
+        }
+      }
+    }
   })
 
-  const resultados = casos.map((c) => {
-    const diasInactivo = differenceInDays(new Date(), c.updatedAt)
-    const proximoVencimiento = c.requirements.find((r) => r.dueDate !== null)
-    let hayBombaInminente = false
+  return abogados.map(abogado => {
+    // Casos activos del abogado
+    const casosActivos = abogado.casos.filter(c => 
+      !c.estaCerrado && 
+      !['Cerrado', 'Archivado', 'CERRADO', 'ARCHIVADO'].includes(c.estado)
+    )
 
-    if (proximoVencimiento && proximoVencimiento.dueDate) {
-      const hoy = new Date()
-      const fechaVenc = new Date(proximoVencimiento.dueDate)
-      const diasParaVencer = differenceInDays(fechaVenc, hoy)
-      if (diasParaVencer <= 3) hayBombaInminente = true
+    // Casos dormidos (sin movimiento en 15 días)
+    const casosDormidos = casosActivos.filter(c => 
+      c.updatedAt < hace15Dias
+    ).length
+
+    // Casos cerrados en últimos 30 días
+    const cerradosMes = abogado.casos.filter(c => 
+      c.estaCerrado && 
+      c.fechaCierre && 
+      c.fechaCierre >= hace30Dias
+    ).length
+
+    // Determinar estado del abogado
+    let estado: 'Disponible' | 'Activo' | 'Saturado' = 'Disponible'
+    
+    if (casosActivos.length > 15 || casosDormidos > 5) {
+      estado = 'Saturado'
+    } else if (casosActivos.length > 8 || casosDormidos > 2) {
+      estado = 'Activo'
     }
 
-    let estadoRiesgo = "Al día"
-    if (hayBombaInminente) estadoRiesgo = "Crítico"
-    else if (diasInactivo > 45) estadoRiesgo = "Crítico"
-    else if (c.priority === "HIGH" && diasInactivo > 20) estadoRiesgo = "Crítico"
-    else if (diasInactivo > 15) estadoRiesgo = "Atención"
+    const nombreCompleto = abogado.nombre && abogado.apellido
+      ? `${abogado.nombre} ${abogado.apellido}`
+      : abogado.nombre || abogado.email.split('@')[0]
+
+    // Detalle de casos (solo para Admin)
+    const casosDetalle = esAdmin ? casosActivos.map(c => ({
+      id: c.id,
+      numero: c.numero,
+      titulo: c.titulo,
+      diasInactivo: differenceInDays(hoy, c.updatedAt)
+    })) : undefined
 
     return {
-      id: c.id,
-      expediente: c.numero,
-      caratula: c.titulo,
-      cliente: c.cliente ? `${c.cliente.nombre} ${c.cliente.apellido}` : "S/C",
-      complejidad: c.priority === "HIGH" ? "Alta" : c.priority === "LOW" ? "Baja" : "Media",
-      ultimoMovimiento: c.updatedAt.toLocaleDateString("es-ES"),
-      diasInactivo,
-      estado: estadoRiesgo,
-      pesoOrden: estadoRiesgo === "Crítico" ? 3 : estadoRiesgo === "Atención" ? 2 : 1,
+      id: abogado.id,
+      nombre: nombreCompleto,
+      email: abogado.email,
+      avatar: abogado.image,
+      cargaTotal: casosActivos.length,
+      casosDormidos,
+      cerradosMes,
+      estado,
+      casosDetalle
     }
-  })
-
-  return resultados.sort((a, b) => b.pesoOrden - a.pesoOrden || b.diasInactivo - a.diasInactivo).slice(0, 10)
+  }).sort((a, b) => b.cargaTotal - a.cargaTotal) // Ordenar por carga descendente
 }
 
-async function getAlertasUnificadas(userId?: string, esAdmin = true) {
-  const whereUser = esAdmin ? {} : { abogadoId: userId }
-  const whereUserCaso = esAdmin ? {} : { caso: { abogadoId: userId } }
+async function getCasosProblematicos(): Promise<CasoProblematico[]> {
   const hoy = new Date()
+  const hace45Dias = subDays(hoy, 45)
 
-  const fechaLimite = new Date()
-  fechaLimite.setDate(hoy.getDate() + 7)
-
-  const checklistItems = await prisma.requirement.findMany({
+  // Casos con más de 45 días sin movimiento
+  const casos = await prisma.caso.findMany({
     where: {
-      ...whereUserCaso,
-      isCompleted: false,
-      dueDate: { lte: fechaLimite },
+      estaCerrado: false,
+      estado: { notIn: ['Cerrado', 'Archivado', 'CERRADO', 'ARCHIVADO'] },
+      updatedAt: { lt: hace45Dias }
     },
     include: {
-      caso: {
-        include: { abogado: true },
-      },
+      abogado: {
+        select: {
+          id: true,
+          nombre: true,
+          apellido: true
+        }
+      }
     },
+    orderBy: {
+      updatedAt: 'asc' // Los más antiguos primero
+    },
+    take: 15 // Limitar a 15 casos
   })
 
-  const casosZombies = await prisma.caso.findMany({
-    where: {
-      ...whereUser,
-      updatedAt: { lt: subDays(hoy, 120) },
-      estado: { notIn: ["Cerrado", "Archivado"] },
-    },
-    include: { abogado: true },
-    take: 3,
+  return casos.map(caso => {
+    const diasInactivo = differenceInDays(hoy, caso.updatedAt)
+    const nombreAbogado = caso.abogado.nombre && caso.abogado.apellido
+      ? `${caso.abogado.nombre} ${caso.abogado.apellido}`
+      : 'Sin asignar'
+
+    return {
+      id: caso.id,
+      numero: caso.numero,
+      titulo: caso.titulo,
+      abogadoNombre: nombreAbogado,
+      abogadoId: caso.abogado.id,
+      diasInactivo,
+      ultimaAccion: caso.updatedAt
+    }
   })
-
-  const listaCombinada = [
-    ...checklistItems.map((r) => {
-      const diasDiferencia = differenceInDays(r.dueDate!, hoy)
-      const esVencido = diasDiferencia < 0
-      const esCasoUrgente = r.caso.priority === "HIGH"
-
-      let score = 0
-      let gravedad = "Baja"
-      let tipo = "Pendiente"
-
-      if (esVencido) {
-        score = 100 + Math.abs(diasDiferencia)
-        gravedad = "Critico"
-        tipo = "Vencido"
-      } else if (diasDiferencia <= 1) {
-        score = 80 + (esCasoUrgente ? 10 : 0)
-        gravedad = "Critico"
-        tipo = "Urgente"
-      } else {
-        score = 50 + (esCasoUrgente ? 10 : 0) - diasDiferencia
-        gravedad = "Preventivo"
-        tipo = "Próximo"
-      }
-
-      return {
-        id: `req-${r.id}`,
-        abogado: r.caso.abogado.nombre || "S/A",
-        mensaje: r.description,
-        subtitulo: `Caso: ${r.caso.titulo} (${r.caso.priority})`,
-        tiempo: esVencido ? `Venció hace ${Math.abs(diasDiferencia)} días` : `Vence en ${diasDiferencia} días`,
-        gravedad,
-        tipo,
-        score,
-        link: `/casos/${r.caso.id}`,
-      }
-    }),
-    ...casosZombies.map((c) => ({
-      id: `zombie-${c.id}`,
-      abogado: c.abogado.nombre || "S/A",
-      mensaje: `Revisar Expediente Abandonado`,
-      subtitulo: `Caso: ${c.titulo}`,
-      tiempo: "+4 meses inactivo",
-      gravedad: "Preventivo",
-      tipo: "Abandono",
-      score: 20 + (c.priority === "HIGH" ? 5 : 0),
-      link: `/casos/${c.id}`,
-    })),
-  ]
-
-  return listaCombinada.sort((a, b) => b.score - a.score).slice(0, 6)
 }
 
-export default async function CargaTrabajoPage() {
-  const esAdmin = true
+// ============================================================================
+// COMPONENTE PRINCIPAL
+// ============================================================================
 
-  const [cargaData, riesgosData, alertasData] = await Promise.all([
-    getCargaTrabajo(),
-    getMatrizRiesgos(undefined, esAdmin),
-    getAlertasUnificadas(undefined, esAdmin),
+export default async function MatrizTrabajoPage() {
+  const user = await getUserSessionServer()
+  if (!user) redirect("/api/auth/signin")
+
+  const esAdmin = user.rol?.toUpperCase() === 'ADMIN'
+
+  // Cargar datos según rol
+  // - Admin: Ve todo (KPIs globales, matriz completa, casos problemáticos con detalle)
+  // - Abogado: Ve KPIs personales + matriz del equipo (sin detalle de casos de otros)
+  const [kpis, matrizEquipo, casosProblematicos] = await Promise.all([
+    getKPIs(user.id, esAdmin),
+    getMatrizCargaEquipo(esAdmin), // Ahora siempre carga la matriz
+    esAdmin ? getCasosProblematicos() : [] // Solo admin ve casos problemáticos
   ])
 
   return (
     <div className="flex h-screen bg-slate-50">
+      <Sidebar />
       <div className="flex flex-col flex-1 overflow-hidden">
-        <main className="flex-1 overflow-auto p-8">
-          <div className="mb-6 flex justify-between items-center">
-            <Link href="/reportes">
-              <Button variant="ghost" size="sm" className="text-slate-500 hover:text-slate-800 pl-0 gap-2">
-                <ArrowLeft className="w-4 h-4" />
-                Volver al Tablero Principal
-              </Button>
-            </Link>
+        <Header />
+        
+        <main className="flex-1 overflow-auto p-6">
+          <div className="max-w-7xl mx-auto">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-4">
+                <Link href="/reportes">
+                  <Button variant="ghost" size="sm" className="text-slate-500 hover:text-slate-800 gap-2">
+                    <ArrowLeft className="w-4 h-4" />
+                    Volver
+                  </Button>
+                </Link>
+                <div>
+                  <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+                    <Users className="h-6 w-6 text-indigo-600" />
+                    Matriz de Trabajo
+                  </h1>
+                  <p className="text-sm text-slate-500">
+                    {esAdmin 
+                      ? 'Visión gerencial de carga y eficiencia del equipo'
+                      : 'Tu carga de trabajo y estado del equipo'
+                    }
+                  </p>
+                </div>
+              </div>
 
-            <span
-              className={`text-xs font-medium px-3 py-1 rounded-full border ${
-                esAdmin ? "bg-purple-50 text-purple-700 border-purple-200" : "bg-blue-50 text-blue-700 border-blue-200"
-              }`}
-            >
-              {esAdmin ? "Vista Gerencial (Todos los casos)" : "Vista Operativa (Mis casos)"}
-            </span>
-          </div>
-
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-slate-800 mb-2">
-              {esAdmin ? "Balance y Asignación Global" : "Mi Balance y Prioridades"}
-            </h1>
-            <p className="text-slate-600 max-w-3xl">
-              {esAdmin
-                ? "Herramienta gerencial para visualizar la carga de todo el equipo y detectar riesgos globales."
-                : "Herramienta operativa para gestionar tus prioridades del día y evitar vencimientos en tus expedientes."}
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-            <div className="xl:col-span-2 space-y-6">
-              <WorkloadTable data={cargaData} />
-              <RiskMatrix data={riesgosData} />
+              <span className={`text-xs font-medium px-3 py-1.5 rounded-full border ${
+                esAdmin 
+                  ? 'bg-purple-50 text-purple-700 border-purple-200' 
+                  : 'bg-blue-50 text-blue-700 border-blue-200'
+              }`}>
+                {esAdmin ? 'Vista Gerencial' : 'Vista Personal'}
+              </span>
             </div>
 
-            <div className="xl:col-span-1 space-y-6">
-              <InactivityAlerts data={alertasData} />
+            {/* SECCIÓN 1: KPIs */}
+            <KPICards data={kpis} esAdmin={esAdmin} />
 
-              {esAdmin ? (
-                <div className="p-4 bg-purple-50 rounded-xl border border-purple-100 text-sm text-purple-800">
-                  <strong>Consejo Gerencial:</strong>
-                  <p className="mt-1 text-purple-700/80">
-                    Revise la carga de los abogados en "Rojo" antes de asignar nuevos clientes esta semana.
-                  </p>
-                </div>
-              ) : (
-                <div className="p-4 bg-blue-50 rounded-xl border border-blue-100 text-sm text-blue-800">
-                  <strong>Consejo Operativo:</strong>
-                  <p className="mt-1 text-blue-700/80">
-                    Priorice resolver las alertas críticas (Rojo) hoy mismo para mantener su índice de eficiencia alto.
-                  </p>
-                </div>
-              )}
+            {/* SECCIÓN 2: Matriz de Carga - AHORA VISIBLE PARA TODOS */}
+            {matrizEquipo.length > 0 && (
+              <MatrizCargaEquipo data={matrizEquipo} esAdmin={esAdmin} />
+            )}
+
+            {/* SECCIÓN 3: Casos Problemáticos (Solo Admin) */}
+            {esAdmin && casosProblematicos.length > 0 && (
+              <CasosProblematicos data={casosProblematicos} />
+            )}
+
+            {/* Mensaje si no hay casos problemáticos (Solo Admin) */}
+            {esAdmin && casosProblematicos.length === 0 && (
+              <div className="mt-6 p-6 bg-emerald-50 border border-emerald-200 rounded-lg text-center">
+                <p className="text-emerald-700 font-medium">
+                  ✓ No hay casos problemáticos detectados
+                </p>
+                <p className="text-sm text-emerald-600 mt-1">
+                  Todos los casos tienen actividad reciente (menos de 45 días)
+                </p>
+              </div>
+            )}
+
+            {/* Nota informativa */}
+            <div className="mt-8 p-4 bg-slate-100 border border-slate-200 rounded-lg">
+              <p className="text-xs text-slate-600">
+                <strong>Criterios del reporte:</strong>{' '}
+                Caso inactivo = sin movimiento en 15+ días | 
+                {esAdmin && ' Caso "problemático" = sin movimiento en 45+ días | '}
+                Eficiencia = casos cerrados este mes / casos activos | 
+                <strong> Estado:</strong> Disponible (&lt;8 casos), Activo (8-15 casos), Saturado (&gt;15 casos o muchos inactivos)
+              </p>
             </div>
           </div>
         </main>

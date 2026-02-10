@@ -1,113 +1,79 @@
-// src/app/api/admin/usuarios/cambiar-password/route.ts
-// 
-// USO: El ADMIN resetea la contraseña de OTRO usuario
-// Ejemplo: POST /api/admin/usuarios/cambiar-password
-// Body: { userId: "xxx", newPassword: "temporal123" }
+// app/api/admin/usuarios/[id]/reset-password/route.ts
 
 import { NextRequest, NextResponse } from "next/server"
 import { getUserSessionServer } from "@/auth/actions/auth-actions"
 import prisma from "src/lib/db/prisma"
 import bcrypt from "bcryptjs"
 
-// ===== VALIDACIÓN DE CONTRASEÑA =====
-function validatePasswordStrength(password: string): { valid: boolean; errors: string[] } {
-  const errors: string[] = []
+// Generar contraseña temporal segura
+function generarPasswordTemporal(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789'
+  const special = '!@#$%&*'
+  let password = ''
   
-  if (password.length < 8) {
-    errors.push("La contraseña debe tener al menos 8 caracteres")
+  // 8 caracteres alfanuméricos
+  for (let i = 0; i < 8; i++) {
+    password += chars.charAt(Math.floor(Math.random() * chars.length))
   }
-  if (!/[A-Z]/.test(password)) {
-    errors.push("Debe contener al menos una letra mayúscula")
-  }
-  if (!/[a-z]/.test(password)) {
-    errors.push("Debe contener al menos una letra minúscula")
-  }
-  if (!/[0-9]/.test(password)) {
-    errors.push("Debe contener al menos un número")
-  }
-  if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
-    errors.push("Debe contener al menos un carácter especial")
-  }
-
-  return { valid: errors.length === 0, errors }
+  
+  // Agregar un carácter especial al final
+  password += special.charAt(Math.floor(Math.random() * special.length))
+  
+  return password
 }
 
-// ===== POST: Admin resetea contraseña de otro usuario =====
-export async function POST(req: NextRequest) {
+export async function POST(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
-    // Verificar que sea ADMIN
-    const admin = await getUserSessionServer()
+    const user = await getUserSessionServer()
 
-    if (!admin || admin.rol !== 'ADMIN') {
-      return NextResponse.json(
-        { error: "No autorizado. Solo administradores pueden resetear contraseñas." },
-        { status: 403 }
-      )
+    if (!user || user.rol !== 'ADMIN') {
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 })
     }
 
-    const body = await req.json()
-    const { userId, newPassword } = body
-
-    // Validar campos requeridos
-    if (!userId || !newPassword) {
-      return NextResponse.json(
-        { error: "Debe proporcionar userId y newPassword" },
-        { status: 400 }
-      )
-    }
-
-    // Validar fortaleza de contraseña
-    const passwordValidation = validatePasswordStrength(newPassword)
-    if (!passwordValidation.valid) {
-      return NextResponse.json(
-        { 
-          error: "La contraseña no cumple con los requisitos",
-          detalles: passwordValidation.errors
-        },
-        { status: 400 }
-      )
-    }
-
-    // Verificar que el usuario existe
     const usuario = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { id: true, email: true, nombre: true, apellido: true }
+      where: { id: params.id }
     })
 
     if (!usuario) {
-      return NextResponse.json(
-        { error: "Usuario no encontrado" },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 })
     }
 
-    // Hashear nueva contraseña
-    const hashedPassword = await bcrypt.hash(newPassword, 10)
+    if (!usuario.isActive) {
+      return NextResponse.json({ 
+        error: "No se puede resetear la contraseña de un usuario inactivo" 
+      }, { status: 400 })
+    }
 
-    // Actualizar contraseña y marcar que debe cambiarla
+    // Generar nueva contraseña temporal
+    const tempPassword = generarPasswordTemporal()
+    const hashedPassword = await bcrypt.hash(tempPassword, 10)
+
+    // Actualizar usuario
     await prisma.user.update({
-      where: { id: userId },
+      where: { id: params.id },
       data: {
         password: hashedPassword,
-        debeResetearPassword: true  // ← El usuario deberá cambiarla en su próximo login
+        debeResetearPassword: true
       }
     })
 
     // Registrar en bitácora
     await prisma.bitacora.create({
       data: {
-        texto: `Admin reseteó contraseña de: ${usuario.email}`,
+        texto: `Contraseña reseteada para: ${usuario.email}`,
         tipo: 'auto',
-        accion: 'Reset de Contraseña (Admin)',
-        usuarioId: admin.id
+        accion: 'Reset de Contraseña',
+        usuarioId: user.id
       }
-    }).catch(err => console.warn("No se pudo crear bitácora:", err))
+    })
 
-    console.log(`✅ Admin ${admin.email} reseteó contraseña de ${usuario.email}`)
-
-    return NextResponse.json({ 
+    return NextResponse.json({
       success: true,
-      message: `Contraseña de ${usuario.nombre} ${usuario.apellido} reseteada correctamente. Deberá cambiarla en su próximo inicio de sesión.`
+      tempPassword,
+      mensaje: "El usuario deberá cambiar la contraseña en su próximo inicio de sesión"
     })
 
   } catch (error: any) {

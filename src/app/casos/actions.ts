@@ -16,6 +16,21 @@ export type State = {
 }
 
 // ============================================================================
+// TIPOS DE CASO VÁLIDOS (Actualizado)
+// ============================================================================
+const TIPOS_CASO_VALIDOS = [
+  "LABORAL", 
+  "CIVIL_COMERCIAL",  // Nuevo unificado
+  "FAMILIA", 
+  "PENAL", 
+  "SUCESIONES", 
+  "CONTENCIOSO_ADMINISTRATIVO",  // Nuevo
+  "OTRO",
+  "CIVIL",
+  "COMERCIAL"
+]
+
+// ============================================================================
 // 1. CREAR CASO (CON SOPORTE PARA ASISTENTE)
 // ============================================================================
 export async function crearCasoAction(prevState: State, formData: FormData): Promise<State> {
@@ -40,8 +55,7 @@ export async function crearCasoAction(prevState: State, formData: FormData): Pro
 
   // 2. Validar Tipo de Caso (ENUM)
   const tipoRaw = formData.get("tipo") as string
-  const tipoValido = ["LABORAL", "CIVIL", "COMERCIAL", "FAMILIA", "PENAL", "SUCESIONES", "OTRO"]
-  if (!tipoRaw || !tipoValido.includes(tipoRaw)) {
+  if (!tipoRaw || !TIPOS_CASO_VALIDOS.includes(tipoRaw)) {
     return { error: "El tipo de caso no es válido" }
   }
 
@@ -187,10 +201,9 @@ export async function actualizarCasoAction(prevState: State, formData: FormData)
     console.error("Error parseando requisitos update", e)
   }
 
-  // 2. Validar Tipo de Caso
+  // 2. Validar Tipo de Caso (incluyendo legacy)
   const tipoRaw = formData.get("tipo") as string
-  const tipoValido = ["LABORAL", "CIVIL", "COMERCIAL", "FAMILIA", "PENAL", "SUCESIONES", "OTRO"]
-  if (!tipoRaw || !tipoValido.includes(tipoRaw)) {
+  if (!tipoRaw || !TIPOS_CASO_VALIDOS.includes(tipoRaw)) {
     return { error: "El tipo de caso no es válido" }
   }
 
@@ -236,7 +249,8 @@ export async function actualizarCasoAction(prevState: State, formData: FormData)
         estado: true, 
         priority: true, 
         clienteId: true,
-        titulo: true 
+        titulo: true,
+        fuero: true
       }
     })
 
@@ -301,6 +315,11 @@ export async function actualizarCasoAction(prevState: State, formData: FormData)
       })
     }
 
+    // Cambio de fuero/ubicación
+    if (casoActual.fuero !== rawData.fuero && rawData.fuero) {
+      cambios.push(`Ubicación: ${casoActual.fuero || 'Sin definir'} → ${rawData.fuero}`)
+    }
+
     // Registro general (si hubo cambios)
     if (cambios.length > 0) {
       await registrarAuditoria({
@@ -320,7 +339,7 @@ export async function actualizarCasoAction(prevState: State, formData: FormData)
   revalidatePath("/casos")
   revalidatePath(`/casos/${casoId}`)
   revalidatePath("/reportes/carga-trabajo")
-  redirect("/casos")
+  redirect(`/casos/${casoId}`)
 }
 
 // ============================================================================
