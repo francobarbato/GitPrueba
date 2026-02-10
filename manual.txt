@@ -1,0 +1,234 @@
+=====================================================
+📘 MANUAL DE DESPLIEGUE - SISTEMA JURÍDICO (TESIS)
+=====================================================
+
+1️⃣ REQUISITOS PREVIOS
+-------------------------------------------
+- Node.js (v18 o superior)
+- MySQL Server corriendo (XAMPP, Docker o local)
+- Una cuenta de desarrollador en Google/GitHub (para OAuth - opcional)
+
+-------------------------------------------
+
+2️⃣ CONFIGURACIÓN DEL ENTORNO (.env)
+-------------------------------------------
+1. Clonar el repositorio e instalar dependencias:
+   npm install
+
+2. Crear un archivo llamado `.env` en la raíz del proyecto.
+3. Copiar y pegar el siguiente contenido, llenando tus datos:
+
+   # Conexión a Base de Datos (Ajustar usuario:password)
+   DATABASE_URL="mysql://root:tu_password@localhost:3306/estudio_juridico"
+
+   # Configuración de NextAuth (URL base y llave secreta)
+   NEXTAUTH_URL="http://localhost:3000"
+   NEXTAUTH_SECRET="tu_clave_secreta_generada_al_azar"
+
+   # (OPCIONAL) OAuth - Si se desea login con redes sociales
+   # Conseguir en: https://console.cloud.google.com/
+   GOOGLE_CLIENT_ID="tu_id_de_google"
+   GOOGLE_CLIENT_SECRET="tu_secreto_de_google"
+
+   # Conseguir en: https://github.com/settings/developers
+   GITHUB_ID="tu_id_de_github"
+   GITHUB_SECRET="tu_secreto_de_github"
+
+-------------------------------------------
+
+3️⃣ BASE DE DATOS Y USUARIOS (SEED)
+-------------------------------------------
+No es necesario crear tablas manualmente con SQL. El sistema usa Prisma ORM.
+
+1. Crear las tablas automáticamente:
+   npx prisma migrate dev --name init
+
+2. Poblar la base de datos con datos de prueba (Admin, Abogados, Casos):
+   npx prisma db seed
+   
+   (Esto creará automáticamente al Administrador y a los Abogados con casos asignados).
+
+-------------------------------------------
+
+4️⃣ MIGRACIONES ADICIONALES (Si ya tenés la BD creada)
+-------------------------------------------
+Si estás actualizando una instalación existente, ejecutar las siguientes migraciones:
+
+1. Agregar campo creadoPorId a Cliente (para filtrado por rol):
+   npx prisma migrate dev --name add_creadoPorId_to_cliente
+
+2. Actualizar clientes existentes (opcional, desde MySQL):
+   UPDATE cliente SET creadoPorId = abogadoId WHERE creadoPorId IS NULL;
+
+-------------------------------------------
+
+5️⃣ INICIAR EL SISTEMA
+-------------------------------------------
+1. Ejecutar el servidor de desarrollo:
+   npm run dev
+
+2. Abrir en el navegador:
+   http://localhost:3000
+
+-------------------------------------------
+
+6️⃣ CREDENCIALES DE ACCESO (Generadas por el Seed)
+-------------------------------------------
+El sistema cuenta con 4 Roles con diferentes niveles de acceso.
+
+🔐 ROL ADMINISTRADOR
+   Email: admin@estudio.com
+   Pass:  123456
+   -> Acceso a: Dashboard Global, Configuración de Usuarios, Reportes Completos.
+   -> Puede: Crear usuarios (Abogados, Asistentes), ver todos los casos y clientes.
+
+⚖️ ROL ABOGADO (Ejemplo 1)
+   Email: hernan@estudio.com
+   Pass:  123456
+   -> Acceso a: Mis Casos, Mis Clientes, Cálculos de Indemnización.
+   -> Puede: Crear casos, clientes, editar sus expedientes.
+
+⚖️ ROL ABOGADO (Ejemplo 2)
+   Email: agustin@estudio.com
+   Pass:  123456
+   -> Acceso a: Mis Casos, Mis Clientes (Familia/Penal).
+
+📋 ROL ASISTENTE (Crear desde Admin)
+   -> Acceso a: Ver todos los casos (sin editar), crear clientes y casos.
+   -> NO puede: Editar casos, ver pagos/honorarios, configuración del sistema.
+   -> Restricción: Solo ve clientes que él creó y sin casos activos.
+
+👤 ROL CLIENTE (Futuro)
+   -> Solo verá sus propios casos (en desarrollo).
+
+-------------------------------------------
+
+7️⃣ ESTRUCTURA DE ROLES Y PERMISOS
+-------------------------------------------
+
+┌─────────────────────────────────────────────────────────────────┐
+│ FUNCIONALIDAD          │ ADMIN │ ABOGADO │ ASISTENTE │ CLIENTE │
+├─────────────────────────────────────────────────────────────────┤
+│ Ver Dashboard          │  ✅   │   ✅    │    ✅     │   ❌    │
+│ Ver todos los casos    │  ✅   │   ❌    │    ✅     │   ❌    │
+│ Ver solo sus casos     │  -    │   ✅    │    -      │   ✅    │
+│ Crear casos            │  ✅   │   ✅    │    ✅     │   ❌    │
+│ Editar casos           │  ✅   │   ✅    │    ❌     │   ❌    │
+│ Ver pestaña Pagos      │  ✅   │   ✅    │    ❌     │   ❌    │
+│ Ver pestaña Auditoría  │  ✅   │   ❌    │    ❌     │   ❌    │
+│ Crear clientes         │  ✅   │   ✅    │    ✅     │   ❌    │
+│ Gestionar tareas       │  ✅   │   ✅    │    ✅     │   ❌    │
+│ Cálculos indemnización │  ✅   │   ✅    │    ❌     │   ❌    │
+│ Configuración usuarios │  ✅   │   ❌    │    ❌     │   ❌    │
+│ Reportes financieros   │  ✅   │   ✅    │    ❌     │   ❌    │
+└─────────────────────────────────────────────────────────────────┘
+
+-------------------------------------------
+
+8️⃣ GUÍA RÁPIDA DE USO
+-------------------------------------------
+A. LOGIN CON GOOGLE/GITHUB:
+   - Si configuras las claves en el .env, puedes entrar directo.
+   - Si el email de Google coincide con uno creado por el Admin, el sistema lo vincula.
+   - Si es un email nuevo, entra como usuario sin rol (no verá casos hasta que el Admin lo asigne).
+
+B. CREAR UN NUEVO USUARIO (Abogado/Asistente):
+   1. Ingresa como Admin.
+   2. Ve a "Configuración" (menú del usuario o sidebar).
+   3. Usa el formulario para dar de alta un nuevo usuario.
+   4. Selecciona el Rol (ABOGADO o ASISTENTE).
+   5. Crea una contraseña temporal que cumpla los requisitos:
+      - Mínimo 8 caracteres
+      - Al menos una mayúscula
+      - Al menos una minúscula
+      - Al menos un número
+      - Al menos un carácter especial (!@#$%^&*...)
+   6. El usuario deberá cambiar la contraseña en su primer login.
+
+C. PRIMER LOGIN DE USUARIO NUEVO:
+   1. El usuario ingresa con su email y contraseña temporal.
+   2. El sistema lo redirige automáticamente a "Mi Perfil".
+   3. Debe crear una nueva contraseña (no puede continuar sin hacerlo).
+   4. Una vez cambiada, puede navegar normalmente.
+
+D. GESTIÓN DE CASOS (Como Abogado):
+   1. Ingresa como Abogado.
+   2. Ve a "Nuevo Caso".
+   3. Notarás que en "Clientes" solo aparecen TUS clientes asignados o creados por vos.
+   4. Completa el formulario y el caso se asigna automáticamente a tu cuenta.
+
+E. GESTIÓN DE CASOS (Como Asistente):
+   1. Ingresa como Asistente.
+   2. Ve a "Nuevo Caso".
+   3. Solo verás clientes que VOS creaste y que no tienen casos activos.
+   4. DEBES seleccionar un Abogado responsable del caso.
+   5. El caso queda asignado al abogado seleccionado.
+
+-------------------------------------------
+
+9️⃣ ESTRUCTURA DE CARPETAS PRINCIPALES
+-------------------------------------------
+src/
+├── app/
+│   ├── api/                    # APIs del sistema
+│   │   ├── admin/usuarios/     # CRUD de usuarios (Admin)
+│   │   ├── auth/[...nextauth]/ # Autenticación
+│   │   ├── casos/              # API de casos
+│   │   ├── clientes/           # API de clientes
+│   │   └── usuario/            # Perfil y cambio de contraseña
+│   ├── casos/                  # Páginas de casos
+│   ├── clientes/               # Páginas de clientes
+│   ├── configuracion/          # Panel de admin
+│   ├── perfil/                 # Perfil del usuario
+│   └── components/             # Componentes compartidos
+├── auth/                       # Lógica de autenticación
+├── lib/                        # Servicios y utilidades
+└── types/                      # Tipos TypeScript
+
+-------------------------------------------
+
+🔟 SOLUCIÓN DE PROBLEMAS COMUNES
+-------------------------------------------
+- Error "Prisma Client not initialized": 
+  Ejecuta `npx prisma generate`.
+
+- Error de Login: 
+  Asegúrate de ejecutar `npx prisma db seed` para tener los usuarios.
+
+- Cambios en la BD: 
+  Si modificas `schema.prisma`, ejecuta `npx prisma migrate dev`.
+
+- Usuario no puede cambiar contraseña:
+  Verificar que el archivo `src/app/api/usuario/cambiar-password/route.ts` exista y tenga el export `POST`.
+
+- Error 404 en logout:
+  El signOut debe redirigir a `/auth/signin`, no a `/api/auth/signin`.
+
+- Asistente no ve clientes:
+  El Asistente solo ve clientes que él creó (creadoPorId = su ID) y sin casos activos.
+  Primero debe crear un cliente antes de poder crear un caso.
+
+- Campo creadoPorId no existe:
+  Ejecutar migración: `npx prisma migrate dev --name add_creadoPorId_to_cliente`
+
+-------------------------------------------
+
+1️⃣1️⃣ CHANGELOG DE VERSIONES
+-------------------------------------------
+v1.0 - Sistema base
+  - Login con credenciales
+  - Roles Admin y Abogado
+  - CRUD de casos y clientes
+
+v1.1 - Seguridad y Asistente
+  - Validación de contraseñas robusta (8+ chars, mayúsc, minúsc, número, especial)
+  - Flujo de primer login (cambio obligatorio de contraseña)
+  - Rol Asistente implementado
+  - Filtrado de clientes por rol
+  - Asistente puede crear casos y asignar a abogados
+  - Restricciones de UI según rol (pestañas, botones)
+
+-------------------------------------------
+
+Documento actualizado: Enero 2025
+Versión del Sistema: 1.1
