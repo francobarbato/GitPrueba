@@ -1,5 +1,6 @@
 // app/reportes/rendimiento/page.tsx
 // TAC-08: Rendimiento y Velocidad - Análisis HISTÓRICO de eficiencia
+// VISTA: Todos los abogados ven datos globales del estudio
 
 import React from "react"
 import Link from "next/link"
@@ -93,8 +94,6 @@ function getPeriodoFechas(periodo: string): { desde: Date; hasta: Date; desdeAnt
 }
 
 async function calcularRendimiento(
-  userId: string,
-  esAdmin: boolean,
   periodo: string,
   filtroTipo?: string
 ): Promise<{
@@ -104,14 +103,10 @@ async function calcularRendimiento(
 }> {
   const { desde, hasta, desdeAnterior, hastaAnterior } = getPeriodoFechas(periodo)
 
-  // Construir filtros
+  // Filtro base: todos los casos cerrados (vista global para todos los roles)
   const whereBase: any = {
     estaCerrado: true,
     fechaCierre: { not: null }
-  }
-
-  if (!esAdmin) {
-    whereBase.abogadoId = userId
   }
 
   if (filtroTipo && filtroTipo !== 'TODOS') {
@@ -339,15 +334,10 @@ async function calcularRendimiento(
   return { kpis, rendimientoAbogados, desglosePorTipo }
 }
 
-// Obtener tipos disponibles para filtro
-async function obtenerTiposCaso(userId: string, esAdmin: boolean): Promise<string[]> {
-  const whereClause = esAdmin ? {} : { abogadoId: userId }
-  
+// Obtener tipos disponibles para filtro (siempre global)
+async function obtenerTiposCaso(): Promise<string[]> {
   const casos = await prisma.caso.findMany({
-    where: {
-      ...whereClause,
-      estaCerrado: true
-    },
+    where: { estaCerrado: true },
     select: { tipo: true },
     distinct: ['tipo']
   })
@@ -374,11 +364,9 @@ export default async function RendimientoPage({
   const periodo = searchParams.periodo || '90'
   const filtroTipo = searchParams.tipo
 
-  // Obtener datos
-  const tiposDisponibles = await obtenerTiposCaso(user.id, esAdmin)
+  // Obtener datos (siempre globales, sin filtrar por abogado)
+  const tiposDisponibles = await obtenerTiposCaso()
   const { kpis, rendimientoAbogados, desglosePorTipo } = await calcularRendimiento(
-    user.id,
-    esAdmin,
     periodo,
     filtroTipo
   )
@@ -412,7 +400,7 @@ export default async function RendimientoPage({
                 <div>
                   <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
                     <TrendingUp className="h-6 w-6 text-emerald-600" />
-                    Rendimiento y Velocidad
+                    Rendimiento y velocidad
                   </h1>
                   <p className="text-sm text-slate-500">
                     Análisis histórico de eficiencia en resolución de casos ({periodoTexto})
@@ -420,12 +408,8 @@ export default async function RendimientoPage({
                 </div>
               </div>
 
-              <span className={`text-xs font-medium px-3 py-1.5 rounded-full border ${
-                esAdmin 
-                  ? 'bg-purple-50 text-purple-700 border-purple-200' 
-                  : 'bg-blue-50 text-blue-700 border-blue-200'
-              }`}>
-                {esAdmin ? 'Vista Gerencial' : 'Mi Rendimiento'}
+              <span className="text-xs font-medium px-3 py-1.5 rounded-full border bg-purple-50 text-purple-700 border-purple-200">
+                Vista General
               </span>
             </div>
 
@@ -452,13 +436,13 @@ export default async function RendimientoPage({
                 {/* KPIs */}
                 <KPIsRendimiento data={kpis} />
 
-                {/* Ranking de Velocidad (Top 3) - Solo si hay más de 1 abogado */}
-                {esAdmin && rendimientoAbogados.length > 1 && (
+                {/* Ranking de Velocidad - Visible para todos si hay más de 1 abogado */}
+                {rendimientoAbogados.length > 1 && (
                   <RankingVelocidad abogados={rendimientoAbogados.slice(0, 5)} />
                 )}
 
                 {/* Tabla de Rendimiento por Abogado */}
-                {esAdmin && rendimientoAbogados.length > 0 && (
+                {rendimientoAbogados.length > 0 && (
                   <TablaRendimientoAbogados data={rendimientoAbogados} />
                 )}
 

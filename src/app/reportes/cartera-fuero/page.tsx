@@ -1,5 +1,6 @@
 // app/reportes/cartera-fuero/page.tsx
 // REPORTE EST-14: Composición de Cartera por Fuero (Strategic Portfolio Analysis)
+// VISTA: Todos los abogados ven datos globales del estudio
 // Qué responde: ¿Somos un estudio de volumen o de valor? ¿Dónde está el dinero?
 
 import Link from "next/link"
@@ -37,18 +38,16 @@ const ETAPAS_MEDIAS = ["Prueba (Oficios/Pericias)", "Alegatos / Conclusiones"]
 const ETAPAS_TARDIAS = ["Sentencia de 1ra Instancia", "Apelación / 2da Instancia", "Ejecución de Sentencia"]
 
 // ============================================================================
-// FUNCIONES DE DATOS (Server-side, consulta directa a Prisma)
+// FUNCIONES DE DATOS (Server-side, consulta directa a Prisma - siempre global)
 // ============================================================================
 
-async function getCarteraPorFuero(userId: string, esAdmin: boolean) {
-  const whereClause = esAdmin ? {} : { abogadoId: userId }
+async function getCarteraPorFuero() {
   const hoy = new Date()
   const hace30Dias = subDays(hoy, 30)
 
-  // 1. Obtener todos los casos activos con datos necesarios
+  // 1. Obtener todos los casos activos (sin filtrar por abogado - vista global)
   const casosActivos = await prisma.caso.findMany({
     where: {
-      ...whereClause,
       estaCerrado: false,
       estado: { notIn: ["Cerrado", "Archivado", "CERRADO", "ARCHIVADO"] },
     },
@@ -64,7 +63,6 @@ async function getCarteraPorFuero(userId: string, esAdmin: boolean) {
   // 2. Obtener casos cerrados para calcular promedio de días de cierre por fuero
   const casosCerrados = await prisma.caso.findMany({
     where: {
-      ...whereClause,
       estaCerrado: true,
       fechaCierre: { not: null },
     },
@@ -187,9 +185,7 @@ export default async function CarteraFueroPage() {
   const user = await getUserSessionServer()
   if (!user) redirect("/api/auth/signin")
 
-  const esAdmin = user.rol?.toUpperCase() === "ADMIN"
-
-  const { kpis, filas, litigiosidad } = await getCarteraPorFuero(user.id, esAdmin)
+  const { kpis, filas, litigiosidad } = await getCarteraPorFuero()
 
   return (
     <div className="flex h-screen bg-slate-50">
@@ -211,7 +207,7 @@ export default async function CarteraFueroPage() {
                 <div>
                   <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
                     <Scale className="h-6 w-6 text-indigo-600" />
-                    Composición de Cartera por Fuero
+                    Composición de cartera por fuero
                   </h1>
                   <p className="text-sm text-slate-500">
                     Análisis estratégico: volumen de trabajo vs. valor económico por materia
@@ -219,14 +215,8 @@ export default async function CarteraFueroPage() {
                 </div>
               </div>
 
-              <span
-                className={`text-xs font-medium px-3 py-1.5 rounded-full border ${
-                  esAdmin
-                    ? "bg-purple-50 text-purple-700 border-purple-200"
-                    : "bg-blue-50 text-blue-700 border-blue-200"
-                }`}
-              >
-                {esAdmin ? "Vista Gerencial" : "Vista Personal"}
+              <span className="text-xs font-medium px-3 py-1.5 rounded-full border bg-purple-50 text-purple-700 border-purple-200">
+                Vista General
               </span>
             </div>
 
@@ -250,8 +240,7 @@ export default async function CarteraFueroPage() {
               <p className="text-xs text-slate-600">
                 <strong>Criterios del reporte:</strong> Solo incluye casos activos (no cerrados ni archivados) |
                 Capital en litigio = suma de montoDisputa | Tasa de actividad = casos con movimiento en últimos 30 días |
-                Promedio de cierre = calculado sobre casos históricos cerrados del mismo fuero |
-                {!esAdmin && " Los datos reflejan únicamente tus casos asignados."}
+                Promedio de cierre = calculado sobre casos históricos cerrados del mismo fuero
               </p>
             </div>
           </div>

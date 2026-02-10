@@ -1,5 +1,6 @@
 // app/reportes/analisis-resultados/page.tsx
 // REPORTE REP-EST-02 / TAC-09: Análisis de Resultados (Tasa de Éxito)
+// VISTA: Todos los abogados ven datos globales del estudio
 // Qué responde: ¿Cómo terminan nuestros juicios? ¿Cuánto recuperamos? ¿Qué tan efectivos somos?
 
 import Link from "next/link"
@@ -36,16 +37,13 @@ const TIPO_CASO_LABELS: Record<string, string> = {
 const MOTIVOS_EXITOSOS = ["Sentencia favorable", "Acuerdo/Conciliación"]
 
 // ============================================================================
-// FUNCIONES DE DATOS
+// FUNCIONES DE DATOS (siempre global, sin filtrar por abogado)
 // ============================================================================
 
-async function getAnalisisResultados(userId: string, esAdmin: boolean) {
-  const whereClause = esAdmin ? {} : { abogadoId: userId }
-
-  // Obtener todos los casos cerrados con datos completos
+async function getAnalisisResultados() {
+  // Obtener todos los casos cerrados (vista global para todos los roles)
   const casosCerrados = await prisma.caso.findMany({
     where: {
-      ...whereClause,
       estaCerrado: true,
     },
     select: {
@@ -176,15 +174,15 @@ async function getAnalisisResultados(userId: string, esAdmin: boolean) {
   // ========== INSIGHTS ==========
   const motivosConDias = motivoRows.filter((m) => m.promedioDias > 0)
   const motivoMasRapido = motivosConDias.length > 0
-    ? { motivo: motivosConDias.sort((a, b) => a.promedioDias - b.promedioDias)[0].motivo, dias: motivosConDias.sort((a, b) => a.promedioDias - b.promedioDias)[0].promedioDias }
+    ? { motivo: [...motivosConDias].sort((a, b) => a.promedioDias - b.promedioDias)[0].motivo, dias: [...motivosConDias].sort((a, b) => a.promedioDias - b.promedioDias)[0].promedioDias }
     : null
   const motivoMasLento = motivosConDias.length > 0
-    ? { motivo: motivosConDias.sort((a, b) => b.promedioDias - a.promedioDias)[0].motivo, dias: motivosConDias.sort((a, b) => b.promedioDias - a.promedioDias)[0].promedioDias }
+    ? { motivo: [...motivosConDias].sort((a, b) => b.promedioDias - a.promedioDias)[0].motivo, dias: [...motivosConDias].sort((a, b) => b.promedioDias - a.promedioDias)[0].promedioDias }
     : null
 
   const motivosConRecupero = motivoRows.filter((m) => m.tasaRecupero > 0)
   const motivoMejorRecupero = motivosConRecupero.length > 0
-    ? { motivo: motivosConRecupero.sort((a, b) => b.tasaRecupero - a.tasaRecupero)[0].motivo, tasa: motivosConRecupero.sort((a, b) => b.tasaRecupero - a.tasaRecupero)[0].tasaRecupero }
+    ? { motivo: [...motivosConRecupero].sort((a, b) => b.tasaRecupero - a.tasaRecupero)[0].motivo, tasa: [...motivosConRecupero].sort((a, b) => b.tasaRecupero - a.tasaRecupero)[0].tasaRecupero }
     : null
 
   const fueroPredominante = fueroRows.length > 0
@@ -218,9 +216,7 @@ export default async function AnalisisResultadosPage() {
   const user = await getUserSessionServer()
   if (!user) redirect("/api/auth/signin")
 
-  const esAdmin = user.rol?.toUpperCase() === "ADMIN"
-
-  const { kpis, motivoRows, fueroRows, insights } = await getAnalisisResultados(user.id, esAdmin)
+  const { kpis, motivoRows, fueroRows, insights } = await getAnalisisResultados()
 
   return (
     <div className="flex h-screen bg-slate-50">
@@ -242,7 +238,7 @@ export default async function AnalisisResultadosPage() {
                 <div>
                   <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
                     <Trophy className="h-6 w-6 text-amber-500" />
-                    Análisis de Resultados
+                    Análisis de resultados
                   </h1>
                   <p className="text-sm text-slate-500">
                     Tasa de éxito, recupero económico y duración de los casos cerrados
@@ -250,14 +246,8 @@ export default async function AnalisisResultadosPage() {
                 </div>
               </div>
 
-              <span
-                className={`text-xs font-medium px-3 py-1.5 rounded-full border ${
-                  esAdmin
-                    ? "bg-purple-50 text-purple-700 border-purple-200"
-                    : "bg-blue-50 text-blue-700 border-blue-200"
-                }`}
-              >
-                {esAdmin ? "Vista General" : "Mis Resultados"}
+              <span className="text-xs font-medium px-3 py-1.5 rounded-full border bg-purple-50 text-purple-700 border-purple-200">
+                Vista General
               </span>
             </div>
 
@@ -288,8 +278,7 @@ export default async function AnalisisResultadosPage() {
               <p className="text-xs text-slate-600">
                 <strong>Criterios del reporte:</strong> Tasa de éxito = (Sentencias favorables + Acuerdos) / Total cerrados |
                 Tasa de recupero = Monto obtenido / Monto reclamado original |
-                Solo incluye casos con cierre formal registrado |
-                {!esAdmin && " Los datos reflejan únicamente tus casos."}
+                Solo incluye casos con cierre formal registrado
               </p>
             </div>
           </div>

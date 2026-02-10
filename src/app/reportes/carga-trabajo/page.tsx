@@ -1,6 +1,6 @@
 // app/reportes/matriz-trabajo/page.tsx
-// REPORTE: Matriz de Trabajo (RRHH)
-// ACTUALIZADO: Ahora los abogados pueden ver la carga del equipo (versión limitada)
+// REPORTE: Matriz de Trabajo
+// VISTA: Todos ven datos globales. Admin tiene botón Reasignar, Abogado no.
 
 import Link from "next/link"
 import { Sidebar } from "@/app/components/sidebar"
@@ -60,49 +60,40 @@ export type CasoProblematico = {
 // FUNCIONES DE DATOS
 // ============================================================================
 
-async function getKPIs(userId: string, esAdmin: boolean): Promise<KPIData> {
-  const whereClause = esAdmin ? {} : { abogadoId: userId }
+async function getKPIs(): Promise<KPIData> {
+  // KPIs siempre globales para todos los roles
   const hoy = new Date()
   const hace45Dias = subDays(hoy, 45)
   const inicioMes = startOfMonth(hoy)
 
-  // Casos activos (no cerrados ni archivados)
   const casosActivos = await prisma.caso.count({
     where: {
-      ...whereClause,
       estaCerrado: false,
       estado: { notIn: ['Cerrado', 'Archivado', 'CERRADO', 'ARCHIVADO'] }
     }
   })
 
-  // Casos en demora (sin movimiento en 45 días)
   const casosEnDemora = await prisma.caso.count({
     where: {
-      ...whereClause,
       estaCerrado: false,
       estado: { notIn: ['Cerrado', 'Archivado', 'CERRADO', 'ARCHIVADO'] },
       updatedAt: { lt: hace45Dias }
     }
   })
 
-  // Casos cerrados este mes
   const cerradosEsteMes = await prisma.caso.count({
     where: {
-      ...whereClause,
       estaCerrado: true,
       fechaCierre: { gte: inicioMes }
     }
   })
 
-  // Tasa de eficiencia: (cerrados este mes / activos) * 100
   const eficiencia = casosActivos > 0 
     ? Math.round((cerradosEsteMes / casosActivos) * 100) 
     : 0
 
-  // Casos de alta prioridad
   const altaPrioridad = await prisma.caso.count({
     where: {
-      ...whereClause,
       estaCerrado: false,
       estado: { notIn: ['Cerrado', 'Archivado', 'CERRADO', 'ARCHIVADO'] },
       priority: 'HIGH'
@@ -122,7 +113,6 @@ async function getMatrizCargaEquipo(esAdmin: boolean): Promise<AbogadoCarga[]> {
   const hace15Dias = subDays(hoy, 15)
   const hace30Dias = subDays(hoy, 30)
 
-  // Obtener todos los abogados activos
   const abogados = await prisma.user.findMany({
     where: { 
       rol: 'ABOGADO', 
@@ -149,25 +139,21 @@ async function getMatrizCargaEquipo(esAdmin: boolean): Promise<AbogadoCarga[]> {
   })
 
   return abogados.map(abogado => {
-    // Casos activos del abogado
     const casosActivos = abogado.casos.filter(c => 
       !c.estaCerrado && 
       !['Cerrado', 'Archivado', 'CERRADO', 'ARCHIVADO'].includes(c.estado)
     )
 
-    // Casos dormidos (sin movimiento en 15 días)
     const casosDormidos = casosActivos.filter(c => 
       c.updatedAt < hace15Dias
     ).length
 
-    // Casos cerrados en últimos 30 días
     const cerradosMes = abogado.casos.filter(c => 
       c.estaCerrado && 
       c.fechaCierre && 
       c.fechaCierre >= hace30Dias
     ).length
 
-    // Determinar estado del abogado
     let estado: 'Disponible' | 'Activo' | 'Saturado' = 'Disponible'
     
     if (casosActivos.length > 15 || casosDormidos > 5) {
@@ -180,7 +166,6 @@ async function getMatrizCargaEquipo(esAdmin: boolean): Promise<AbogadoCarga[]> {
       ? `${abogado.nombre} ${abogado.apellido}`
       : abogado.nombre || abogado.email.split('@')[0]
 
-    // Detalle de casos (solo para Admin)
     const casosDetalle = esAdmin ? casosActivos.map(c => ({
       id: c.id,
       numero: c.numero,
@@ -199,14 +184,13 @@ async function getMatrizCargaEquipo(esAdmin: boolean): Promise<AbogadoCarga[]> {
       estado,
       casosDetalle
     }
-  }).sort((a, b) => b.cargaTotal - a.cargaTotal) // Ordenar por carga descendente
+  }).sort((a, b) => b.cargaTotal - a.cargaTotal)
 }
 
 async function getCasosProblematicos(): Promise<CasoProblematico[]> {
   const hoy = new Date()
   const hace45Dias = subDays(hoy, 45)
 
-  // Casos con más de 45 días sin movimiento
   const casos = await prisma.caso.findMany({
     where: {
       estaCerrado: false,
@@ -223,9 +207,9 @@ async function getCasosProblematicos(): Promise<CasoProblematico[]> {
       }
     },
     orderBy: {
-      updatedAt: 'asc' // Los más antiguos primero
+      updatedAt: 'asc'
     },
-    take: 15 // Limitar a 15 casos
+    take: 15
   })
 
   return casos.map(caso => {
@@ -256,13 +240,11 @@ export default async function MatrizTrabajoPage() {
 
   const esAdmin = user.rol?.toUpperCase() === 'ADMIN'
 
-  // Cargar datos según rol
-  // - Admin: Ve todo (KPIs globales, matriz completa, casos problemáticos con detalle)
-  // - Abogado: Ve KPIs personales + matriz del equipo (sin detalle de casos de otros)
+  // Todos ven KPIs globales, matriz del equipo y casos problemáticos
   const [kpis, matrizEquipo, casosProblematicos] = await Promise.all([
-    getKPIs(user.id, esAdmin),
-    getMatrizCargaEquipo(esAdmin), // Ahora siempre carga la matriz
-    esAdmin ? getCasosProblematicos() : [] // Solo admin ve casos problemáticos
+    getKPIs(),
+    getMatrizCargaEquipo(esAdmin),
+    getCasosProblematicos()
   ])
 
   return (
@@ -286,41 +268,34 @@ export default async function MatrizTrabajoPage() {
                 <div>
                   <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
                     <Users className="h-6 w-6 text-indigo-600" />
-                    Matriz de Trabajo
+                    Matriz de trabajo
                   </h1>
                   <p className="text-sm text-slate-500">
-                    {esAdmin 
-                      ? 'Visión gerencial de carga y eficiencia del equipo'
-                      : 'Tu carga de trabajo y estado del equipo'
-                    }
+                    Visión general de carga y eficiencia del equipo
                   </p>
                 </div>
               </div>
 
-              <span className={`text-xs font-medium px-3 py-1.5 rounded-full border ${
-                esAdmin 
-                  ? 'bg-purple-50 text-purple-700 border-purple-200' 
-                  : 'bg-blue-50 text-blue-700 border-blue-200'
-              }`}>
-                {esAdmin ? 'Vista Gerencial' : 'Vista Personal'}
+              <span className="text-xs font-medium px-3 py-1.5 rounded-full border bg-purple-50 text-purple-700 border-purple-200">
+                Vista General
               </span>
             </div>
 
-            {/* SECCIÓN 1: KPIs */}
-            <KPICards data={kpis} esAdmin={esAdmin} />
+            {/* SECCIÓN 1: KPIs (siempre globales) */}
+            <KPICards data={kpis} esAdmin={true} />
 
-            {/* SECCIÓN 2: Matriz de Carga - AHORA VISIBLE PARA TODOS */}
+            {/* SECCIÓN 2: Matriz de Carga del Equipo */}
             {matrizEquipo.length > 0 && (
               <MatrizCargaEquipo data={matrizEquipo} esAdmin={esAdmin} />
             )}
 
-            {/* SECCIÓN 3: Casos Problemáticos (Solo Admin) */}
-            {esAdmin && casosProblematicos.length > 0 && (
-              <CasosProblematicos data={casosProblematicos} />
+            {/* SECCIÓN 3: Casos Problemáticos (todos ven, pero solo Admin puede Reasignar) */}
+            {casosProblematicos.length > 0 && (
+              <CasosProblematicos data={casosProblematicos} esAdmin={esAdmin} />
             )}
 
-            {/* Mensaje si no hay casos problemáticos (Solo Admin) */}
-            {esAdmin && casosProblematicos.length === 0 && (
+            {/* Mensaje si no hay casos problemáticos */}
+            {casosProblematicos.length === 0 && (
               <div className="mt-6 p-6 bg-emerald-50 border border-emerald-200 rounded-lg text-center">
                 <p className="text-emerald-700 font-medium">
                   ✓ No hay casos problemáticos detectados
@@ -336,7 +311,7 @@ export default async function MatrizTrabajoPage() {
               <p className="text-xs text-slate-600">
                 <strong>Criterios del reporte:</strong>{' '}
                 Caso inactivo = sin movimiento en 15+ días | 
-                {esAdmin && ' Caso "problemático" = sin movimiento en 45+ días | '}
+                Caso problemático = sin movimiento en 45+ días | 
                 Eficiencia = casos cerrados este mes / casos activos | 
                 <strong> Estado:</strong> Disponible (&lt;8 casos), Activo (8-15 casos), Saturado (&gt;15 casos o muchos inactivos)
               </p>

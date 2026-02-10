@@ -23,13 +23,18 @@ interface CasoProblematico {
   ultimaAccion: Date
 }
 
+interface CasosProblematicosProps {
+  data: CasoProblematico[]
+  esAdmin?: boolean
+}
+
 const getSeveridad = (dias: number) => {
   if (dias > 90) return { label: 'CRÍTICO', color: 'bg-rose-100 text-rose-700 border-rose-200' }
   if (dias > 60) return { label: 'GRAVE', color: 'bg-amber-100 text-amber-700 border-amber-200' }
   return { label: 'ATENCIÓN', color: 'bg-yellow-100 text-yellow-700 border-yellow-200' }
 }
 
-export function CasosProblematicos({ data }: { data: CasoProblematico[] }) {
+export function CasosProblematicos({ data, esAdmin = false }: CasosProblematicosProps) {
   // Contar por severidad
   const criticos = data.filter(c => c.diasInactivo > 90).length
   const graves = data.filter(c => c.diasInactivo > 60 && c.diasInactivo <= 90).length
@@ -142,16 +147,18 @@ export function CasosProblematicos({ data }: { data: CasoProblematico[] }) {
                     {/* Gestión */}
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-center gap-2">
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          className="text-xs gap-1 h-8"
-                          disabled
-                          title="Funcionalidad próximamente"
-                        >
-                          <ArrowRightLeft className="h-3 w-3" />
-                          Reasignar
-                        </Button>
+                        {esAdmin && (
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            className="text-xs gap-1 h-8"
+                            disabled
+                            title="Funcionalidad próximamente"
+                          >
+                            <ArrowRightLeft className="h-3 w-3" />
+                            Reasignar
+                          </Button>
+                        )}
                         <Link href={`/casos/${caso.id}`}>
                           <Button 
                             variant="ghost" 

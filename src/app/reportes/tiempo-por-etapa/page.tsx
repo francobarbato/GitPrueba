@@ -1,5 +1,6 @@
 // app/reportes/tiempo-por-etapa/page.tsx
 // TAC-06: Cuellos de Botella (Tiempos por Etapa)
+// VISTA: Todos ven datos globales del estudio
 
 import React from "react"
 import Link from "next/link"
@@ -16,6 +17,7 @@ import { TablaPromediosPorEtapa } from "./components/TablaPromediosPorEtapa"
 import { ComparativaPorTipo } from "./components/ComparativaPorTipo"
 import { GraficoDistribucion } from "./components/GraficoDistribucion"
 import { FiltrosReporte } from "./components/FiltrosReporte"
+import { Button } from "@/components/ui/button"
 
 // ============================================================================
 // TIPOS
@@ -28,7 +30,7 @@ export type TiempoPorEtapa = {
   diasMaximo: number
   cantidadCasos: number
   porcentajeDelTotal: number
-  esCuelloBotella: boolean // Si supera el umbral definido
+  esCuelloBotella: boolean
 }
 
 export type TiempoPorTipoCaso = {
@@ -48,12 +50,10 @@ export type ResumenReporte = {
 }
 
 // ============================================================================
-// FUNCIONES DE CÁLCULO
+// FUNCIONES DE CÁLCULO (siempre global, sin filtrar por abogado)
 // ============================================================================
 
 async function calcularTiemposPorEtapa(
-  userId: string, 
-  esAdmin: boolean,
   filtroTipo?: string,
   filtroDesde?: string,
   filtroHasta?: string
@@ -63,12 +63,8 @@ async function calcularTiemposPorEtapa(
   resumen: ResumenReporte
 }> {
   
-  // Construir filtros de consulta
+  // Construir filtros de consulta (sin filtro por abogado - vista global)
   const whereClause: any = {}
-  
-  if (!esAdmin) {
-    whereClause.abogadoId = userId
-  }
   
   if (filtroTipo && filtroTipo !== 'TODOS') {
     whereClause.tipo = filtroTipo
@@ -122,13 +118,11 @@ async function calcularTiemposPorEtapa(
       const fechaFin = caso.estaCerrado ? caso.fechaCierre || caso.fechaFin || new Date() : new Date()
       const diasEnEstado = Math.max(1, differenceInDays(fechaFin, caso.fechaInicio))
       
-      // Acumular globalmente
       if (!tiemposAcumulados.has(caso.estado)) {
         tiemposAcumulados.set(caso.estado, [])
       }
       tiemposAcumulados.get(caso.estado)!.push(diasEnEstado)
       
-      // Acumular por tipo
       if (!tiemposTipo.has(caso.estado)) {
         tiemposTipo.set(caso.estado, [])
       }
@@ -139,17 +133,14 @@ async function calcularTiemposPorEtapa(
 
     // Procesar bitácoras para calcular tiempo en cada etapa
     let fechaAnterior = caso.fechaInicio
-    let estadoAnterior = "Inicio / Demanda" // Estado inicial por defecto
+    let estadoAnterior = "Inicio / Demanda"
 
-    // Revisar si hay un registro de creación para obtener el estado inicial
     const registroCreacion = caso.bitacoras.find(b => b.accion === "CREATE")
     if (registroCreacion && registroCreacion.estadoNuevo) {
       estadoAnterior = registroCreacion.estadoNuevo
     }
 
-    // Procesar cambios de estado
     caso.bitacoras.forEach((bitacora, index) => {
-      // Solo procesar cambios de estado reales
       if (bitacora.accion !== "Cambio de Estado" && bitacora.accion !== "ESTADO_CHANGE") {
         return
       }
@@ -158,25 +149,22 @@ async function calcularTiemposPorEtapa(
       const diasEnEtapa = Math.max(0, differenceInDays(bitacora.createdAt, fechaAnterior))
 
       if (diasEnEtapa > 0 && estadoQueTermina) {
-        // Acumular globalmente
         if (!tiemposAcumulados.has(estadoQueTermina)) {
           tiemposAcumulados.set(estadoQueTermina, [])
         }
         tiemposAcumulados.get(estadoQueTermina)!.push(diasEnEtapa)
 
-        // Acumular por tipo
         if (!tiemposTipo.has(estadoQueTermina)) {
           tiemposTipo.set(estadoQueTermina, [])
         }
         tiemposTipo.get(estadoQueTermina)!.push(diasEnEtapa)
       }
 
-      // Actualizar para la próxima iteración
       fechaAnterior = bitacora.createdAt
       estadoAnterior = bitacora.estadoNuevo || estadoAnterior
     })
 
-    // Agregar tiempo en el estado actual (desde el último cambio hasta hoy o cierre)
+    // Agregar tiempo en el estado actual
     const fechaFinal = caso.estaCerrado 
       ? (caso.fechaCierre || caso.fechaFin || new Date()) 
       : new Date()
@@ -186,13 +174,11 @@ async function calcularTiemposPorEtapa(
     if (diasEnEstadoActual > 0) {
       const estadoActual = caso.estado
       
-      // Acumular globalmente
       if (!tiemposAcumulados.has(estadoActual)) {
         tiemposAcumulados.set(estadoActual, [])
       }
       tiemposAcumulados.get(estadoActual)!.push(diasEnEstadoActual)
 
-      // Acumular por tipo
       if (!tiemposTipo.has(estadoActual)) {
         tiemposTipo.set(estadoActual, [])
       }
@@ -220,8 +206,8 @@ async function calcularTiemposPorEtapa(
       diasMinimo: minimo,
       diasMaximo: maximo,
       cantidadCasos: tiempos.length,
-      porcentajeDelTotal: 0, // Se calcula después
-      esCuelloBotella: false // Se determina después
+      porcentajeDelTotal: 0,
+      esCuelloBotella: false
     })
   })
 
@@ -234,11 +220,9 @@ async function calcularTiemposPorEtapa(
     etapa.porcentajeDelTotal = tiempoTotalGlobal > 0 
       ? Math.round((etapa.diasPromedio / tiempoTotalGlobal) * 100) 
       : 0
-    // Cuello de botella: si supera 1.5x el promedio general
     etapa.esCuelloBotella = etapa.diasPromedio > promedioGeneral * 1.5
   })
 
-  // Ordenar por días promedio (de mayor a menor)
   tiemposPorEtapa.sort((a, b) => b.diasPromedio - a.diasPromedio)
 
   // Calcular tiempos por tipo de caso
@@ -269,7 +253,6 @@ async function calcularTiemposPorEtapa(
       })
     })
 
-    // Calcular porcentajes dentro del tipo
     etapas.forEach(e => {
       e.porcentajeDelTotal = tiempoTotal > 0 ? Math.round((e.diasPromedio / tiempoTotal) * 100) : 0
       e.esCuelloBotella = e.diasPromedio > (tiempoTotal / etapas.length) * 1.5
@@ -310,10 +293,9 @@ async function calcularTiemposPorEtapa(
   }
 }
 
-// Obtener tipos de caso disponibles para el filtro
-async function obtenerTiposCaso(userId: string, esAdmin: boolean): Promise<string[]> {
+// Obtener tipos de caso disponibles para el filtro (global)
+async function obtenerTiposCaso(): Promise<string[]> {
   const casos = await prisma.caso.findMany({
-    where: esAdmin ? {} : { abogadoId: userId },
     select: { tipo: true },
     distinct: ['tipo']
   })
@@ -337,15 +319,11 @@ export default async function TiempoPorEtapaPage({
   const user = await getUserSessionServer()
   if (!user) redirect("/api/auth/signin")
 
-  const esAdmin = user.rol?.toUpperCase() === 'ADMIN'
-
   // Obtener tipos disponibles para filtros
-  const tiposDisponibles = await obtenerTiposCaso(user.id, esAdmin)
+  const tiposDisponibles = await obtenerTiposCaso()
 
-  // Calcular tiempos con filtros aplicados
+  // Calcular tiempos con filtros aplicados (siempre global)
   const { tiemposPorEtapa, tiemposPorTipo, resumen } = await calcularTiemposPorEtapa(
-    user.id,
-    esAdmin,
     searchParams.tipo,
     searchParams.desde,
     searchParams.hasta
@@ -361,13 +339,16 @@ export default async function TiempoPorEtapaPage({
           <main className="flex-1 overflow-auto p-6">
             <div className="max-w-7xl mx-auto">
               <div className="flex items-center gap-4 mb-8">
-                <Link href="/reportes" className="p-2 hover:bg-slate-200 rounded-full text-slate-500 transition-colors">
-                  <ArrowLeft size={20} />
+                <Link href="/reportes">
+                  <Button variant="ghost" size="sm" className="text-slate-500 hover:text-slate-800 gap-2">
+                    <ArrowLeft className="w-4 h-4" />
+                    Volver
+                  </Button>
                 </Link>
                 <div>
                   <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
                     <BarChart3 className="text-indigo-600" /> 
-                    TAC-06: Cuellos de Botella
+                     Tiempo por etapa procesal
                   </h1>
                   <p className="text-sm text-slate-500">Análisis de tiempos por etapa procesal</p>
                 </div>
@@ -402,19 +383,28 @@ export default async function TiempoPorEtapaPage({
           <div className="max-w-7xl mx-auto">
             
             {/* Header */}
-            <div className="flex items-center gap-4 mb-6">
-              <Link href="/reportes" className="p-2 hover:bg-slate-200 rounded-full text-slate-500 transition-colors">
-                <ArrowLeft size={20} />
-              </Link>
-              <div className="flex-1">
-                <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-                  <BarChart3 className="text-indigo-600" /> 
-                  TAC-06: Cuellos de Botella
-                </h1>
-                <p className="text-sm text-slate-500">
-                  Análisis de tiempos promedio por etapa procesal para detectar demoras
-                </p>
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-4">
+                <Link href="/reportes">
+                  <Button variant="ghost" size="sm" className="text-slate-500 hover:text-slate-800 gap-2">
+                    <ArrowLeft className="w-4 h-4" />
+                    Volver
+                  </Button>
+                </Link>
+                <div className="flex-1">
+                  <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+                    <BarChart3 className="text-indigo-600" /> 
+                     Tiempo por etapa procesal 
+                  </h1>
+                  <p className="text-sm text-slate-500">
+                    Análisis de tiempos promedio por etapa procesal para detectar demoras
+                  </p>
+                </div>
               </div>
+
+              <span className="text-xs font-medium px-3 py-1.5 rounded-full border bg-purple-50 text-purple-700 border-purple-200">
+                Vista General
+              </span>
             </div>
 
             {/* Filtros */}

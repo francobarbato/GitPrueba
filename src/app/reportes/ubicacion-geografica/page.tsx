@@ -395,7 +395,7 @@ export default async function UbicacionGeograficaPage({
                 <div>
                   <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
                     <MapPin className="h-6 w-6 text-orange-500" />
-                    Casos por Ubicación Geográfica
+                    Casos por ubicación geográfica
                   </h1>
                   <p className="text-sm text-slate-500">
                     Distribución de expedientes por ciudad y juzgado

@@ -1,5 +1,5 @@
 // middleware.ts (en la raíz del proyecto)
-// CORREGIDO: Maneja correctamente la redirección de CLIENTE con debeResetearPassword
+// ACTUALIZADO: Restricciones de reportes para Asistentes
 
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
@@ -76,8 +76,11 @@ export async function middleware(request: NextRequest) {
       '/configuracion',
       '/admin',
       '/calculos-indemnizacion',
-      '/reportes/productividad',
-      '/portal'
+      '/portal',
+      // Reportes estratégicos: no accesibles para Asistentes
+      '/reportes/rendimiento',
+      '/reportes/cartera-fuero',
+      '/reportes/analisis-resultados',
     ]
     
     const rutaRestringida = rutasRestringidasAsistente.some(ruta => pathname.startsWith(ruta))
