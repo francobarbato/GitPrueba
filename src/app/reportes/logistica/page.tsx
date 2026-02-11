@@ -189,7 +189,7 @@ export default async function LogisticaPage() {
   const user = await getUserSessionServer()
   if (!user) redirect("/api/auth/signin")
 
-  const zonas = await obtenerLogisticaCasos(user.id, user.rol === 'admin')
+  const zonas = await obtenerLogisticaCasos(user.id, user.rol === 'ADMIN')
 
   // Calcular totales
   const totalCasos = zonas.reduce((sum, z) => sum + z.pendientes, 0)

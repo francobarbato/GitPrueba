@@ -1,11 +1,14 @@
 // src/auth/actions/auth-actions.ts
-
-import { getServerSession } from "next-auth"
+import { getServerSession, Session } from "next-auth"
 import { authOptions } from "@/app/api/auth/[...nextauth]/route"
 import prisma from "src/lib/db/prisma"
 import bcrypt from 'bcryptjs'
 
-export const getUserSessionServer = async() => {
+// export const getUserSessionServer = async() => {
+//   const session = await getServerSession(authOptions)
+//   return session?.user
+// }
+export const getUserSessionServer = async(): Promise<Session['user'] | undefined> => {
   const session = await getServerSession(authOptions)
   return session?.user
 }
