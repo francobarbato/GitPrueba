@@ -39,29 +39,29 @@ const getMenuItems = (rol?: string) => {
       icon: Users,
       roles: ['ADMIN', 'ABOGADO', 'ASISTENTE']
     },
-    { 
-      name: "Gestión de tareas", 
-      href: "/gestion-tareas", 
-      icon: Calendar,
-      roles: ['ADMIN', 'ABOGADO', 'ASISTENTE']
-    },
-    { 
-      name: "Plantillas de documentos", 
-      href: "/plantilla-documentos", 
-      icon: FileCheck,
-      roles: ['ADMIN', 'ABOGADO', 'ASISTENTE']
-    },
-    { 
-      name: "Cálculos de indemnización", 
-      href: "/calculos-indemnizacion", 
-      icon: Calculator,
-      roles: ['ADMIN', 'ABOGADO'] // ❌ Asistente NO puede
-    },
+    // { 
+    //   name: "Gestión de tareas", 
+    //   href: "/gestion-tareas", 
+    //   icon: Calendar,
+    //   roles: ['ADMIN', 'ABOGADO', 'ASISTENTE']
+    // },
+    // { 
+    //   name: "Plantillas de documentos", 
+    //   href: "/plantilla-documentos", 
+    //   icon: FileCheck,
+    //   roles: ['ADMIN', 'ABOGADO', 'ASISTENTE']
+    // },
+    // { 
+    //   name: "Cálculos de indemnización", 
+    //   href: "/calculos-indemnizacion", 
+    //   icon: Calculator,
+    //   roles: ['ADMIN', 'ABOGADO'] 
+    // },
     { 
       name: "Reportes", 
       href: "/reportes", 
       icon: PieChart,
-      roles: ['ADMIN', 'ABOGADO', 'ASISTENTE'] // Asistente ve reportes básicos
+      roles: ['ADMIN', 'ABOGADO', 'ASISTENTE'] 
     },
   ]
 

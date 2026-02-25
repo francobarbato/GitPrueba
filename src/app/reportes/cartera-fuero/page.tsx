@@ -1,6 +1,6 @@
 // app/reportes/cartera-fuero/page.tsx
 // REPORTE EST-14: Composición de Cartera por Fuero (Strategic Portfolio Analysis)
-// VISTA: Todos los abogados ven datos globales del estudio
+// VISTA: Global del estudio con filtro opcional por abogado
 // Qué responde: ¿Somos un estudio de volumen o de valor? ¿Dónde está el dinero?
 
 import Link from "next/link"
@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button"
 import { KPICards } from "./components/KPICards"
 import { MatrizFuero } from "./components/MatrizFuero"
 import { PanelLitigiosidad } from "./components/Panellitigiosidad"
+import { FiltrosCartera } from "./components/FiltrosCartera"
 
 // ============================================================================
 // MAPEO DE TIPOS DE CASO A LABELS LEGIBLES
@@ -38,19 +39,26 @@ const ETAPAS_MEDIAS = ["Prueba (Oficios/Pericias)", "Alegatos / Conclusiones"]
 const ETAPAS_TARDIAS = ["Sentencia de 1ra Instancia", "Apelación / 2da Instancia", "Ejecución de Sentencia"]
 
 // ============================================================================
-// FUNCIONES DE DATOS (Server-side, consulta directa a Prisma - siempre global)
+// FUNCIONES DE DATOS (Server-side, consulta directa a Prisma)
 // ============================================================================
 
-async function getCarteraPorFuero() {
+async function getCarteraPorFuero(abogadoId?: string) {
   const hoy = new Date()
   const hace30Dias = subDays(hoy, 30)
 
-  // 1. Obtener todos los casos activos (sin filtrar por abogado - vista global)
+  // 1. Filtro base: casos activos
+  const whereClause: any = {
+    estaCerrado: false,
+    estado: { notIn: ["Cerrado", "Archivado", "CERRADO", "ARCHIVADO"] },
+  }
+
+  // Filtro por abogado si se seleccionó
+  if (abogadoId) {
+    whereClause.abogadoId = abogadoId
+  }
+
   const casosActivos = await prisma.caso.findMany({
-    where: {
-      estaCerrado: false,
-      estado: { notIn: ["Cerrado", "Archivado", "CERRADO", "ARCHIVADO"] },
-    },
+    where: whereClause,
     select: {
       id: true,
       tipo: true,
@@ -60,12 +68,17 @@ async function getCarteraPorFuero() {
     },
   })
 
-  // 2. Obtener casos cerrados para calcular promedio de días de cierre por fuero
+  // 2. Casos cerrados para promedio de días (también filtrados si hay abogado)
+  const whereCerrados: any = {
+    estaCerrado: true,
+    fechaCierre: { not: null },
+  }
+  if (abogadoId) {
+    whereCerrados.abogadoId = abogadoId
+  }
+
   const casosCerrados = await prisma.caso.findMany({
-    where: {
-      estaCerrado: true,
-      fechaCierre: { not: null },
-    },
+    where: whereCerrados,
     select: {
       tipo: true,
       fechaInicio: true,
@@ -181,11 +194,35 @@ async function getCarteraPorFuero() {
 // COMPONENTE PRINCIPAL (Server Component)
 // ============================================================================
 
-export default async function CarteraFueroPage() {
+type PageProps = {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
+}
+
+export default async function CarteraFueroPage({ searchParams }: PageProps) {
   const user = await getUserSessionServer()
   if (!user) redirect("/api/auth/signin")
 
-  const { kpis, filas, litigiosidad } = await getCarteraPorFuero()
+  // Leer filtro de abogado
+  const params = await searchParams
+  const abogadoParam = typeof params.abogado === "string" ? params.abogado : undefined
+
+  // Obtener lista de abogados para el filtro
+  const abogadosDb = await prisma.user.findMany({
+    where: { rol: "ABOGADO" },
+    select: { id: true, nombre: true, apellido: true },
+    orderBy: { nombre: "asc" },
+  })
+
+  const listaAbogados = abogadosDb.map((a) => ({
+    id: a.id,
+    nombre: a.nombre && a.apellido ? `${a.nombre} ${a.apellido}` : a.nombre || "Sin nombre",
+  }))
+
+  // Validar que el abogado exista
+  const abogadoValido = abogadoParam && listaAbogados.some((a) => a.id === abogadoParam) ? abogadoParam : undefined
+  const abogadoSeleccionado = listaAbogados.find((a) => a.id === abogadoValido)
+
+  const { kpis, filas, litigiosidad } = await getCarteraPorFuero(abogadoValido)
 
   return (
     <div className="flex h-screen bg-slate-50">
@@ -196,7 +233,7 @@ export default async function CarteraFueroPage() {
         <main className="flex-1 overflow-auto p-6">
           <div className="max-w-7xl mx-auto">
             {/* Header */}
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-4">
                 <Link href="/reportes">
                   <Button variant="ghost" size="sm" className="text-slate-500 hover:text-slate-800 gap-2">
@@ -207,17 +244,31 @@ export default async function CarteraFueroPage() {
                 <div>
                   <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
                     <Scale className="h-6 w-6 text-indigo-600" />
-                    Composición de cartera por fuero
+                    Cartera activa por fuero
                   </h1>
                   <p className="text-sm text-slate-500">
-                    Análisis estratégico: volumen de trabajo vs. valor económico por materia
+                    {abogadoSeleccionado
+                      ? `Cartera de ${abogadoSeleccionado.nombre}: volumen y capital por tipo de causa`
+                      : "Qué tenemos hoy: volumen de casos y capital en litigio por tipo de causa"
+                    }
                   </p>
                 </div>
               </div>
 
-              <span className="text-xs font-medium px-3 py-1.5 rounded-full border bg-purple-50 text-purple-700 border-purple-200">
-                Vista General
-              </span>
+              {abogadoSeleccionado ? (
+                <span className="text-xs font-medium px-3 py-1.5 rounded-full border bg-blue-50 text-blue-700 border-blue-200">
+                  {abogadoSeleccionado.nombre}
+                </span>
+              ) : (
+                <span className="text-xs font-medium px-3 py-1.5 rounded-full border bg-purple-50 text-purple-700 border-purple-200">
+                  Vista General
+                </span>
+              )}
+            </div>
+
+            {/* Filtros */}
+            <div className="mb-6">
+              <FiltrosCartera abogados={listaAbogados} />
             </div>
 
             {/* SECCIÓN 1: KPIs */}

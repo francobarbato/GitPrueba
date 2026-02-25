@@ -11,9 +11,6 @@ type KPIData = {
 }
 
 export function KPICards({ data }: { data: KPIData }) {
-  const formatMoney = (n: number) =>
-    new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(n)
-
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
       <Card className="bg-white border border-slate-200">

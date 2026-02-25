@@ -23,6 +23,9 @@ model User {
   creadoPor            String?
   debeResetearPassword Boolean    @default(false)
   ultimoAcceso         DateTime?
+  colaboracionesAsignadas CasoColaborador[] @relation("AsignadorColaboracion")
+
+
   accounts             Account[]
   bitacoras            Bitacora[]
   casos                Caso[]     @relation("AbogadoCasos")
@@ -31,6 +34,7 @@ model User {
   pagosValidados       Pago[]
   sessions             Session[]
   tareas               Tarea[]
+  colaboraciones CasoColaborador[]
 
   @@map("usuario")
 }
@@ -73,6 +77,7 @@ model Caso {
   descripcion       String        @db.Text
   tipo              TipoCaso
   estado            String
+  fechaUltimoCambioEstado DateTime      @default(now())
   porcentajeAvance  Int           @default(0)
   fechaInicio       DateTime
   abogadoId         String
@@ -107,6 +112,8 @@ model Caso {
   @@index([tipo])
   @@index([estado])
   @@index([contraparteDni])
+  @@index([fechaUltimoCambioEstado]) 
+  colaboradores  CasoColaborador[]
   @@map("caso")
 }
 
@@ -121,6 +128,22 @@ model Requirement {
 
   @@index([casoId], map: "requirement_casoId_fkey")
   @@map("requirement")
+}
+
+model CasoColaborador {
+  id            String   @id @default(cuid())
+  casoId        String
+  userId        String
+  permiso       String   @default("LECTURA") // LECTURA o EDICION
+  asignadoPorId String
+  createdAt     DateTime @default(now())
+
+  caso        Caso @relation(fields: [casoId], references: [id], onDelete: Cascade)
+  usuario     User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  asignadoPor User @relation("AsignadorColaboracion", fields: [asignadoPorId], references: [id])
+
+  @@unique([casoId, userId])
+  @@map("caso_colaborador")
 }
 
 model Tarea {

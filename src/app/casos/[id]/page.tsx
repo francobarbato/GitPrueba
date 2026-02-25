@@ -18,6 +18,8 @@ import {
 } from 'lucide-react'
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
+import { obtenerColaboradores, obtenerAbogadosDisponibles } from "./colaborador.actions"
+import { ColaboradoresPanel } from "./components/ColaboradoresPanel"
 
 // Helper para verificar roles
 const isAdmin = (rol: string) => rol?.toUpperCase() === 'ADMIN'
@@ -63,6 +65,10 @@ export default async function CasoDetailPage({ params }: { params: { id: string 
     orderBy: { createdAt: "asc" }
   })
 
+  // Obtener colaboradores del caso
+  const colaboradores = await obtenerColaboradores(params.id)
+  const abogadosDisponibles = await obtenerAbogadosDisponibles(params.id)
+
   const getPriorityColor = (priority: string) => {
     if (priority === "HIGH") return "bg-red-100 text-red-700"
     if (priority === "NORMAL") return "bg-yellow-100 text-yellow-700"
@@ -76,10 +82,14 @@ export default async function CasoDetailPage({ params }: { params: { id: string 
   }
 
   // ===== PERMISOS POR ROL =====
-  const puedeEditar = (isAdmin(userRol) || isAbogado(userRol)) && !caso.estaCerrado // No editar si está cerrado
+  const puedeEditar = (isAdmin(userRol) || isAbogado(userRol)) && !caso.estaCerrado
   const puedeVerPagos = isAdmin(userRol) || isAbogado(userRol)
   const puedeVerAuditoria = isAdmin(userRol)
   const puedeVerMontoDisputa = isAdmin(userRol) || isAbogado(userRol)
+
+  // Permiso para gestionar colaboradores
+  const esTitular = caso.abogadoId === user.id
+  const puedeEditarColaboradores = isAdmin(userRol) || isAsistente(userRol) || esTitular
 
   // Verificar si el caso está cerrado
   const casoCerrado = caso.estaCerrado === true
@@ -90,7 +100,7 @@ export default async function CasoDetailPage({ params }: { params: { id: string 
   return (
     <div className="container mx-auto py-8 px-4">
       
-      {/* ===== NUEVO: Header con botones de Cierre/Reapertura ===== */}
+      {/* ===== Header con botones de Cierre/Reapertura ===== */}
       <CasoHeader 
         caso={{
           id: caso.id,
@@ -212,13 +222,6 @@ export default async function CasoDetailPage({ params }: { params: { id: string 
                         </Badge>
                       </div>
                     </div>
-
-                    <div>
-                      <label className="text-sm font-semibold text-slate-600">Fuero</label>
-                      <p className="mt-1 text-slate-900">
-                        {caso.fuero || <span className="text-slate-400">No especificado</span>}
-                      </p>
-                    </div>
                   </div>
 
                   <div className="space-y-4">
@@ -240,26 +243,6 @@ export default async function CasoDetailPage({ params }: { params: { id: string 
                             Caso Cerrado
                           </Badge>
                         )}
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="text-sm font-semibold text-slate-600 flex items-center gap-1">
-                        <TrendingUp className="h-4 w-4" />
-                        Progreso del Caso
-                      </label>
-                      <div className="mt-2">
-                        <div className="flex items-center gap-3">
-                          <div className="flex-1 bg-slate-200 rounded-full h-2">
-                            <div 
-                              className={`h-2 rounded-full transition-all duration-500 ${casoCerrado ? 'bg-slate-500' : 'bg-blue-600'}`}
-                              style={{ width: casoCerrado ? '100%' : `${caso.porcentajeAvance || 0}%` }}
-                            ></div>
-                          </div>
-                          <span className="text-sm font-semibold text-slate-900 w-12 text-right">
-                            {casoCerrado ? '100%' : `${caso.porcentajeAvance || 0}%`}
-                          </span>
-                        </div>
                       </div>
                     </div>
                   </div>
@@ -507,32 +490,24 @@ export default async function CasoDetailPage({ params }: { params: { id: string 
               </CardContent>
             </Card>
 
-            {/* Abogado Responsable */}
-            <Card>
+            {/* Equipo del Caso: Abogado Titular + Colaboradores */}
+            {/* <Card>
               <CardHeader className="border-b bg-slate-50/50">
                 <CardTitle className="flex items-center gap-2">
                   <Briefcase className="h-5 w-5 text-slate-600" />
-                  Abogado Responsable
+                  Equipo del Caso
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-6">
-                {caso.abogado ? (
-                  <div className="flex items-center gap-4">
-                    <div className="h-12 w-12 rounded-full bg-slate-200 flex items-center justify-center">
-                      <User className="h-6 w-6 text-slate-600" />
-                    </div>
-                    <div>
-                      <p className="font-semibold text-slate-900">
-                        {caso.abogado.nombre} {caso.abogado.apellido}
-                      </p>
-                      <p className="text-sm text-slate-600">{caso.abogado.email}</p>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-slate-500">Sin abogado asignado</p>
-                )}
+                <ColaboradoresPanel
+                  casoId={caso.id}
+                  colaboradores={colaboradores as any}
+                  abogadosDisponibles={abogadosDisponibles}
+                  puedeEditar={puedeEditarColaboradores}
+                  abogadoTitular={caso.abogado ? { nombre: caso.abogado.nombre, apellido: caso.abogado.apellido } : null}
+                />
               </CardContent>
-            </Card>
+            </Card> */}
 
           </div>
         </TabsContent>

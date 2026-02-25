@@ -1,6 +1,6 @@
 // app/reportes/analisis-resultados/page.tsx
-// REPORTE REP-EST-02 / TAC-09: Análisis de Resultados (Tasa de Éxito)
-// VISTA: Todos los abogados ven datos globales del estudio
+// REPORTE ES-011: Análisis de Resultados (Tasa de Éxito)
+// VISTA: Global del estudio con filtro opcional por abogado
 // Qué responde: ¿Cómo terminan nuestros juicios? ¿Cuánto recuperamos? ¿Qué tan efectivos somos?
 
 import Link from "next/link"
@@ -9,15 +9,16 @@ import { Header } from "@/app/components/header"
 import { getUserSessionServer } from "@/auth/actions/auth-actions"
 import { redirect } from "next/navigation"
 import prisma from "src/lib/db/prisma"
-import { differenceInDays } from "date-fns"
+import { differenceInDays, subDays } from "date-fns"
 import { ArrowLeft, Trophy } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
-// Componentes Client
+// Componentes
 import { KPICards } from "./components/KPICards"
 import { TablaMotivos } from "./components/TablaMotivos"
 import { TablaFueroResultados } from "./components/TablaFueroResultados"
 import { PanelInsights } from "./components/PanelInsights"
+import { FiltrosPeriodoResultados } from "./components/FiltroPeriodoResultados"
 
 // ============================================================================
 // MAPEO DE TIPOS DE CASO A LABELS LEGIBLES
@@ -33,19 +34,38 @@ const TIPO_CASO_LABELS: Record<string, string> = {
   OTRO: "Otro",
 }
 
-// Motivos que cuentan como "éxito"
 const MOTIVOS_EXITOSOS = ["Sentencia favorable", "Acuerdo/Conciliación"]
 
 // ============================================================================
-// FUNCIONES DE DATOS (siempre global, sin filtrar por abogado)
+// LABELS DE PERÍODO PARA SUBTÍTULO
 // ============================================================================
 
-async function getAnalisisResultados() {
-  // Obtener todos los casos cerrados (vista global para todos los roles)
+const PERIODO_LABELS: Record<string, string> = {
+  "90": "últimos 90 días",
+  "180": "últimos 180 días",
+  "365": "último año",
+}
+
+// ============================================================================
+// FUNCIÓN DE DATOS
+// ============================================================================
+
+async function getAnalisisResultados(periodoDias?: number, abogadoId?: string) {
+  // Filtro de fecha según período seleccionado
+  const whereClause: any = { estaCerrado: true }
+
+  if (periodoDias) {
+    const fechaDesde = subDays(new Date(), periodoDias)
+    whereClause.fechaCierre = { gte: fechaDesde }
+  }
+
+  // Filtro por abogado
+  if (abogadoId) {
+    whereClause.abogadoId = abogadoId
+  }
+
   const casosCerrados = await prisma.caso.findMany({
-    where: {
-      estaCerrado: true,
-    },
+    where: whereClause,
     select: {
       id: true,
       numero: true,
@@ -72,7 +92,8 @@ async function getAnalisisResultados() {
       fueroRows: [],
       insights: {
         motivoMasRapido: null, motivoMasLento: null, motivoMejorRecupero: null,
-        fueroPredominante: null, acuerdosVsSentencias: { acuerdosDias: 0, sentenciasDias: 0, acuerdosRecupero: 0, sentenciasRecupero: 0, hayDatos: false },
+        fueroPredominante: null,
+        acuerdosVsSentencias: { acuerdosDias: 0, sentenciasDias: 0, acuerdosRecupero: 0, sentenciasRecupero: 0, hayDatos: false },
       },
     }
   }
@@ -189,7 +210,6 @@ async function getAnalisisResultados() {
     ? { tipo: fueroRows[0].tipoLabel, cantidad: fueroRows[0].totalCerrados }
     : null
 
-  // Comparativa Acuerdos vs Sentencias
   const acuerdosData = motivoRows.find((m) => m.motivo === "Acuerdo/Conciliación")
   const sentenciasData = motivoRows.find((m) => m.motivo === "Sentencia favorable")
   const acuerdosVsSentencias = {
@@ -212,11 +232,44 @@ async function getAnalisisResultados() {
 // COMPONENTE PRINCIPAL
 // ============================================================================
 
-export default async function AnalisisResultadosPage() {
+type PageProps = {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
+}
+
+export default async function AnalisisResultadosPage({ searchParams }: PageProps) {
   const user = await getUserSessionServer()
   if (!user) redirect("/api/auth/signin")
 
-  const { kpis, motivoRows, fueroRows, insights } = await getAnalisisResultados()
+  // Leer filtros desde searchParams
+  const params = await searchParams
+  const periodoParam = typeof params.periodo === "string" ? params.periodo : undefined
+  const periodoDias = periodoParam ? parseInt(periodoParam, 10) : undefined
+  const periodoValido = periodoDias && !isNaN(periodoDias) && periodoDias > 0 ? periodoDias : undefined
+
+  const abogadoParam = typeof params.abogado === "string" ? params.abogado : undefined
+
+  // Obtener lista de abogados para el filtro
+  const abogadosDb = await prisma.user.findMany({
+    where: { rol: "ABOGADO" },
+    select: { id: true, nombre: true, apellido: true },
+    orderBy: { nombre: "asc" },
+  })
+
+  const listaAbogados = abogadosDb.map((a) => ({
+    id: a.id,
+    nombre: a.nombre && a.apellido ? `${a.nombre} ${a.apellido}` : a.nombre || "Sin nombre",
+  }))
+
+  // Validar que el abogado exista
+  const abogadoValido = abogadoParam && listaAbogados.some((a) => a.id === abogadoParam) ? abogadoParam : undefined
+  const abogadoSeleccionado = listaAbogados.find((a) => a.id === abogadoValido)
+
+  const { kpis, motivoRows, fueroRows, insights } = await getAnalisisResultados(periodoValido, abogadoValido)
+
+  // Subtítulo dinámico
+  const subtituloPeriodo = periodoParam && PERIODO_LABELS[periodoParam]
+    ? `Cierres, resultados y montos recuperados — ${PERIODO_LABELS[periodoParam]}`
+    : "Cómo terminaron los casos: motivos de cierre, tasa de éxito y montos recuperados"
 
   return (
     <div className="flex h-screen bg-slate-50">
@@ -227,7 +280,7 @@ export default async function AnalisisResultadosPage() {
         <main className="flex-1 overflow-auto p-6">
           <div className="max-w-7xl mx-auto">
             {/* Header */}
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-4">
                 <Link href="/reportes">
                   <Button variant="ghost" size="sm" className="text-slate-500 hover:text-slate-800 gap-2">
@@ -238,17 +291,26 @@ export default async function AnalisisResultadosPage() {
                 <div>
                   <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
                     <Trophy className="h-6 w-6 text-amber-500" />
-                    Análisis de resultados
+                    Resultados de casos cerrados
                   </h1>
-                  <p className="text-sm text-slate-500">
-                    Tasa de éxito, recupero económico y duración de los casos cerrados
-                  </p>
+                  <p className="text-sm text-slate-500">{subtituloPeriodo}</p>
                 </div>
               </div>
 
-              <span className="text-xs font-medium px-3 py-1.5 rounded-full border bg-purple-50 text-purple-700 border-purple-200">
-                Vista General
-              </span>
+              {abogadoSeleccionado ? (
+                <span className="text-xs font-medium px-3 py-1.5 rounded-full border bg-blue-50 text-blue-700 border-blue-200">
+                  {abogadoSeleccionado.nombre}
+                </span>
+              ) : (
+                <span className="text-xs font-medium px-3 py-1.5 rounded-full border bg-purple-50 text-purple-700 border-purple-200">
+                  Vista General
+                </span>
+              )}
+            </div>
+
+            {/* Filtros */}
+            <div className="mb-6">
+              <FiltrosPeriodoResultados abogados={listaAbogados} />
             </div>
 
             {/* SECCIÓN 1: KPIs */}
@@ -260,9 +322,9 @@ export default async function AnalisisResultadosPage() {
             ) : (
               <div className="p-8 bg-white border border-slate-200 rounded-lg text-center mb-6">
                 <Trophy className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                <p className="text-slate-500 font-medium">No hay casos cerrados para analizar</p>
+                <p className="text-slate-500 font-medium">No hay casos cerrados en este período</p>
                 <p className="text-sm text-slate-400 mt-1">
-                  Los resultados aparecerán cuando se cierren expedientes con el sistema de cierre formal.
+                  Probá ampliando el rango temporal o seleccionando &quot;Todo el historial&quot;.
                 </p>
               </div>
             )}
@@ -273,12 +335,14 @@ export default async function AnalisisResultadosPage() {
             {/* SECCIÓN 4: Insights automáticos */}
             {motivoRows.length > 0 && <PanelInsights data={insights} />}
 
-            {/* Nota informativa */}
+            {/* Nota metodológica */}
             <div className="mt-8 p-4 bg-slate-100 border border-slate-200 rounded-lg">
-              <p className="text-xs text-slate-600">
-                <strong>Criterios del reporte:</strong> Tasa de éxito = (Sentencias favorables + Acuerdos) / Total cerrados |
-                Tasa de recupero = Monto obtenido / Monto reclamado original |
-                Solo incluye casos con cierre formal registrado
+              <p className="text-xs font-semibold text-slate-600 mb-1">Metodología del Reporte</p>
+              <p className="text-xs text-slate-500">
+                <strong>Tasa de éxito:</strong> (Sentencias favorables + Acuerdos/Conciliaciones) / Total de cerrados en el período. 
+                <strong> Tasa de recupero:</strong> Monto obtenido / Monto reclamado original. 
+                <strong> Duración promedio:</strong> Días desde fecha de inicio hasta fecha de cierre. 
+                Solo incluye casos con cierre formal registrado en el sistema.
               </p>
             </div>
           </div>

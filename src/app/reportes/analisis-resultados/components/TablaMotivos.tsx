@@ -1,8 +1,28 @@
 'use client'
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ChevronDown, ChevronRight, BarChart3 } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { ChevronDown, ChevronRight, BarChart3, X } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import Link from "next/link"
+
+// ============================================================================
+// TIPOS
+// ============================================================================
+
+export type CasoDetalle = {
+  id: string
+  numero: string
+  titulo: string
+  tipo: string
+  tipoLabel: string
+  montoDisputa: number
+  montoFinal: number
+  diasDuracion: number
+  fechaCierre: string
+  abogadoNombre: string
+}
 
 export type MotivoCierreRow = {
   motivo: string
@@ -12,20 +32,12 @@ export type MotivoCierreRow = {
   montoObtenidoTotal: number
   tasaRecupero: number
   promedioDias: number
-  // Detalle: casos individuales de este motivo
-  casos: {
-    id: string
-    numero: string
-    titulo: string
-    tipo: string
-    tipoLabel: string
-    montoDisputa: number
-    montoFinal: number
-    diasDuracion: number
-    fechaCierre: string
-    abogadoNombre: string
-  }[]
+  casos: CasoDetalle[]
 }
+
+// ============================================================================
+// COLORES POR MOTIVO
+// ============================================================================
 
 const MOTIVO_COLORS: Record<string, { bg: string; text: string; border: string }> = {
   "Sentencia favorable": { bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200" },
@@ -38,6 +50,149 @@ const MOTIVO_COLORS: Record<string, { bg: string; text: string; border: string }
 }
 
 const DEFAULT_COLOR = { bg: "bg-slate-50", text: "text-slate-600", border: "border-slate-200" }
+
+// ============================================================================
+// SUB-COMPONENTE: Filtros inline + lista de casos dentro del expandible
+// ============================================================================
+
+function DetalleExpandido({ casos }: { casos: CasoDetalle[] }) {
+  const [filtroAbogado, setFiltroAbogado] = useState<string>("todos")
+  const [filtroFuero, setFiltroFuero] = useState<string>("todos")
+
+  // Opciones únicas para los selects
+  const abogados = useMemo(() => {
+    const set = new Set(casos.map((c) => c.abogadoNombre))
+    return Array.from(set).sort()
+  }, [casos])
+
+  const fueros = useMemo(() => {
+    const set = new Set(casos.map((c) => c.tipoLabel))
+    return Array.from(set).sort()
+  }, [casos])
+
+  // Filtrado
+  const casosFiltrados = useMemo(() => {
+    return casos.filter((c) => {
+      if (filtroAbogado !== "todos" && c.abogadoNombre !== filtroAbogado) return false
+      if (filtroFuero !== "todos" && c.tipoLabel !== filtroFuero) return false
+      return true
+    })
+  }, [casos, filtroAbogado, filtroFuero])
+
+  const hayFiltrosActivos = filtroAbogado !== "todos" || filtroFuero !== "todos"
+
+  const handleLimpiar = () => {
+    setFiltroAbogado("todos")
+    setFiltroFuero("todos")
+  }
+
+  const formatMoney = (n: number) =>
+    new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(n)
+
+  return (
+    <div>
+      {/* Filtros inline */}
+      <div className="flex items-center gap-3 mb-3 flex-wrap">
+        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+          Expedientes ({casosFiltrados.length}{hayFiltrosActivos ? ` de ${casos.length}` : ""})
+        </span>
+
+        <div className="flex items-center gap-2 ml-auto">
+          {/* Select Abogado */}
+          {abogados.length > 1 && (
+            <Select value={filtroAbogado} onValueChange={setFiltroAbogado}>
+              <SelectTrigger className="h-7 text-xs w-[160px] bg-white">
+                <SelectValue placeholder="Abogado" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos los abogados</SelectItem>
+                {abogados.map((a) => (
+                  <SelectItem key={a} value={a}>{a}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
+          {/* Select Fuero */}
+          {fueros.length > 1 && (
+            <Select value={filtroFuero} onValueChange={setFiltroFuero}>
+              <SelectTrigger className="h-7 text-xs w-[160px] bg-white">
+                <SelectValue placeholder="Fuero" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos los fueros</SelectItem>
+                {fueros.map((f) => (
+                  <SelectItem key={f} value={f}>{f}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
+          {/* Limpiar */}
+          {hayFiltrosActivos && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleLimpiar}
+              className="text-slate-400 hover:text-slate-600 h-7 px-2"
+            >
+              <X className="w-3 h-3" />
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Tabla de casos */}
+      {casosFiltrados.length > 0 ? (
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-slate-200">
+                <th className="text-left px-3 py-2 text-slate-500 font-semibold">Expediente</th>
+                <th className="text-left px-3 py-2 text-slate-500 font-semibold">Carátula</th>
+                <th className="text-left px-3 py-2 text-slate-500 font-semibold">Fuero</th>
+                <th className="text-left px-3 py-2 text-slate-500 font-semibold">Abogado</th>
+                <th className="text-right px-3 py-2 text-slate-500 font-semibold">Reclamado</th>
+                <th className="text-right px-3 py-2 text-slate-500 font-semibold">Obtenido</th>
+                <th className="text-center px-3 py-2 text-slate-500 font-semibold">Duración</th>
+                <th className="text-center px-3 py-2 text-slate-500 font-semibold">Cierre</th>
+              </tr>
+            </thead>
+            <tbody>
+              {casosFiltrados.map((caso) => (
+                <tr key={caso.id} className="border-b border-slate-100 hover:bg-white/80">
+                  <td className="px-3 py-2">
+                    <Link
+                      href={`/casos/${caso.id}`}
+                      className="font-mono text-indigo-600 hover:text-indigo-800 hover:underline"
+                    >
+                      {caso.numero}
+                    </Link>
+                  </td>
+                  <td className="px-3 py-2 text-slate-700 font-medium max-w-[200px] truncate">{caso.titulo}</td>
+                  <td className="px-3 py-2 text-slate-600">{caso.tipoLabel}</td>
+                  <td className="px-3 py-2 text-slate-600">{caso.abogadoNombre}</td>
+                  <td className="px-3 py-2 text-right text-slate-500">{formatMoney(caso.montoDisputa)}</td>
+                  <td className="px-3 py-2 text-right font-medium text-slate-700">{formatMoney(caso.montoFinal)}</td>
+                  <td className="px-3 py-2 text-center text-slate-600">{caso.diasDuracion} días</td>
+                  <td className="px-3 py-2 text-center text-slate-500">{caso.fechaCierre}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p className="text-xs text-slate-400 py-3 text-center">
+          No hay expedientes que coincidan con los filtros seleccionados.
+        </p>
+      )}
+    </div>
+  )
+}
+
+// ============================================================================
+// COMPONENTE PRINCIPAL
+// ============================================================================
 
 export function TablaMotivos({ data }: { data: MotivoCierreRow[] }) {
   const [expandedRow, setExpandedRow] = useState<string | null>(null)
@@ -78,6 +233,7 @@ export function TablaMotivos({ data }: { data: MotivoCierreRow[] }) {
 
                 return (
                   <>
+                    {/* Fila principal */}
                     <tr
                       key={row.motivo}
                       onClick={() => setExpandedRow(isExpanded ? null : row.motivo)}
@@ -116,43 +272,11 @@ export function TablaMotivos({ data }: { data: MotivoCierreRow[] }) {
                       <td className="px-4 py-3 text-center text-slate-600">{row.promedioDias} días</td>
                     </tr>
 
-                    {/* Fila expandida: detalle de casos */}
+                    {/* Fila expandida: filtros + lista de casos */}
                     {isExpanded && row.casos.length > 0 && (
-                      <tr key={`${row.motivo}-detail`} className="bg-slate-50">
+                      <tr key={`${row.motivo}-detail`} className="bg-slate-50/70">
                         <td colSpan={8} className="px-8 py-4">
-                          <p className="text-xs font-semibold text-slate-500 uppercase mb-3">
-                            Expedientes cerrados por {row.motivo} ({row.casos.length})
-                          </p>
-                          <div className="overflow-x-auto">
-                            <table className="w-full text-xs">
-                              <thead>
-                                <tr className="border-b border-slate-200">
-                                  <th className="text-left px-3 py-2 text-slate-500 font-semibold">Expediente</th>
-                                  <th className="text-left px-3 py-2 text-slate-500 font-semibold">Carátula</th>
-                                  <th className="text-left px-3 py-2 text-slate-500 font-semibold">Fuero</th>
-                                  <th className="text-left px-3 py-2 text-slate-500 font-semibold">Abogado</th>
-                                  <th className="text-right px-3 py-2 text-slate-500 font-semibold">Reclamado</th>
-                                  <th className="text-right px-3 py-2 text-slate-500 font-semibold">Obtenido</th>
-                                  <th className="text-center px-3 py-2 text-slate-500 font-semibold">Duración</th>
-                                  <th className="text-center px-3 py-2 text-slate-500 font-semibold">Cierre</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {row.casos.map((caso) => (
-                                  <tr key={caso.id} className="border-b border-slate-100 hover:bg-white/80">
-                                    <td className="px-3 py-2 font-mono text-slate-600">{caso.numero}</td>
-                                    <td className="px-3 py-2 text-slate-700 font-medium max-w-[200px] truncate">{caso.titulo}</td>
-                                    <td className="px-3 py-2 text-slate-600">{caso.tipoLabel}</td>
-                                    <td className="px-3 py-2 text-slate-600">{caso.abogadoNombre}</td>
-                                    <td className="px-3 py-2 text-right text-slate-500">{formatMoney(caso.montoDisputa)}</td>
-                                    <td className="px-3 py-2 text-right font-medium text-slate-700">{formatMoney(caso.montoFinal)}</td>
-                                    <td className="px-3 py-2 text-center text-slate-600">{caso.diasDuracion} días</td>
-                                    <td className="px-3 py-2 text-center text-slate-500">{caso.fechaCierre}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
+                          <DetalleExpandido casos={row.casos} />
                         </td>
                       </tr>
                     )}

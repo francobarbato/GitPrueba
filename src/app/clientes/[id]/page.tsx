@@ -57,15 +57,15 @@ export default async function ClienteDetallePage({
         }
       },
       // ===== NUEVO: Incluir usuario del portal =====
-      usuarioPortal: {
-        select: {
-          id: true,
-          email: true,
-          isActive: true,
-          createdAt: true,
-          ultimoAcceso: true
-        }
-      }
+      // usuarioPortal: {
+      //   select: {
+      //     id: true,
+      //     email: true,
+      //     isActive: true,
+      //     createdAt: true,
+      //     ultimoAcceso: true
+      //   }
+      // }
       // =============================================
     }
   })
@@ -429,7 +429,7 @@ export default async function ClienteDetallePage({
               <div className="space-y-6">
                 
                 {/* ===== NUEVO: Sección de Acceso al Portal ===== */}
-                <PortalAccesoSection 
+                {/* <PortalAccesoSection 
                   cliente={{
                     id: cliente.id,
                     nombre: cliente.nombre,
@@ -439,7 +439,7 @@ export default async function ClienteDetallePage({
                     usuarioPortal: cliente.usuarioPortal
                   }}
                   userRol={userRol}
-                />
+                /> */}
                 {/* ============================================== */}
 
                 {/* Estadísticas de Casos */}

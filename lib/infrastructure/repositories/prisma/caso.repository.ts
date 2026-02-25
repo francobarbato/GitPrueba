@@ -191,7 +191,7 @@ async create(data: any): Promise<Caso> {
     // Nota: Asegúrate de que en tu schema.prisma la relación inversa se llame "casos" o "casosComoAbogado"
     // Aquí asumo que es "casos" por defecto si no le pusiste nombre. Si falla, revisa el schema.
     const abogados = await prisma.user.findMany({
-      where: { rol: "abogado" },
+      where: { rol: "ABOGADO" },
       include: {
         casos: true, 
       },

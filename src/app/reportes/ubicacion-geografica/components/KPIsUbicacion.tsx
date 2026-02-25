@@ -50,7 +50,7 @@ export function KPIsUbicacion({ data }: { data: KPIsData }) {
       </Card>
 
       {/* Casos Urgentes */}
-      <Card className={`shadow-sm ${
+      {/* <Card className={`shadow-sm ${
         data.casosUrgentes > 0 
           ? 'border-amber-200 bg-amber-50/30' 
           : 'border-slate-200'
@@ -73,7 +73,7 @@ export function KPIsUbicacion({ data }: { data: KPIsData }) {
           </p>
           <p className="text-xs text-slate-500">requieren atención</p>
         </CardContent>
-      </Card>
+      </Card> */}
 
       {/* Requieren Viaje */}
       <Card className={`shadow-sm ${

@@ -1,3 +1,4 @@
+import prisma from "src/lib/db/prisma"
 import { PrismaCasoRepository } from "@/lib/infrastructure/repositories/prisma/caso.repository"
 
 export class CasoService {
@@ -17,10 +18,30 @@ export class CasoService {
     return await this.casoRepository.findById(id)
   }
 
-  async getCasosByAbogado(abogadoId: string) {
-    if (!abogadoId) return []
-    return await this.casoRepository.findByAbogado(abogadoId)
+  // async getCasosByAbogado(abogadoId: string) {
+  //   if (!abogadoId) return []
+  //   return await this.casoRepository.findByAbogado(abogadoId)
+  // }
+    async getCasosByAbogado(userId: string) {
+    return prisma.caso.findMany({
+      where: {
+        OR: [
+          { abogadoId: userId },
+          { colaboradores: { some: { userId: userId } } }
+        ]
+      },
+      include: {
+        cliente: true,
+        abogado: true,
+        // Incluir colaboradores para mostrar badge "Colaborador" en la lista
+        colaboradores: {
+          select: { userId: true }
+        }
+      },
+      orderBy: { updatedAt: 'desc' }
+    })
   }
+
 
   async getCasosByCliente(clienteId: string) {
     return await this.casoRepository.findByCliente(clienteId)

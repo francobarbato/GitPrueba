@@ -26,7 +26,7 @@ const TIPOS_CASO = [
   { value: "PENAL", label: "Penal" },
   { value: "SUCESIONES", label: "Sucesiones" },
   { value: "CONTENCIOSO_ADMINISTRATIVO", label: "Contencioso Administrativo" },
-  { value: "OTRO", label: "Otro" }
+  // { value: "OTRO", label: "Otro" }
 ]
 
 const ESTADOS_CASO = [
@@ -474,15 +474,14 @@ export function NuevoCasoForm({ clientes, abogados, userRol, currentUserId }: Nu
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="p-4 bg-slate-50 rounded-lg space-y-3">
                 <Label className="flex items-center gap-2">
-                  <Flame className="h-4 w-4 text-orange-500" />
                   Nivel de Prioridad
                 </Label>
                 <Select name="priority" defaultValue="NORMAL">
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="HIGH">🔥 Alta (Urgente)</SelectItem>
-                    <SelectItem value="NORMAL">📋 Normal</SelectItem>
-                    <SelectItem value="LOW">📝 Baja</SelectItem>
+                    <SelectItem value="HIGH"> Alta (Urgente)</SelectItem>
+                    <SelectItem value="NORMAL"> Normal</SelectItem>
+                    <SelectItem value="LOW"> Baja</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -501,7 +500,7 @@ export function NuevoCasoForm({ clientes, abogados, userRol, currentUserId }: Nu
           </div>
 
           {/* SECCIÓN 5: CHECKLIST */}
-          <div className="space-y-4">
+          {/* <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 pb-2 border-b border-slate-200 flex-1">
                 <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center text-teal-600 font-bold text-sm">5</div>
@@ -544,7 +543,7 @@ export function NuevoCasoForm({ clientes, abogados, userRol, currentUserId }: Nu
                 ))
               )}
             </div>
-          </div>
+          </div> */}
 
           <input type="hidden" name="requirements" value={JSON.stringify(requisitos)} />
 

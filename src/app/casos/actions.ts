@@ -144,6 +144,20 @@ export async function crearCasoAction(prevState: State, formData: FormData): Pro
     // 6. Crear el caso con el abogadoId correcto
     const nuevoCaso = await casoService.createCaso(dataToCreate, abogadoId)
     
+    // 7. REGISTRAR ESTADO INICIAL EN BITÁCORA ⭐ NUEVO
+    await prisma.bitacora.create({
+      data: {
+        casoId: nuevoCaso.id,
+        usuarioId: user.id,
+        accion: "CREATE",
+        estadoNuevo: dataToCreate.estado,
+        estadoAnterior: null,
+        texto: `Caso creado en estado: ${dataToCreate.estado}`,
+        detalle: `Tipo: ${dataToCreate.tipo}, Prioridad: ${dataToCreate.priority}`,
+        tipo: "sistema"
+      }
+    })
+    
     // 7. AUDITORÍA AUTOMÁTICA
     const creadoPorTexto = userRol === 'ASISTENTE' 
       ? `Caso creado por Asistente y asignado a abogado`
@@ -241,8 +255,8 @@ export async function actualizarCasoAction(prevState: State, formData: FormData)
     isFavorite: formData.get("isFavorite") === "on",
   }
 
-  try {
-    // 6. OBTENER CASO ACTUAL (para comparar cambios)
+    try {
+    // 6. OBTENER CASO ACTUAL
     const casoActual = await prisma.caso.findUnique({
       where: { id: casoId },
       select: { 
@@ -256,11 +270,15 @@ export async function actualizarCasoAction(prevState: State, formData: FormData)
 
     if (!casoActual) return { error: "Caso no encontrado" }
 
+    const cambioEstado = casoActual.estado !== nuevoEstado
+
     // 7. Actualizar el caso
     await prisma.caso.update({
       where: { id: casoId },
       data: {
         ...rawData,
+        // SI CAMBIÓ ESTADO, ACTUALIZAR FECHA
+        ...(cambioEstado && { fechaUltimoCambioEstado: new Date() }),
         requirements: {
           deleteMany: {},
           create: requirementsData.map((req: any) => ({
@@ -276,8 +294,21 @@ export async function actualizarCasoAction(prevState: State, formData: FormData)
     const cambios = []
 
     // Cambio de estado
-    if (casoActual.estado !== nuevoEstado) {
+    if (cambioEstado) {
       cambios.push(`Estado: ${casoActual.estado} → ${nuevoEstado}`)
+
+      // REGISTRAR EN BITÁCORA CON ESTADOS
+      await prisma.bitacora.create({
+        data: {
+          casoId: casoId,
+          usuarioId: user.id,
+          accion: "ESTADO_CHANGE",
+          estadoAnterior: casoActual.estado,
+          estadoNuevo: nuevoEstado,
+          texto: `Cambio de estado: ${casoActual.estado} → ${nuevoEstado}`,
+          tipo: "sistema"
+        }
+      })
       
       await registrarAuditoria({
         casoId: casoId,

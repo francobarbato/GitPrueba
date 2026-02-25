@@ -4,7 +4,7 @@ import { subDays, differenceInDays } from "date-fns"
 export class ReportesService {
   
   // ===========================================================================
-  // 1. REPORTES EXISTENTES (No modificados, mantienen tu lógica original)
+  // 1. REPORTES EXISTENTES (No modificados)
   // ===========================================================================
 
   async getCargaTrabajo() {
@@ -183,10 +183,9 @@ export class ReportesService {
   }
 
   // ===========================================================================
-  // 2. NUEVOS MÉTODOS (Para el Reporte de Tiempos por Etapa)
+  // 2. MÉTODOS PARA REPORTES
   // ===========================================================================
 
-  // Para llenar el selector del buscador
   async getTodosLosCasos() {
     return await prisma.caso.findMany({
       orderBy: { updatedAt: 'desc' },
@@ -202,13 +201,12 @@ export class ReportesService {
     })
   }
 
-  // Para generar el gráfico de Timeline
   async getTiempoPorEtapa(casoId: string) {
     const caso = await prisma.caso.findUnique({
       where: { id: casoId },
       include: {
         bitacoras: {
-          orderBy: { createdAt: 'asc' } // Orden cronológico para ver evolución
+          orderBy: { createdAt: 'asc' }
         }
       }
     })
@@ -216,56 +214,297 @@ export class ReportesService {
     if (!caso) return null
 
     const hoy = new Date()
-    // Calculamos tiempo total desde inicio hasta hoy (o hasta fin si estuviera cerrado)
     const fechaFin = caso.fechaFin || hoy
     const totalDias = Math.max(1, differenceInDays(fechaFin, caso.fechaInicio))
-
-    // Intentamos reconstruir historia desde la bitácora
-    // Si no hay bitácoras de cambio de estado, asumimos que todo el tiempo estuvo en el estado actual
     const tiempos = []
-
-    // Filtramos bitácoras que hablen de cambios (asumiendo que guardaste "Cambio de Estado" en accion)
     const cambiosEstado = caso.bitacoras.filter(b => b.accion === "Cambio de Estado" || b.texto.includes("Cambio a"))
 
     if (cambiosEstado.length === 0) {
-        // Caso simple: Sin historial, todo el tiempo es el estado actual
-        tiempos.push({
-            estado: caso.estado,
-            dias: totalDias,
-            porcentaje: 100
-        })
+      tiempos.push({ estado: caso.estado, dias: totalDias, porcentaje: 100 })
     } else {
-        // Caso complejo: Reconstruir cronología
-        // Esto es una simplificación visual: tomamos los hitos de la bitácora
-        let fechaAnterior = caso.fechaInicio
-        
-        cambiosEstado.forEach((cambio, index) => {
-             const diasEnEtapa = differenceInDays(cambio.createdAt, fechaAnterior)
-             // Intentamos extraer el estado anterior del texto o usamos "Etapa previa"
-             const nombreEtapa = `Etapa ${index + 1}` // Idealmente parsear el texto del log
-             
-             if (diasEnEtapa > 0) {
-                 tiempos.push({
-                     estado: nombreEtapa,
-                     dias: diasEnEtapa,
-                     porcentaje: Math.round((diasEnEtapa / totalDias) * 100)
-                 })
-             }
-             fechaAnterior = cambio.createdAt
-        })
-
-        // El tiempo desde el último cambio hasta hoy es el estado actual
-        const diasActuales = differenceInDays(fechaFin, fechaAnterior)
-        tiempos.push({
-            estado: caso.estado + " (Actual)",
-            dias: diasActuales,
-            porcentaje: Math.round((diasActuales / totalDias) * 100)
-        })
+      let fechaAnterior = caso.fechaInicio
+      cambiosEstado.forEach((cambio, index) => {
+        const diasEnEtapa = differenceInDays(cambio.createdAt, fechaAnterior)
+        const nombreEtapa = `Etapa ${index + 1}`
+        if (diasEnEtapa > 0) {
+          tiempos.push({ estado: nombreEtapa, dias: diasEnEtapa, porcentaje: Math.round((diasEnEtapa / totalDias) * 100) })
+        }
+        fechaAnterior = cambio.createdAt
+      })
+      const diasActuales = differenceInDays(fechaFin, fechaAnterior)
+      tiempos.push({ estado: caso.estado + " (Actual)", dias: diasActuales, porcentaje: Math.round((diasActuales / totalDias) * 100) })
     }
 
+    return { totalDias, tiempos }
+  }
+
+  // ===========================================================================
+  // 3. ACTIVIDAD Y RESULTADOS POR ABOGADO
+  // ===========================================================================
+
+  async getActividadResultados(options: {
+    periodo?: string        // '90', '180', '365' — para vista general
+    desde?: string          // 'YYYY-MM-DD' — para vista personal
+    hasta?: string          // 'YYYY-MM-DD' — para vista personal
+    filtroTipo?: string
+    abogadoId?: string
+  }): Promise<{
+    kpis: {
+      casosCerrados: number
+      tasaExitoGlobal: number
+      valorRecuperadoTotal: number
+    }
+    abogados: Array<{
+      id: string
+      nombre: string
+      email: string
+      casosActivos: number
+      casosCerrados: number
+      tasaExito: number
+      valorRecuperado: number
+      porcentajeRecuperacion: number
+      distribucionActivos: Array<{ tipo: string; cantidad: number }>
+      fuerosActivos: Array<{ fuero: string; cantidad: number }>
+      perfilCasos: {
+        distribucion: Array<{ tipo: string; cantidad: number }>
+        porcentajeAcuerdos: number
+      }
+      detalleCierres: Array<{
+        id: string
+        numero: string
+        titulo: string
+        tipo: string
+        motivoCierre: string
+        montoDisputa: number
+        montoFinal: number
+        fechaCierre: Date
+      }>
+    }>
+  }> {
+    const { periodo, desde, hasta: hastaStr, filtroTipo, abogadoId } = options
+
+    // Determinar rango de fechas
+    let fechaHasta = new Date()
+    let fechaDesde: Date
+
+    if (desde && hastaStr) {
+      // Vista personal: rango personalizado
+      fechaDesde = new Date(desde + 'T00:00:00')
+      fechaHasta = new Date(hastaStr + 'T23:59:59')
+    } else {
+      // Vista general: período predefinido
+      switch (periodo) {
+        case '90':  fechaDesde = subDays(fechaHasta, 90); break
+        case '180': fechaDesde = subDays(fechaHasta, 180); break
+        case '365': fechaDesde = subDays(fechaHasta, 365); break
+        default:    fechaDesde = subDays(fechaHasta, 90)
+      }
+    }
+
+    // Filtro para cerrados en el rango
+    const whereCerrados: any = {
+      estaCerrado: true,
+      fechaCierre: { gte: fechaDesde, lte: fechaHasta }
+    }
+    if (filtroTipo && filtroTipo !== 'TODOS') {
+      whereCerrados.tipo = filtroTipo
+    }
+    if (abogadoId) {
+      whereCerrados.abogadoId = abogadoId
+    }
+
+    // Casos cerrados en el rango
+    const casosCerrados = await prisma.caso.findMany({
+      where: whereCerrados,
+      include: {
+        abogado: {
+          select: { id: true, nombre: true, apellido: true, email: true }
+        }
+      },
+      orderBy: { fechaCierre: 'desc' }
+    })
+
+    // Casos activos con detalle (tipo, fuero)
+    const whereActivos: any = { estaCerrado: false }
+    if (filtroTipo && filtroTipo !== 'TODOS') {
+      whereActivos.tipo = filtroTipo
+    }
+    if (abogadoId) {
+      whereActivos.abogadoId = abogadoId
+    }
+
+    const casosActivosDetalle = await prisma.caso.findMany({
+      where: whereActivos,
+      select: {
+        abogadoId: true,
+        tipo: true,
+        fuero: true,
+      }
+    })
+
+    // Agrupar activos por abogado
+    const activosDetallePorAbogado = new Map<string, typeof casosActivosDetalle>()
+    casosActivosDetalle.forEach(c => {
+      if (!activosDetallePorAbogado.has(c.abogadoId)) {
+        activosDetallePorAbogado.set(c.abogadoId, [])
+      }
+      activosDetallePorAbogado.get(c.abogadoId)!.push(c)
+    })
+
+    // ========== KPIs GLOBALES ==========
+
+    const casosExitosos = casosCerrados.filter(c =>
+      c.motivoCierre === 'Sentencia favorable' ||
+      c.motivoCierre === 'Acuerdo/Conciliación'
+    ).length
+
+    const tasaExitoGlobal = casosCerrados.length > 0
+      ? Math.round((casosExitosos / casosCerrados.length) * 100)
+      : 0
+
+    const valorRecuperadoTotal = casosCerrados
+      .filter(c => c.montoFinal)
+      .reduce((sum, c) => sum + Number(c.montoFinal), 0)
+
+    // ========== DATOS POR ABOGADO ==========
+
+    const abogadosMap = new Map<string, typeof casosCerrados>()
+    casosCerrados.forEach(caso => {
+      if (!abogadosMap.has(caso.abogadoId)) {
+        abogadosMap.set(caso.abogadoId, [])
+      }
+      abogadosMap.get(caso.abogadoId)!.push(caso)
+    })
+
+    // En vista general incluir abogados sin cierres
+    if (!abogadoId) {
+      const todosAbogados = await prisma.user.findMany({
+        where: { rol: 'ABOGADO', isActive: true },
+        select: { id: true, nombre: true, apellido: true, email: true }
+      })
+      todosAbogados.forEach(ab => {
+        if (!abogadosMap.has(ab.id)) {
+          abogadosMap.set(ab.id, [])
+        }
+      })
+    }
+
+    // Info de todos los abogados (para los que no tienen cierres)
+    const infoAbogados = await prisma.user.findMany({
+      where: { rol: 'ABOGADO', isActive: true },
+      select: { id: true, nombre: true, apellido: true, email: true }
+    })
+    const infoMap = new Map(infoAbogados.map(a => [a.id, a]))
+
+    const abogados = Array.from(abogadosMap.entries()).map(([abId, casos]) => {
+      const abogadoDeCaso = casos.length > 0 ? casos[0].abogado : null
+      const abogadoInfo = abogadoDeCaso || infoMap.get(abId)
+
+      let nombre = 'Sin nombre'
+      let email = ''
+      if (abogadoInfo) {
+        nombre = abogadoInfo.nombre && abogadoInfo.apellido
+          ? `${abogadoInfo.nombre} ${abogadoInfo.apellido}`
+          : abogadoInfo.email.split('@')[0]
+        email = abogadoInfo.email
+      }
+
+      // Activos con detalle
+      const casosActivosAb = activosDetallePorAbogado.get(abId) || []
+      const cantidadActivos = casosActivosAb.length
+
+      // Distribución de activos por tipo
+      const tiposActivosMap = new Map<string, number>()
+      casosActivosAb.forEach(c => {
+        const tipo = c.tipo || 'OTRO'
+        tiposActivosMap.set(tipo, (tiposActivosMap.get(tipo) || 0) + 1)
+      })
+      const distribucionActivos = Array.from(tiposActivosMap.entries())
+        .map(([tipo, cantidad]) => ({ tipo, cantidad }))
+        .sort((a, b) => b.cantidad - a.cantidad)
+
+      // Fueros donde opera
+      const fuerosMap = new Map<string, number>()
+      casosActivosAb.forEach(c => {
+        const fuero = c.fuero || 'Sin fuero'
+        fuerosMap.set(fuero, (fuerosMap.get(fuero) || 0) + 1)
+      })
+      const fuerosActivos = Array.from(fuerosMap.entries())
+        .map(([fuero, cantidad]) => ({ fuero, cantidad }))
+        .sort((a, b) => b.cantidad - a.cantidad)
+
+      // Tasa de éxito
+      const exitosos = casos.filter(c =>
+        c.motivoCierre === 'Sentencia favorable' ||
+        c.motivoCierre === 'Acuerdo/Conciliación'
+      ).length
+      const tasaExito = casos.length > 0
+        ? Math.round((exitosos / casos.length) * 100)
+        : 0
+
+      // Valor económico
+      const casosConMonto = casos.filter(c => c.montoFinal && c.montoDisputa)
+      const valorRecuperado = casosConMonto.reduce((sum, c) => sum + Number(c.montoFinal), 0)
+      const valorDisputado = casosConMonto.reduce((sum, c) => sum + Number(c.montoDisputa), 0)
+      const porcentajeRecuperacion = valorDisputado > 0
+        ? Math.round((valorRecuperado / valorDisputado) * 100)
+        : 0
+
+      // Perfil de casos cerrados
+      const distribucionTipos = new Map<string, number>()
+      let casosConAcuerdo = 0
+      casos.forEach(caso => {
+        const tipo = caso.tipo || 'OTRO'
+        distribucionTipos.set(tipo, (distribucionTipos.get(tipo) || 0) + 1)
+        if (caso.motivoCierre === 'Acuerdo/Conciliación') casosConAcuerdo++
+      })
+
+      const perfilCasos = {
+        distribucion: Array.from(distribucionTipos.entries())
+          .map(([tipo, cantidad]) => ({ tipo, cantidad }))
+          .sort((a, b) => b.cantidad - a.cantidad),
+        porcentajeAcuerdos: casos.length > 0
+          ? Math.round((casosConAcuerdo / casos.length) * 100)
+          : 0
+      }
+
+      // Detalle de cierres
+      const detalleCierres = casos.map(c => ({
+        id: c.id,
+        numero: c.numero,
+        titulo: c.titulo,
+        tipo: c.tipo || 'OTRO',
+        motivoCierre: c.motivoCierre || 'Sin motivo',
+        montoDisputa: Number(c.montoDisputa) || 0,
+        montoFinal: Number(c.montoFinal) || 0,
+        fechaCierre: c.fechaCierre!
+      }))
+
+      return {
+        id: abId,
+        nombre,
+        email,
+        casosActivos: cantidadActivos,
+        casosCerrados: casos.length,
+        tasaExito,
+        valorRecuperado: Math.round(valorRecuperado),
+        porcentajeRecuperacion,
+        distribucionActivos,
+        fuerosActivos,
+        perfilCasos,
+        detalleCierres
+      }
+    })
+
+    abogados.sort((a, b) => b.casosCerrados - a.casosCerrados || b.casosActivos - a.casosActivos)
+
     return {
-        totalDias,
-        tiempos
+      kpis: {
+        casosCerrados: casosCerrados.length,
+        tasaExitoGlobal,
+        valorRecuperadoTotal: Math.round(valorRecuperadoTotal)
+      },
+      abogados
     }
   }
 }

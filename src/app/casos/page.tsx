@@ -133,8 +133,15 @@ export default async function CasosPage() {
                       </td>
                       
                       <td className="p-4 text-sm font-medium text-slate-800">
-                        <div className="line-clamp-1" title={caso.titulo}>
-                          {caso.titulo}
+                        <div className="flex items-center gap-1.5">
+                          <span className="line-clamp-1" title={caso.titulo}>
+                            {caso.titulo}
+                          </span>
+                          {isAbogado(userRol) && caso.abogadoId !== user.id && (
+                            <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-600 font-semibold border border-violet-200">
+                              Colaborador
+                            </span>
+                          )}
                         </div>
                         <span className="text-xs text-slate-400 font-normal">{caso.tipo}</span>
                       </td>
@@ -159,9 +166,16 @@ export default async function CasosPage() {
 
                       {/* Estado con Badge */}
                       <td className="p-4">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getBadgeColor(caso.estado)}`}>
-                          {caso.estado}
-                        </span>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getBadgeColor(caso.estado)}`}>
+                              {caso.estado}
+                            </span>
+                            {caso.estaCerrado && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-50 text-red-600 border border-red-200">
+                                {caso.motivoCierre || 'Cerrado'}
+                              </span>
+                            )}
+                          </div>
                       </td>
                       
                       <td className="p-4 text-right">
