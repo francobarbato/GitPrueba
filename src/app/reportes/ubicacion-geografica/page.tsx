@@ -1,5 +1,8 @@
 // app/reportes/ubicacion-geografica/page.tsx
 // Distribución de casos por ubicación geográfica
+// ACCESO: Todos los roles (Admin, Abogado, Asistente) — reporte operativo
+// Vista personal: casos propios del abogado logueado
+// Vista general: distribución del estudio, coordinación, zonas con atención (ABOGADO + ADMIN)
 
 import React from "react"
 import Link from "next/link"
@@ -11,17 +14,17 @@ import prisma from "src/lib/db/prisma"
 import { ArrowLeft, MapPin } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
-// Componentes
 import { KPIsUbicacion } from "./components/KPIsUbicacion"
 import { AcordeonZonas } from "./components/AcordeonZonas"
 import { ToggleVista } from "./components/ToggleVista"
 import { FiltrosGeografia } from "./components/FiltrosGeografia"
 import { AlertaUrgentes } from "./components/Alertasurgentes"
+import { VistaGeneralGeo, type ZonaGeneral } from "./components/VistaGeneralGeo"
 
-import { 
-  distanciaDesdeCordoba, 
+import {
+  distanciaDesdeCordoba,
   clasificarDistancia,
-  PROVINCIAS_ARGENTINA 
+  PROVINCIAS_ARGENTINA
 } from "src/lib/data/argentina-ubicaciones"
 
 // ============================================================================
@@ -76,18 +79,13 @@ export type KPIsData = {
 }
 
 // ============================================================================
-// FUNCIONES DE DATOS
+// HELPERS
 // ============================================================================
 
 function extraerCiudadProvincia(fuero: string | null): { ciudad: string; provincia: string } {
   if (!fuero) return { ciudad: 'Sin Especificar', provincia: 'Sin Especificar' }
-  
   const partes = fuero.split(',').map(p => p.trim())
-  
-  if (partes.length >= 2) {
-    return { ciudad: partes[0], provincia: partes[1] }
-  }
-  
+  if (partes.length >= 2) return { ciudad: partes[0], provincia: partes[1] }
   return { ciudad: partes[0], provincia: 'Sin Especificar' }
 }
 
@@ -124,55 +122,85 @@ function buscarCoordenadasCiudad(ciudad: string, provincia: string): { lat: numb
   const ciudadNorm = ciudad.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
   const provinciaNorm = provincia.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
   const combinado = `${ciudadNorm} ${provinciaNorm}`.trim()
-  
-  if (ALIAS_UBICACIONES[ciudadNorm]) {
-    return ALIAS_UBICACIONES[ciudadNorm]
-  }
-  
-  if (ALIAS_UBICACIONES[combinado]) {
-    return ALIAS_UBICACIONES[combinado]
-  }
-  
+
+  if (ALIAS_UBICACIONES[ciudadNorm]) return ALIAS_UBICACIONES[ciudadNorm]
+  if (ALIAS_UBICACIONES[combinado]) return ALIAS_UBICACIONES[combinado]
+
   for (const prov of PROVINCIAS_ARGENTINA) {
     const provNombre = prov.nombre.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-    
     if (provNombre.includes(provinciaNorm) || provinciaNorm.includes(provNombre)) {
       for (const depto of prov.departamentos) {
         const deptoNombre = depto.nombre.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
         const cabeceraName = depto.cabecera?.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") || ''
-        
-        if (deptoNombre.includes(ciudadNorm) || 
-            ciudadNorm.includes(deptoNombre) ||
-            cabeceraName.includes(ciudadNorm) ||
-            ciudadNorm.includes(cabeceraName)) {
+        if (deptoNombre.includes(ciudadNorm) || ciudadNorm.includes(deptoNombre) ||
+          cabeceraName.includes(ciudadNorm) || ciudadNorm.includes(cabeceraName)) {
           return depto.coordenadas
         }
       }
       return prov.coordenadas
     }
   }
-  
   for (const prov of PROVINCIAS_ARGENTINA) {
     for (const depto of prov.departamentos) {
       const deptoNombre = depto.nombre.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
       const cabeceraName = depto.cabecera?.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") || ''
-      
-      if (deptoNombre === ciudadNorm || cabeceraName === ciudadNorm) {
-        return depto.coordenadas
-      }
+      if (deptoNombre === ciudadNorm || cabeceraName === ciudadNorm) return depto.coordenadas
     }
   }
-  
   for (const prov of PROVINCIAS_ARGENTINA) {
     const provNombre = prov.nombre.toLowerCase()
-    
-    if (ciudadNorm.includes(provNombre) || provNombre.includes(ciudadNorm)) {
-      return prov.coordenadas
-    }
+    if (ciudadNorm.includes(provNombre) || provNombre.includes(ciudadNorm)) return prov.coordenadas
   }
-  
   return null
 }
+
+function humanizarProvincia(provinciaId: string): string {
+  const mapa: Record<string, string> = {
+    'cordoba': 'Córdoba',
+    'buenos_aires': 'Buenos Aires',
+    'caba': 'CABA',
+    'santa_fe': 'Santa Fe',
+    'mendoza': 'Mendoza',
+    'tucuman': 'Tucumán',
+    'entre_rios': 'Entre Ríos',
+    'salta': 'Salta',
+    'misiones': 'Misiones',
+    'chaco': 'Chaco',
+    'corrientes': 'Corrientes',
+    'santiago_del_estero': 'Santiago del Estero',
+    'san_juan': 'San Juan',
+    'jujuy': 'Jujuy',
+    'rio_negro': 'Río Negro',
+    'neuquen': 'Neuquén',
+    'formosa': 'Formosa',
+    'chubut': 'Chubut',
+    'san_luis': 'San Luis',
+    'catamarca': 'Catamarca',
+    'la_rioja': 'La Rioja',
+    'la_pampa': 'La Pampa',
+    'santa_cruz': 'Santa Cruz',
+    'tierra_del_fuego': 'Tierra del Fuego',
+  }
+  return mapa[provinciaId] ?? provinciaId
+}
+
+function getPesoLogistico(zona: ZonaGeografica): number {
+  let peso = 0
+  if (zona.clasificacionDistancia.tipo === 'lejano') peso += 100
+  else if (zona.clasificacionDistancia.tipo === 'medio') peso += 60
+  else if (zona.clasificacionDistancia.tipo === 'cercano') peso += 30
+  peso += zona.casosUrgentes * 50
+  peso += zona.totalCasos * 5
+  return peso
+}
+
+const isAdmin = (rol: string) => rol?.toUpperCase() === 'ADMIN'
+const isAbogado = (rol: string) => rol?.toUpperCase() === 'ABOGADO'
+const isAsistente = (rol: string) => rol?.toUpperCase() === 'ASISTENTE'
+
+// ============================================================================
+// QUERY — VISTA PERSONAL (sin cambios)
+// ============================================================================
 
 async function obtenerCasosPorUbicacion(
   userId: string,
@@ -184,197 +212,113 @@ async function obtenerCasosPorUbicacion(
   zonas: ZonaGeografica[]
   kpis: KPIsData
   casosUrgentesDetalle: {
-    id: string
-    titulo: string
-    numero: string
-    tipo: string
-    ciudad: string
-    distanciaKm: number
-    clasificacion: string
+    id: string; titulo: string; numero: string; tipo: string
+    ciudad: string; distanciaKm: number; clasificacion: string
   }[]
 }> {
-  // Determinar filtro según vista
   const whereClause: any = {
     estaCerrado: false,
     estado: { notIn: ['Cerrado', 'Archivado', 'CERRADO', 'ARCHIVADO'] }
   }
 
-  // Admin y Asistente ven todos los casos; Abogado ve solo los suyos
   const esAdmin = userRol === 'ADMIN'
   const esAsistente = userRol === 'ASISTENTE'
-  
+
   if (!esAdmin && !esAsistente) {
     whereClause.abogadoId = userId
   }
 
-  // Filtro por abogado específico (cuando Admin o Asistente filtra)
   if (filtroAbogado !== 'todos') {
     whereClause.abogadoId = filtroAbogado
   }
 
-  // Aplicar filtro de fuero a nivel de query
-  if (filtroFuero !== 'todos') {
-    whereClause.tipo = filtroFuero
-  }
+  if (filtroFuero !== 'todos') whereClause.tipo = filtroFuero
+  if (filtroEtapa !== 'todas') whereClause.estado = filtroEtapa
 
-  // Aplicar filtro de etapa a nivel de query
-  if (filtroEtapa !== 'todas') {
-    whereClause.estado = filtroEtapa
-  }
-
-  // Obtener casos
   const casos = await prisma.caso.findMany({
     where: whereClause,
     include: {
-      cliente: {
-        select: { nombre: true, apellido: true }
-      },
-      abogado: {
-        select: { id: true, nombre: true, apellido: true }
-      }
+      cliente: { select: { nombre: true, apellido: true } },
+      abogado: { select: { id: true, nombre: true, apellido: true } }
     },
     orderBy: { updatedAt: 'desc' }
   })
 
-  // Agrupar por ciudad
-  const zonasPorCiudad = new Map<string, {
-    casos: CasoUbicacion[]
-    provincia: string
-  }>()
-
-  const hoy = new Date()
+  const zonasPorCiudad = new Map<string, { casos: CasoUbicacion[]; provincia: string }>()
 
   casos.forEach(caso => {
-    const { ciudad, provincia } = extraerCiudadProvincia(caso.fuero)
+    const ciudad = (caso as any).ciudad || extraerCiudadProvincia(caso.fuero).ciudad
+    const provinciaRaw = (caso as any).provincia || extraerCiudadProvincia(caso.fuero).provincia
+    const provincia = humanizarProvincia(provinciaRaw)
     const key = `${ciudad}|${provincia}`
+    if (!zonasPorCiudad.has(key)) zonasPorCiudad.set(key, { casos: [], provincia })
 
-    if (!zonasPorCiudad.has(key)) {
-      zonasPorCiudad.set(key, { casos: [], provincia })
-    }
-
-    const diasSinMovimiento = Math.floor((hoy.getTime() - caso.updatedAt.getTime()) / (1000 * 60 * 60 * 24))
     const esUrgente = caso.priority === 'HIGH'
-
-    const clienteNombre = caso.cliente 
-      ? `${caso.cliente.nombre} ${caso.cliente.apellido || ''}`.trim()
-      : 'Sin cliente'
-
+    const clienteNombre = caso.cliente
+      ? `${caso.cliente.nombre} ${caso.cliente.apellido || ''}`.trim() : 'Sin cliente'
     const abogadoNombre = caso.abogado
-      ? `${caso.abogado.nombre || ''} ${caso.abogado.apellido || ''}`.trim()
-      : 'Sin asignar'
+      ? `${caso.abogado.nombre || ''} ${caso.abogado.apellido || ''}`.trim() : 'Sin asignar'
 
     zonasPorCiudad.get(key)!.casos.push({
-      id: caso.id,
-      numero: caso.numero,
-      titulo: caso.titulo,
-      tipo: caso.tipo,
-      estado: caso.estado,
-      juzgado: caso.juzgado,
-      clienteNombre,
-      abogadoNombre,
-      abogadoId: caso.abogado?.id || '',
-      ultimoMovimiento: caso.updatedAt,
-      priority: caso.priority,
-      esUrgente
+      id: caso.id, numero: caso.numero, titulo: caso.titulo,
+      tipo: caso.tipo, estado: caso.estado, juzgado: caso.juzgado,
+      clienteNombre, abogadoNombre, abogadoId: caso.abogado?.id || '',
+      ultimoMovimiento: caso.updatedAt, priority: caso.priority, esUrgente
     })
   })
 
-  // Construir zonas con datos completos
   const zonas: ZonaGeografica[] = []
   let totalDistancia = 0
   let zonasConDistancia = 0
-
-  // Para el banner de urgentes
-  const casosUrgentesDetalle: {
-    id: string
-    titulo: string
-    numero: string
-    tipo: string
-    ciudad: string
-    distanciaKm: number
-    clasificacion: string
-  }[] = []
+  const casosUrgentesDetalle: { id: string; titulo: string; numero: string; tipo: string; ciudad: string; distanciaKm: number; clasificacion: string }[] = []
 
   zonasPorCiudad.forEach((data, key) => {
     const [ciudad, provincia] = key.split('|')
     const coordenadas = buscarCoordenadasCiudad(ciudad, provincia)
-    
     let distanciaKm = 0
     if (coordenadas) {
       distanciaKm = distanciaDesdeCordoba(coordenadas.lat, coordenadas.lng)
       totalDistancia += distanciaKm
       zonasConDistancia++
     }
-
     const clasificacion = clasificarDistancia(distanciaKm)
 
-    // Recopilar urgentes para el banner
-    data.casos
-      .filter(c => c.esUrgente)
-      .forEach(c => {
-        casosUrgentesDetalle.push({
-          id: c.id,
-          titulo: c.titulo,
-          numero: c.numero,
-          tipo: c.tipo,
-          ciudad,
-          distanciaKm,
-          clasificacion: clasificacion.label,
-        })
+    data.casos.filter(c => c.esUrgente).forEach(c => {
+      casosUrgentesDetalle.push({
+        id: c.id, titulo: c.titulo, numero: c.numero, tipo: c.tipo,
+        ciudad, distanciaKm, clasificacion: clasificacion.label
       })
+    })
 
-    // Agrupar casos por juzgado
     const juzgadosMap = new Map<string, CasoUbicacion[]>()
     data.casos.forEach(caso => {
       const juzgado = caso.juzgado || 'Sin Juzgado Especificado'
-      if (!juzgadosMap.has(juzgado)) {
-        juzgadosMap.set(juzgado, [])
-      }
+      if (!juzgadosMap.has(juzgado)) juzgadosMap.set(juzgado, [])
       juzgadosMap.get(juzgado)!.push(caso)
     })
 
     const juzgados: JuzgadoAgrupado[] = Array.from(juzgadosMap.entries())
       .map(([nombre, casos]) => ({
-        nombre,
-        casos,
-        cantidadCasos: casos.length,
-        urgentes: casos.filter(c => c.esUrgente).length
+        nombre, casos, cantidadCasos: casos.length, urgentes: casos.filter(c => c.esUrgente).length
       }))
       .sort((a, b) => b.cantidadCasos - a.cantidadCasos)
 
-    const casosUrgentes = data.casos.filter(c => c.esUrgente).length
-
     zonas.push({
-      id: key,
-      ciudad,
-      provincia,
-      coordenadas,
-      distanciaKm,
-      clasificacionDistancia: clasificacion,
-      juzgados,
+      id: key, ciudad, provincia, coordenadas, distanciaKm,
+      clasificacionDistancia: clasificacion, juzgados,
       totalCasos: data.casos.length,
-      casosUrgentes,
+      casosUrgentes: data.casos.filter(c => c.esUrgente).length,
       casos: data.casos
     })
   })
 
-  // Ordenar zonas por prioridad logística:
-  // 1. Zonas lejanas con urgentes primero (requieren planificar viaje)
-  // 2. Zonas lejanas sin urgentes
-  // 3. Zonas cercanas con urgentes
-  // 4. Zonas cercanas sin urgentes
-  // 5. Locales
   zonas.sort((a, b) => {
-    const pesoA = getPesoLogistico(a)
-    const pesoB = getPesoLogistico(b)
+    const pesoA = getPesoLogistico(a), pesoB = getPesoLogistico(b)
     if (pesoA !== pesoB) return pesoB - pesoA
     return b.totalCasos - a.totalCasos
   })
-
-  // Ordenar urgentes: los más lejanos primero
   casosUrgentesDetalle.sort((a, b) => b.distanciaKm - a.distanciaKm)
 
-  // Calcular KPIs
   const kpis: KPIsData = {
     totalCasos: casos.length,
     ciudadesActivas: zonas.length,
@@ -386,26 +330,100 @@ async function obtenerCasosPorUbicacion(
   return { zonas, kpis, casosUrgentesDetalle }
 }
 
-function getPesoLogistico(zona: ZonaGeografica): number {
-  let peso = 0
-  // Distancia: más lejos = más peso (necesita más planificación)
-  if (zona.clasificacionDistancia.tipo === 'lejano') peso += 100
-  else if (zona.clasificacionDistancia.tipo === 'medio') peso += 60
-  else if (zona.clasificacionDistancia.tipo === 'cercano') peso += 30
+// ============================================================================
+// QUERY — VISTA GENERAL
+// ============================================================================
 
-  // Urgentes suman peso
-  peso += zona.casosUrgentes * 50
+async function obtenerVistaGeneral(): Promise<ZonaGeneral[]> {
+  const casos = await prisma.caso.findMany({
+    where: {
+      estaCerrado: false,
+      estado: { notIn: ['Cerrado', 'Archivado', 'CERRADO', 'ARCHIVADO'] }
+    },
+    include: {
+      abogado: { select: { id: true, nombre: true, apellido: true } }
+    },
+    orderBy: { updatedAt: 'desc' }
+  })
 
-  // Más casos = más peso (justifica más el viaje)
-  peso += zona.totalCasos * 5
+  // Agrupar por ciudad
+  type CiudadData = {
+    provincia: string
+    abogados: Map<string, { nombre: string; casos: number; tieneAltaPrioridad: boolean }>
+    totalCasos: number
+    tieneAltaPrioridad: boolean
+  }
 
-  return peso
+  const ciudadMap = new Map<string, CiudadData>()
+
+  casos.forEach(caso => {
+    const ciudad = (caso as any).ciudad || extraerCiudadProvincia(caso.fuero).ciudad
+    const provinciaRaw = (caso as any).provincia || extraerCiudadProvincia(caso.fuero).provincia
+    const provincia = humanizarProvincia(provinciaRaw)
+    const key = `${ciudad}|${provincia}`
+
+    if (!ciudadMap.has(key)) {
+      ciudadMap.set(key, {
+        provincia,
+        abogados: new Map(),
+        totalCasos: 0,
+        tieneAltaPrioridad: false
+      })
+    }
+
+    const data = ciudadMap.get(key)!
+    data.totalCasos++
+
+    if (caso.priority === 'HIGH') data.tieneAltaPrioridad = true
+
+    if (caso.abogado) {
+      const abogadoId = caso.abogado.id
+      const abogadoNombre = `${caso.abogado.nombre || ''} ${caso.abogado.apellido || ''}`.trim()
+      if (!data.abogados.has(abogadoId)) {
+        data.abogados.set(abogadoId, { nombre: abogadoNombre, casos: 0, tieneAltaPrioridad: false })
+      }
+      const ab = data.abogados.get(abogadoId)!
+      ab.casos++
+      if (caso.priority === 'HIGH') ab.tieneAltaPrioridad = true
+    }
+  })
+
+  const zonas: ZonaGeneral[] = []
+
+  ciudadMap.forEach((data, key) => {
+    const [ciudad, provincia] = key.split('|')
+    const coordenadas = buscarCoordenadasCiudad(ciudad, provincia)
+    let distanciaKm = 0
+    if (coordenadas) {
+      distanciaKm = distanciaDesdeCordoba(coordenadas.lat, coordenadas.lng)
+    }
+    const clasificacion = clasificarDistancia(distanciaKm)
+
+    zonas.push({
+      ciudad,
+      provincia,
+      distanciaKm,
+      clasificacionDistancia: clasificacion,
+      totalCasos: data.totalCasos,
+      tieneAltaPrioridad: data.tieneAltaPrioridad,
+      requiereViaje: clasificacion.tipo !== 'local',
+      abogados: Array.from(data.abogados.entries()).map(([id, ab]) => ({
+        id,
+        nombre: ab.nombre,
+        cantidadCasos: ab.casos,
+        tieneAltaPrioridad: ab.tieneAltaPrioridad
+      })).sort((a, b) => b.cantidadCasos - a.cantidadCasos)
+    })
+  })
+
+  // Ordenar: primero coordinables con viaje, luego por carga
+  return zonas.sort((a, b) => {
+    const coordA = a.abogados.length > 1 && a.requiereViaje ? 1 : 0
+    const coordB = b.abogados.length > 1 && b.requiereViaje ? 1 : 0
+    if (coordA !== coordB) return coordB - coordA
+    return b.totalCasos - a.totalCasos
+  })
 }
-
-// Helper para verificar roles
-const isAdmin = (rol: string) => rol?.toUpperCase() === 'ADMIN'
-const isAbogado = (rol: string) => rol?.toUpperCase() === 'ABOGADO'
-const isAsistente = (rol: string) => rol?.toUpperCase() === 'ASISTENTE'
 
 // ============================================================================
 // COMPONENTE PRINCIPAL
@@ -420,14 +438,13 @@ export default async function UbicacionGeograficaPage({
   if (!user) redirect("/api/auth/signin")
 
   const userRol = user.rol?.toUpperCase() || ''
-  const esAdmin = isAdmin(userRol)
-  const vistaGeneral = searchParams.vista === 'general' && esAdmin
+  const puedeVerGeneral = isAdmin(userRol) || isAbogado(userRol)
+  const vistaGeneral = puedeVerGeneral && searchParams.vista === 'general'
 
   const filtroFuero = searchParams?.fuero || 'todos'
   const filtroEtapa = searchParams?.etapa || 'todas'
-  const filtroAbogado = searchParams?.abogado || 'todos'
 
-  // Obtener lista de abogados para el filtro (solo Admin y Asistente)
+  // Lista de abogados — solo Admin y Asistente
   let abogadosLista: { id: string; nombre: string }[] = []
   if (isAdmin(userRol) || isAsistente(userRol)) {
     const abogados = await prisma.user.findMany({
@@ -441,23 +458,30 @@ export default async function UbicacionGeograficaPage({
     }))
   }
 
-  const { zonas, kpis, casosUrgentesDetalle } = await obtenerCasosPorUbicacion(
-    user.id, 
-    userRol,
-    filtroFuero,
-    filtroEtapa,
-    filtroAbogado
-  )
+  const abogadoParam = searchParams?.abogado || 'todos'
+  const filtroAbogado = abogadoParam !== 'todos' && abogadosLista.some(a => a.id === abogadoParam)
+    ? abogadoParam
+    : 'todos'
+
+  // Ejecutar solo la query que corresponde
+  const [datosPersonal, zonasGenerales] = await Promise.all([
+    !vistaGeneral
+      ? obtenerCasosPorUbicacion(user.id, userRol, filtroFuero, filtroEtapa, filtroAbogado)
+      : Promise.resolve(null),
+    vistaGeneral
+      ? obtenerVistaGeneral()
+      : Promise.resolve(null)
+  ])
 
   return (
     <div className="flex h-screen bg-slate-50">
       <Sidebar />
       <div className="flex flex-col flex-1 overflow-hidden">
         <Header />
-        
+
         <main className="flex-1 overflow-auto p-6">
           <div className="max-w-7xl mx-auto">
-            
+
             {/* Header */}
             <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
               <div className="flex items-center gap-4">
@@ -473,65 +497,72 @@ export default async function UbicacionGeograficaPage({
                     Distribución de casos por ubicación geográfica
                   </h1>
                   <p className="text-sm text-slate-500">
-                    Casos agrupados por ciudad y juzgado para organizar traslados y recorridas
+                    {vistaGeneral
+                      ? 'Distribución del estudio — coordinación y zonas que necesitan atención'
+                      : 'Casos agrupados por ciudad y juzgado para organizar traslados y recorridas'
+                    }
                   </p>
                 </div>
               </div>
 
-              {/* Toggle Vista (solo Admin) */}
-              {esAdmin && (
+              {/* Toggle — solo ABOGADO y ADMIN */}
+              {/* PENDIENTE: habilitar cuando se implemente módulo de tareas/agenda */}
+              {/* {puedeVerGeneral && (
                 <ToggleVista vistaActual={vistaGeneral ? 'general' : 'personal'} />
-              )}
+              )} */}
             </div>
 
-            {/* Filtros */}
-            <div className="mb-6">
-              <FiltrosGeografia 
-                abogados={abogadosLista}
-                mostrarFiltroAbogado={isAdmin(userRol) || isAsistente(userRol)}
-              />
-            </div>
+            {/* Vista personal */}
+            {!vistaGeneral && datosPersonal && (
+              <>
+                <div className="mb-6">
+                  <FiltrosGeografia
+                    abogados={abogadosLista}
+                    mostrarFiltroAbogado={isAdmin(userRol) || isAsistente(userRol)}
+                  />
+                </div>
 
-            {/* Banner de Urgentes — visible para todos, con iconos accesibles */}
-            <AlertaUrgentes
-              casosUrgentes={casosUrgentesDetalle}
-              totalCasos={kpis.totalCasos}
-            />
+                <AlertaUrgentes
+                  casosUrgentes={datosPersonal.casosUrgentesDetalle}
+                  totalCasos={datosPersonal.kpis.totalCasos}
+                />
 
-            {/* KPIs — solo Admin y Abogado (no Asistente) */}
-            {(isAdmin(userRol) || isAbogado(userRol)) && (
-              <KPIsUbicacion data={kpis} />
+                {(isAdmin(userRol) || isAbogado(userRol)) && (
+                  <KPIsUbicacion data={datosPersonal.kpis} />
+                )}
+
+                {datosPersonal.zonas.length > 0 ? (
+                  <AcordeonZonas zonas={datosPersonal.zonas} vistaGeneral={false} />
+                ) : (
+                  <div className="mt-8 p-12 bg-white border border-slate-200 rounded-lg text-center">
+                    <MapPin className="h-16 w-16 mx-auto text-slate-300 mb-4" />
+                    <p className="text-lg font-medium text-slate-600">No hay casos activos con ubicación</p>
+                    <p className="text-sm text-slate-400 mt-2">
+                      {filtroFuero !== 'todos' || filtroEtapa !== 'todas'
+                        ? 'Probá cambiando los filtros para ver más resultados.'
+                        : 'Los casos se agruparán automáticamente por ciudad cuando tengan el campo "Fuero" completado.'
+                      }
+                    </p>
+                  </div>
+                )}
+              </>
             )}
 
-            {/* Acordeón de Zonas */}
-            {zonas.length > 0 ? (
-              <AcordeonZonas 
-                zonas={zonas} 
-                vistaGeneral={vistaGeneral}
-              />
-            ) : (
-              <div className="mt-8 p-12 bg-white border border-slate-200 rounded-lg text-center">
-                <MapPin className="h-16 w-16 mx-auto text-slate-300 mb-4" />
-                <p className="text-lg font-medium text-slate-600">
-                  No hay casos activos con ubicación
-                </p>
-                <p className="text-sm text-slate-400 mt-2">
-                  {filtroFuero !== 'todos' || filtroEtapa !== 'todas'
-                    ? 'Probá cambiando los filtros para ver más resultados.'
-                    : 'Los casos se agruparán automáticamente por ciudad cuando tengan el campo "Fuero" completado.'
-                  }
+            {/* Vista general */}
+            {vistaGeneral && zonasGenerales && (
+              <VistaGeneralGeo zonas={zonasGenerales} />
+            )}
+
+            {/* Nota metodológica — solo vista personal */}
+            {!vistaGeneral && (
+              <div className="mt-8 p-4 bg-slate-100 border border-slate-200 rounded-lg">
+                <p className="text-xs text-slate-600">
+                  <strong>Nota:</strong> Las distancias se calculan desde Tribunales de Córdoba Capital.
+                  Clasificación: Local (0-10km), Cercano (10-100km), Media distancia (100-400km), Larga distancia (+400km).
+                  Las zonas se ordenan por prioridad logística: primero las más lejanas con casos urgentes.
                 </p>
               </div>
             )}
-
-            {/* Nota informativa */}
-            <div className="mt-8 p-4 bg-slate-100 border border-slate-200 rounded-lg">
-              <p className="text-xs text-slate-600">
-                <strong>Nota:</strong> Las distancias se calculan desde Tribunales de Córdoba Capital. 
-                Clasificación: Local (0-10km), Cercano (10-100km), Media distancia (100-400km), Larga distancia (+400km).
-                Las zonas se ordenan por prioridad logística: primero las más lejanas con casos urgentes.
-              </p>
-            </div>
           </div>
         </main>
       </div>

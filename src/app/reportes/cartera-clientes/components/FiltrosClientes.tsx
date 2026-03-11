@@ -7,13 +7,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Filter, X, Search } from "lucide-react"
 import { useState } from "react"
 
-export function FiltrosClientes() {
+export function FiltrosClientes({ 
+  abogados = [],
+  mostrarFiltroAbogado = false
+}: { 
+  abogados?: { id: string; nombre: string }[]
+  mostrarFiltroAbogado?: boolean 
+}) {
   const router = useRouter()
   const searchParams = useSearchParams()
 
   const tipoActual = searchParams.get("tipo") || "todos"
   const estadoActual = searchParams.get("estado") || "todos"
   const busquedaActual = searchParams.get("q") || ""
+  const abogadoActual = searchParams.get("abogado") || "todos"
 
   const [busquedaLocal, setBusquedaLocal] = useState(busquedaActual)
 
@@ -41,7 +48,8 @@ export function FiltrosClientes() {
   }
 
   const hayFiltrosActivos =
-    searchParams.has("tipo") || searchParams.has("estado") || searchParams.has("q")
+    searchParams.has("tipo") || searchParams.has("estado") || 
+    searchParams.has("q") || searchParams.has("abogado")
 
   return (
     <div className="flex items-center gap-3 flex-wrap">
@@ -92,6 +100,21 @@ export function FiltrosClientes() {
           <SelectItem value="inactivos">Inactivos</SelectItem>
         </SelectContent>
       </Select>
+
+      {/* Filtro Abogado — solo Admin y Asistente */}
+      {mostrarFiltroAbogado && abogados.length > 0 && (
+        <Select value={abogadoActual} onValueChange={(v) => updateParam("abogado", v)}>
+          <SelectTrigger className="w-[180px] h-9 text-sm bg-white">
+            <SelectValue placeholder="Abogado" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todos los abogados</SelectItem>
+            {abogados.map((a) => (
+              <SelectItem key={a.id} value={a.id}>{a.nombre}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
 
       {/* Limpiar */}
       {hayFiltrosActivos && (

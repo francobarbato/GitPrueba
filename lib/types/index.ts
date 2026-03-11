@@ -1,6 +1,9 @@
+// src/lib/types/index.ts
+// FIX: todos los IDs eran `number` pero el schema usa String UUID (@default(uuid()))
+
 // Tipos base
 export interface Usuario {
-  id: number
+  id: string          // FIX: era number
   email: string
   nombre: string
   apellido: string
@@ -10,7 +13,7 @@ export interface Usuario {
 }
 
 export interface Caso {
-  id: number
+  id: string          // FIX: era number
   numero: string
   titulo: string
   descripcion: string
@@ -19,27 +22,25 @@ export interface Caso {
   porcentajeAvance: number
   fechaInicio: Date
   fechaCierre?: Date | null
-  abogadoId: number
-  clienteId: number
+  abogadoId: string   // FIX: era number
+  clienteId: string   // FIX: era number
   createdAt: Date
   updatedAt: Date
   abogado?: Usuario
-  cliente?: Cliente //
+  cliente?: Cliente
 }
 
-// DTOs para operaciones
 export interface CrearCasoDto {
   numero: string
   titulo: string
   descripcion: string
   tipo: string
   estado: string
-  numeroDocumento?: string | number
   porcentajeAvance: number
   fechaInicio: Date
   fechaCierre?: Date
-  abogadoId: number
-  clienteId: number
+  abogadoId: string   // FIX: era number
+  clienteId: string   // FIX: era number
 }
 
 export interface ActualizarCasoDto {
@@ -48,15 +49,13 @@ export interface ActualizarCasoDto {
   descripcion?: string
   tipo?: string
   estado?: string
-  numeroDocumento?: string | number
   porcentajeAvance?: number
   fechaInicio?: Date
   fechaCierre?: Date
-  abogadoId?: number
-  clienteId?: number
+  abogadoId?: string  // FIX: era number
+  clienteId?: string  // FIX: era number
 }
 
-// Tipos para reportes
 export interface ResumenDashboard {
   totalCasos: number
   casosAbiertos: number
@@ -66,66 +65,83 @@ export interface ResumenDashboard {
 }
 
 export interface EstadisticaAbogado {
-  abogadoId: number
+  abogadoId: string   // FIX: era number
   nombre: string
   apellido: string
   totalCasos: number
   promedioAvance: number
 }
 
-// Tipos para Cliente
 export interface Cliente {
-  id: number
+  id: string          // FIX: era number
   nombre: string
   apellido: string
   email: string
-  numeroDocumento: string | null // El DTO lo maneja como string | number, el tipo final es string
+  numeroDocumento: string | null
   tipoDocumento: string | null
   direccion: string | null
   telefono: string | null
-  estado: string | null // El estado del cliente (activo/inactivo)
+  estado: string | null
   createdAt: Date
   updatedAt: Date
 }
+
 export interface CrearClienteDto {
-  // abogadoId: string
   nombre: string
   apellido: string
   email: string
-  numeroDocumento: string | number
-  tipoDocumento: string
-  direccion: string
-  telefono: string
-  estado: string
+  numeroDocumento: string
+  tipoDocumento: string
+  direccion: string
+  telefono: string
+  estado: string
 }
 
 export interface ActualizarClienteDto {
   nombre?: string
   apellido?: string
   email?: string
-  numeroDocumento?: string | number
-  tipoDocumento?: string
-  direccion?: string
-  telefono?: string
-  estado?: string
+  numeroDocumento?: string
+  tipoDocumento?: string
+  direccion?: string
+  telefono?: string
+  estado?: string
 }
 
 export interface Bitacora {
-  id: number; // O string, dependiendo de tu schema, el error dice string en el usuarioId pero number en otros. Ajusta si es uuid.
-  texto: string; // El error muestra que en DB se llama 'texto', no 'detalle'
-  tipo: string;  // El error muestra que en DB se llama 'tipo', no 'accion'
-  usuarioId: string | number; // Ajustar según tu ID
-  casoId?: number | null;     // Relación opcional con caso
-  createdAt: Date;
+  id: string          // FIX: era number, el schema usa uuid
+  texto: string
+  tipo: string
+  usuarioId: string
+  casoId?: string | null
+  createdAt: Date
 }
 
+// Constantes — actualizadas para coincidir con los enums reales del schema
+export const TIPOS_CASO = [
+  "LABORAL",
+  "CIVIL_COMERCIAL",
+  "FAMILIA",
+  "PENAL",
+  "SUCESIONES",
+  "CONTENCIOSO_ADMINISTRATIVO",
+  "OTRO"
+] as const
 
-// Constantes
-export const TIPOS_CASO = ["laboral", "civil", "comercial", "familia", "penal"] as const
+export const ESTADOS_CASO = [
+  "Inicio / Demanda",
+  "Mediación",
+  "Prueba (Oficios/Pericias)",
+  "Alegatos / Conclusiones",
+  "Sentencia / Resolución",
+  "Ejecución de Sentencia",
+  "Terminado",
+  "Archivado",
+  "Cerrado"
+] as const
 
-export const ESTADOS_CASO = ["abierto", "en_proceso", "cerrado", "archivado"] as const
-
-export const ROLES_USUARIO = ["admin", "abogado", "cliente"] as const
+// FIX: roles en mayúscula para coincidir con el enum UserRole del schema
+export const ROLES_USUARIO = ["ADMIN", "ABOGADO", "ASISTENTE", "CLIENTE"] as const
 
 export type TipoCaso = (typeof TIPOS_CASO)[number]
 export type EstadoCaso = (typeof ESTADOS_CASO)[number]

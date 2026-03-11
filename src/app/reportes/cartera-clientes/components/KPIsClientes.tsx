@@ -2,6 +2,7 @@
 
 import { Card, CardContent } from "@/components/ui/card"
 import { Users, RefreshCw, DollarSign, UserX } from "lucide-react"
+import { ExternalLink, UserPlus } from "lucide-react"
 
 type KPIsData = {
   totalClientes: number

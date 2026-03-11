@@ -9,7 +9,12 @@ import { useState } from "react"
 export default function SignInPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const callbackUrl = searchParams.get("callbackUrl")
+  const callbackUrlRaw = searchParams.get("callbackUrl")
+    // Solo aceptar callbackUrls válidas del sistema
+    const rutasValidas = ['/casos', '/clientes', '/reportes', '/perfil', '/portal']
+    const callbackUrl = callbackUrlRaw && rutasValidas.some(r => callbackUrlRaw.startsWith(r)) 
+      ? callbackUrlRaw 
+      : null
   const error = searchParams.get("error")
 
   const [email, setEmail] = useState("")
@@ -39,20 +44,14 @@ export default function SignInPage() {
       const session = await getSession()
       const userRol = session?.user?.rol?.toUpperCase()
 
-      // Determinar la URL de redirección según el rol
-      let redirectUrl = callbackUrl || "/"
+      let redirectUrl = "/"
 
       if (userRol === "CLIENTE") {
-        // Cliente siempre va al portal (a menos que tenga un callbackUrl específico del portal)
-        if (!callbackUrl || !callbackUrl.startsWith("/portal")) {
-          redirectUrl = "/portal"
-        }
-      } else {
-        // Otros roles van al dashboard o al callbackUrl
-        if (!callbackUrl) {
-          redirectUrl = "/"
-        }
-      }
+        redirectUrl = "/portal"
+      } else if (callbackUrl && !callbackUrl.includes("/dashboard") && !callbackUrl.startsWith("/auth")) {
+        // Usar callbackUrl solo si es válido y no apunta a /dashboard
+        redirectUrl = callbackUrl
+}
 
       console.log("Redirigiendo a:", redirectUrl, "- Rol:", userRol)
 

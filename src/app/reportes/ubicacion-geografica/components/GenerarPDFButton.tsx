@@ -131,8 +131,8 @@ function generarHTMLReporte(zonas: ZonaGeografica[], vistaGeneral: boolean): str
     <table class="tabla-resumen">
       <thead>
         <tr>
-          <th>Provincia</th>
           <th>Ciudad</th>
+          <th>Provincia</th>
           <th>Casos</th>
           <th>% Total</th>
           <th>Urgentes</th>
@@ -146,7 +146,7 @@ function generarHTMLReporte(zonas: ZonaGeografica[], vistaGeneral: boolean): str
     const porcentaje = totalCasos > 0 ? Math.round((zona.totalCasos / totalCasos) * 100) : 0
     tablaResumen += `
       <tr>
-        <td><strong>${zona.ciudad}</strong></td>
+      <td><strong>${zona.ciudad}</strong></td>
         <td>${zona.provincia}</td>
         <td class="center">${zona.totalCasos}</td>
         <td class="center">${porcentaje}%</td>
@@ -176,7 +176,7 @@ function generarHTMLReporte(zonas: ZonaGeografica[], vistaGeneral: boolean): str
   zonas.forEach((zona) => {
     detalleZonas += `
       <div class="zona-detalle">
-        <h2>Casos en ${zona.ciudad}, ${zona.provincia} (${zona.totalCasos})</h2>
+        <h2>Casos en ${zona.provincia}, ${zona.ciudad}, (${zona.totalCasos})</h2>
         <p class="zona-info">
           Distancia desde Córdoba Capital: <strong>${zona.distanciaKm} km</strong> | 
           Clasificación: <strong>${zona.clasificacionDistancia.label}</strong>

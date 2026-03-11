@@ -15,6 +15,7 @@ import {
   getProvinciasParaSelect, 
   getDepartamentosParaSelect 
 } from "src/lib/data/argentina-ubicaciones"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 
 // ========== TIPOS DE CASO ACTUALIZADOS ==========
 const TIPOS_CASO = [
@@ -79,6 +80,27 @@ export function EditarCasoForm({ caso, clientes }: { caso: any, clientes: any[] 
   const [provinciaSeleccionada, setProvinciaSeleccionada] = useState(provInicial)
   const [departamentoSeleccionado, setDepartamentoSeleccionado] = useState(deptoInicial)
   const [departamentosDisponibles, setDepartamentosDisponibles] = useState<{value: string; label: string}[]>([])
+
+    // Estados para modales de justificación
+  const [modalJuzgado, setModalJuzgado] = useState(false)
+  const [modalUbicacion, setModalUbicacion] = useState(false)
+  const [modalMonto, setModalMonto] = useState(false)
+
+  // Valores pendientes (lo que el usuario quiere cambiar)
+  const [nuevoJuzgado, setNuevoJuzgado] = useState(caso.juzgado || '')
+  const [nuevaMonto, setNuevaMonto] = useState(caso.montoDisputa || '')
+  const [motivoJuzgado, setMotivoJuzgado] = useState('')
+  const [motivoUbicacion, setMotivoUbicacion] = useState('')
+  const [motivoMonto, setMotivoMonto] = useState('')
+
+  // Valores confirmados (lo que se enviará al form)
+  const [juzgadoConfirmado, setJuzgadoConfirmado] = useState(caso.juzgado || '')
+  const [montoConfirmado, setMontoConfirmado] = useState(caso.montoDisputa || '')
+  const [ubicacionConfirmada, setUbicacionConfirmada] = useState({
+    provincia: provInicial,
+    ciudad: deptoInicial,
+    fuero: caso.fuero || ''
+  })
 
   // Cargar provincias
   const provincias: { value: string; label: string }[] = getProvinciasParaSelect()
@@ -361,94 +383,88 @@ export function EditarCasoForm({ caso, clientes }: { caso: any, clientes: any[] 
             </div>
 
             {/* SECCIÓN 3: RADICACIÓN Y DATOS FINANCIEROS */}
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 pb-2 border-b border-slate-200">
-                <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 font-bold text-sm">3</div>
-                <h2 className="text-lg font-semibold text-slate-800">Radicación y Datos Financieros</h2>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-slate-50 rounded-lg">
-                {/* PROVINCIA */}
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4" />
-                    Provincia
-                  </Label>
-                  <Select 
-                    value={provinciaSeleccionada} 
-                    onValueChange={(value) => {
-                      setProvinciaSeleccionada(value)
-                      setDepartamentoSeleccionado('')
-                    }}
-                  >
-                    <SelectTrigger className="bg-white">
-                      <SelectValue placeholder="Seleccionar provincia..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {provincias.map(prov => (
-                        <SelectItem key={prov.value} value={prov.value}>
-                          {prov.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* CIUDAD/DEPARTAMENTO */}
-                <div className="space-y-2">
-                  <Label>Ciudad / Departamento</Label>
-                  <Select 
-                    value={departamentoSeleccionado} 
-                    onValueChange={setDepartamentoSeleccionado}
-                    disabled={!provinciaSeleccionada}
-                  >
-                    <SelectTrigger className={provinciaSeleccionada ? "bg-white" : "bg-slate-100"}>
-                      <SelectValue placeholder={provinciaSeleccionada ? "Seleccionar ciudad..." : "Primero seleccione provincia"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {departamentosDisponibles.map(depto => (
-                        <SelectItem key={depto.value} value={depto.value}>
-                          {depto.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Campo oculto con el fuero combinado */}
-                <input type="hidden" name="fuero" value={fueroValue} />
-
-                {/* Preview de ubicación seleccionada */}
-                {fueroValue && (
-                  <div className="md:col-span-2 p-2 bg-blue-50 border border-blue-200 rounded text-sm text-blue-700">
-                    <strong>Ubicación:</strong> {fueroValue}
-                  </div>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Juzgado / Secretaría</Label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-slate-50 rounded-lg">
+  
+              {/* JUZGADO — con justificación */}
+              <div className="space-y-2 md:col-span-2">
+                <Label className="flex items-center gap-2">
+                  Juzgado / Secretaría <Lock className="w-3 h-3 text-slate-400" />
+                </Label>
+                <div className="flex gap-2">
                   <Input 
-                    name="juzgado" 
-                    placeholder="Ej: Juzgado Nº 45 Civ. y Com."
-                    defaultValue={caso.juzgado || ""}
+                    value={juzgadoConfirmado || 'Sin especificar'}
+                    disabled
+                    className="bg-slate-100 text-slate-500 border-slate-200 flex-1"
                   />
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setModalJuzgado(true)}
+                    className="shrink-0"
+                  >
+                    Modificar
+                  </Button>
                 </div>
-
-                <div className="space-y-2">
-                  <Label>Monto en Disputa ($)</Label>
-                  <Input 
-                    name="monto_disputa" 
-                    type="number" 
-                    step="0.01" 
-                    placeholder="0.00"
-                    defaultValue={caso.montoDisputa || ""}
-                  />
-                </div>
+                <input type="hidden" name="juzgado" value={juzgadoConfirmado} />
+                <input type="hidden" name="motivo_juzgado" value={motivoJuzgado} />
               </div>
 
-              <div className="space-y-2">
+              {/* UBICACIÓN — con justificación */}
+              <div className="space-y-2 md:col-span-2">
+                <Label className="flex items-center gap-2">
+                  <MapPin className="h-4 w-4" />
+                  Ubicación Geográfica <Lock className="w-3 h-3 text-slate-400" />
+                </Label>
+                <div className="flex gap-2">
+                  <Input 
+                    value={ubicacionConfirmada.fuero || 'Sin especificar'}
+                    disabled
+                    className="bg-slate-100 text-slate-500 border-slate-200 flex-1"
+                  />
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setModalUbicacion(true)}
+                    className="shrink-0"
+                  >
+                    Modificar
+                  </Button>
+                </div>
+                <input type="hidden" name="fuero" value={ubicacionConfirmada.fuero} />
+                <input type="hidden" name="provincia" value={ubicacionConfirmada.provincia} />
+                <input type="hidden" name="ciudad" value={ubicacionConfirmada.ciudad} />
+                <input type="hidden" name="motivo_ubicacion" value={motivoUbicacion} />
+              </div>
+
+              {/* MONTO — con justificación */}
+              <div className="space-y-2 md:col-span-2">
+                <Label className="flex items-center gap-2">
+                  Monto en Disputa ($) <Lock className="w-3 h-3 text-slate-400" />
+                </Label>
+                <div className="flex gap-2">
+                  <Input 
+                    value={montoConfirmado ? `$ ${Number(montoConfirmado).toLocaleString('es-AR')}` : 'Sin especificar'}
+                    disabled
+                    className="bg-slate-100 text-slate-500 border-slate-200 flex-1"
+                  />
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setModalMonto(true)}
+                    className="shrink-0"
+                  >
+                    Modificar
+                  </Button>
+                </div>
+                <input type="hidden" name="monto_disputa" value={montoConfirmado} />
+                <input type="hidden" name="motivo_monto" value={motivoMonto} />
+              </div>
+
+              {/* Ubicación física sigue libre */}
+              <div className="space-y-2 md:col-span-2">
                 <Label>Ubicación Física del Expediente</Label>
                 <Input 
                   name="ubicacion_fisica" 
@@ -503,17 +519,200 @@ export function EditarCasoForm({ caso, clientes }: { caso: any, clientes: any[] 
 
             <input type="hidden" name="requirements" value={JSON.stringify(requisitos)} />
 
-            <div className="flex justify-end gap-3 pt-4 border-t">
-              <Link href={`/casos/${caso.id}`}>
-                <Button variant="outline" type="button">
-                    <ArrowLeft className="h-4 w-4 mr-2" />
-                    Cancelar
-                </Button>
-              </Link>
-              <SubmitButton />
-            </div>
+        <div className="flex justify-end gap-3 pt-4 border-t">
+          <Link href={`/casos/${caso.id}`}>
+            <Button variant="outline" type="button">
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Cancelar
+            </Button>
+          </Link>
+          <SubmitButton />
+        </div>
 
-          </form>
+      </form>
+
+      {/* MODAL JUZGADO */}
+      <Dialog open={modalJuzgado} onOpenChange={setModalJuzgado}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Modificar Juzgado</DialogTitle>
+            <DialogDescription>
+              Este cambio quedará registrado en la bitácora del expediente.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>Nuevo Juzgado / Secretaría</Label>
+              <Input 
+                value={nuevoJuzgado}
+                onChange={(e) => setNuevoJuzgado(e.target.value)}
+                placeholder="Ej: Juzgado Nº 45 Civ. y Com."
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Motivo del cambio <span className="text-red-500">*</span></Label>
+              <Textarea
+                value={motivoJuzgado}
+                onChange={(e) => setMotivoJuzgado(e.target.value)}
+                placeholder="Ej: Excusación del juez, cambio de sede..."
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setModalJuzgado(false)}>
+              Cancelar
+            </Button>
+            <Button 
+              onClick={() => {
+                if (!motivoJuzgado.trim()) {
+                  alert('El motivo es obligatorio')
+                  return
+                }
+                setJuzgadoConfirmado(nuevoJuzgado)
+                setModalJuzgado(false)
+              }}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              Confirmar cambio
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* MODAL UBICACIÓN */}
+      <Dialog open={modalUbicacion} onOpenChange={setModalUbicacion}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Modificar Ubicación Geográfica</DialogTitle>
+            <DialogDescription>
+              Este cambio quedará registrado en la bitácora del expediente.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>Provincia</Label>
+              <Select 
+                value={provinciaSeleccionada}
+                onValueChange={(v) => {
+                  setProvinciaSeleccionada(v)
+                  setDepartamentoSeleccionado('')
+                }}
+              >
+                <SelectTrigger><SelectValue placeholder="Seleccionar provincia..." /></SelectTrigger>
+                <SelectContent>
+                  {provincias.map(p => (
+                    <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Ciudad / Departamento</Label>
+              <Select
+                value={departamentoSeleccionado}
+                onValueChange={setDepartamentoSeleccionado}
+                disabled={!provinciaSeleccionada}
+              >
+                <SelectTrigger><SelectValue placeholder="Seleccionar ciudad..." /></SelectTrigger>
+                <SelectContent>
+                  {departamentosDisponibles.map(d => (
+                    <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Motivo del cambio <span className="text-red-500">*</span></Label>
+              <Textarea
+                value={motivoUbicacion}
+                onChange={(e) => setMotivoUbicacion(e.target.value)}
+                placeholder="Ej: Inhibición del juzgado, cambio de jurisdicción..."
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setModalUbicacion(false)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => {
+                if (!motivoUbicacion.trim()) {
+                  alert('El motivo es obligatorio')
+                  return
+                }
+                if (!provinciaSeleccionada || !departamentoSeleccionado) {
+                  alert('Seleccioná provincia y ciudad')
+                  return
+                }
+                const provinciaLabel = provincias.find(p => p.value === provinciaSeleccionada)?.label || provinciaSeleccionada
+                const nuevoFuero = `${departamentoSeleccionado}, ${provinciaLabel}`
+                setUbicacionConfirmada({
+                  provincia: provinciaSeleccionada,
+                  ciudad: departamentoSeleccionado,
+                  fuero: nuevoFuero
+                })
+                setModalUbicacion(false)
+              }}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              Confirmar cambio
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* MODAL MONTO */}
+      <Dialog open={modalMonto} onOpenChange={setModalMonto}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Modificar Monto en Disputa</DialogTitle>
+            <DialogDescription>
+              Este cambio impacta en los reportes financieros y quedará registrado en la bitácora.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>Nuevo monto ($)</Label>
+              <Input 
+                type="number"
+                step="0.01"
+                value={nuevaMonto}
+                onChange={(e) => setNuevaMonto(e.target.value)}
+                placeholder="0.00"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Motivo del cambio <span className="text-red-500">*</span></Label>
+              <Textarea
+                value={motivoMonto}
+                onChange={(e) => setMotivoMonto(e.target.value)}
+                placeholder="Ej: Actualización por inflación, pericia determinó nuevo valor..."
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setModalMonto(false)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => {
+                if (!motivoMonto.trim()) {
+                  alert('El motivo es obligatorio')
+                  return
+                }
+                setMontoConfirmado(nuevaMonto)
+                setModalMonto(false)
+              }}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              Confirmar cambio
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
         </CardContent>
       </Card>
   )

@@ -1,21 +1,7 @@
+// src/lib/infrastructure/repositories/prisma/caso.repository.ts
+
 import prisma from "src/lib/db/prisma"
-import { Caso, Pago  } from "@prisma/client"
-
-type PagoType = Caso & {
-  pagos: Array<{
-    id: string
-    concepto: string
-    descripcion: string | null
-    monto: number
-    estado: string
-    comprobanteUrl: string | null
-    montoPagado: number | null
-    fechaPago: Date | null
-    fechaValidacion: Date | null
-    createdAt: Date
-  }>
-}
-
+import { Caso, Pago } from "@prisma/client"
 
 type CasoConPagos = Caso & {
   abogado?: any
@@ -24,20 +10,19 @@ type CasoConPagos = Caso & {
 }
 
 export class PrismaCasoRepository {
-  
+
   // ---------------------------------------------------------
   // MÉTODOS DE CONSULTA BÁSICA
   // ---------------------------------------------------------
 
   async findAll(): Promise<Caso[]> {
-    const casos = await prisma.caso.findMany({
+    return await prisma.caso.findMany({
       include: {
         abogado: true,
         cliente: true,
       },
       orderBy: { createdAt: "desc" },
     })
-    return casos
   }
 
   async findById(id: string): Promise<CasoConPagos | null> {
@@ -53,18 +38,16 @@ export class PrismaCasoRepository {
     }) as CasoConPagos | null
   }
 
-  // ESTE ES EL NUEVO IMPORTANTE: Filtrar por abogado logueado
   async findByAbogado(abogadoId: string): Promise<Caso[]> {
     try {
-      const casos = await prisma.caso.findMany({
-        where: { abogadoId: abogadoId },
+      return await prisma.caso.findMany({
+        where: { abogadoId },
         include: {
           cliente: true,
-          abogado: true
+          abogado: true,
         },
         orderBy: { createdAt: 'desc' }
       })
-      return casos
     } catch (error) {
       console.error("Error en findByAbogado:", error)
       return []
@@ -72,32 +55,46 @@ export class PrismaCasoRepository {
   }
 
   async findByCliente(clienteId: string): Promise<Caso[]> {
-    const casos = await prisma.caso.findMany({
+    return await prisma.caso.findMany({
       where: { clienteId },
       include: {
         abogado: true,
         cliente: true,
       },
     })
-    return casos
   }
 
   // ---------------------------------------------------------
-  // MÉTODOS DE MUTACIÓN (Crear, Editar, Eliminar)
+  // MÉTODOS DE MUTACIÓN
   // ---------------------------------------------------------
 
-async create(data: any): Promise<Caso> {
+  async create(data: any): Promise<Caso> {
+    // FIX: antes hardcodeaba estado y fechaInicio, e ignoraba todos los campos
+    // opcionales. Ahora pasa todo lo que viene en data.
     return await prisma.caso.create({
       data: {
         numero: data.numero,
         titulo: data.titulo,
-        descripcion: data.descripcion,
+        descripcion: data.descripcion || "",
         tipo: data.tipo,
-        estado: 'Inicio / Demanda', // Estado inicial por defecto
-        fechaInicio: new Date(), // Fecha actual por defecto
-        porcentajeAvance: 0,
-        abogadoId: data.abogadoId, // VINCULACIÓN AUTOMÁTICA
-        clienteId: data.clienteId, // VINCULACIÓN CON CLIENTE
+        // Respeta el estado que viene del servicio, con fallback
+        estado: data.estado || 'Inicio / Demanda',
+        // Respeta la fecha que viene del servicio, con fallback
+        fechaInicio: data.fechaInicio ? new Date(data.fechaInicio) : new Date(),
+        porcentajeAvance: data.porcentajeAvance || 0,
+        abogadoId: data.abogadoId,
+        clienteId: data.clienteId,
+        // Campos opcionales — se pasan si vienen, si no Prisma usa el default
+        priority: data.priority || 'NORMAL',
+        isFavorite: data.isFavorite || false,
+        juzgado: data.juzgado || null,
+        fuero: data.fuero || null,
+        contraparteNombre: data.contraparteNombre || null,
+        contraparteDni: data.contraparteDni || null,
+        montoDisputa: data.montoDisputa || null,
+        ubicacionFisica: data.ubicacionFisica || null,
+        // Requirements se crean como hijos si vienen en el formato correcto
+        ...(data.requirements && { requirements: data.requirements }),
       },
       include: {
         abogado: true,
@@ -107,7 +104,7 @@ async create(data: any): Promise<Caso> {
   }
 
   async update(id: string, data: any): Promise<Caso> {
-    const caso = await prisma.caso.update({
+    return await prisma.caso.update({
       where: { id },
       data,
       include: {
@@ -115,17 +112,14 @@ async create(data: any): Promise<Caso> {
         cliente: true,
       },
     })
-    return caso
   }
 
   async delete(id: string): Promise<void> {
-    await prisma.caso.delete({
-      where: { id },
-    })
+    await prisma.caso.delete({ where: { id } })
   }
 
   async updatePorcentajeAvance(id: string, porcentaje: number): Promise<Caso> {
-    const caso = await prisma.caso.update({
+    return await prisma.caso.update({
       where: { id },
       data: { porcentajeAvance: porcentaje },
       include: {
@@ -133,19 +127,18 @@ async create(data: any): Promise<Caso> {
         cliente: true,
       },
     })
-    return caso
   }
 
   // ---------------------------------------------------------
-  // NUEVOS MÉTODOS PARA PAGOS (Gestión Financiera)
+  // MÉTODOS DE PAGOS
   // ---------------------------------------------------------
 
-  async crearPago(data: { 
+  async crearPago(data: {
     casoId: string
     concepto: string
     descripcion?: string
-    monto: number 
-  }): Promise<Pago> {  // ← USAR TIPO PRISMA
+    monto: number
+  }): Promise<Pago> {
     return await prisma.pago.create({
       data: {
         casoId: data.casoId,
@@ -157,16 +150,11 @@ async create(data: any): Promise<Caso> {
     })
   }
 
-  async validarPago(pagoId: string): Promise<Pago> {  // ← USAR TIPO PRISMA
+  async validarPago(pagoId: string): Promise<Pago> {
     const pago = await prisma.pago.findUnique({ where: { id: pagoId } })
-    
-    if (!pago) {
-      throw new Error("Pago no encontrado")
-    }
 
-    if (pago.estado === "validado") {
-      throw new Error("El pago ya fue validado")
-    }
+    if (!pago) throw new Error("Pago no encontrado")
+    if (pago.estado === "validado") throw new Error("El pago ya fue validado")
 
     return await prisma.pago.update({
       where: { id: pagoId },
@@ -178,39 +166,29 @@ async create(data: any): Promise<Caso> {
   }
 
   async eliminarPago(pagoId: string): Promise<void> {
-    await prisma.pago.delete({
-      where: { id: pagoId }
-    })
+    await prisma.pago.delete({ where: { id: pagoId } })
   }
+
   // ---------------------------------------------------------
-  // MÉTODOS PARA DASHBOARD Y REPORTES (Los que daban error)
+  // MÉTODOS DE DASHBOARD Y REPORTES
   // ---------------------------------------------------------
 
   async getCasosPorAbogado() {
-    // Obtener todos los abogados con sus casos
-    // Nota: Asegúrate de que en tu schema.prisma la relación inversa se llame "casos" o "casosComoAbogado"
-    // Aquí asumo que es "casos" por defecto si no le pusiste nombre. Si falla, revisa el schema.
     const abogados = await prisma.user.findMany({
       where: { rol: "ABOGADO" },
-      include: {
-        casos: true, 
-      },
+      include: { casos: true },
     })
 
     return abogados.map((abogado) => {
-      // Agrupar casos por tipo usando JavaScript
-      const casosPorTipo = abogado.casos.reduce(
-        (acc: any[], caso: any) => {
-          const existing = acc.find((item) => item.tipo === caso.tipo)
-          if (existing) {
-            existing.cantidad++
-          } else {
-            acc.push({ tipo: caso.tipo, cantidad: 1 })
-          }
-          return acc
-        },
-        [] 
-      )
+      const casosPorTipo = abogado.casos.reduce((acc: any[], caso: any) => {
+        const existing = acc.find((item) => item.tipo === caso.tipo)
+        if (existing) {
+          existing.cantidad++
+        } else {
+          acc.push({ tipo: caso.tipo, cantidad: 1 })
+        }
+        return acc
+      }, [])
 
       return {
         abogadoId: abogado.id,
@@ -223,7 +201,6 @@ async create(data: any): Promise<Caso> {
   }
 
   async getEstadisticasAvance() {
-    // Obtener todos los casos
     const casos = await prisma.caso.findMany({
       select: {
         porcentajeAvance: true,
@@ -231,23 +208,20 @@ async create(data: any): Promise<Caso> {
       },
     })
 
-    // Calcular estadísticas
     const totalCasos = casos.length
-    const promedioAvance = totalCasos > 0 ? casos.reduce((sum, caso) => sum + caso.porcentajeAvance, 0) / totalCasos : 0
+    const promedioAvance = totalCasos > 0
+      ? casos.reduce((sum, caso) => sum + caso.porcentajeAvance, 0) / totalCasos
+      : 0
 
-    // Agrupar casos por estado
-    const casosPorEstado = casos.reduce(
-      (acc: any[], caso: any) => {
-        const existing = acc.find((item) => item.estado === caso.estado)
-        if (existing) {
-          existing.cantidad++
-        } else {
-          acc.push({ estado: caso.estado, cantidad: 1 })
-        }
-        return acc
-      },
-      [] 
-    )
+    const casosPorEstado = casos.reduce((acc: any[], caso: any) => {
+      const existing = acc.find((item) => item.estado === caso.estado)
+      if (existing) {
+        existing.cantidad++
+      } else {
+        acc.push({ estado: caso.estado, cantidad: 1 })
+      }
+      return acc
+    }, [])
 
     return {
       totalCasos,

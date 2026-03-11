@@ -57,8 +57,8 @@ function generarHTMLReporte(
     <table class="tabla-resumen">
       <thead>
         <tr>
-          <th>Ciudad</th>
           <th>Provincia</th>
+          <th>Ciudad</th>
           <th>Casos</th>
           <th>% Total</th>
           <th>Urgentes</th>

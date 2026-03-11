@@ -35,10 +35,10 @@ export class DashboardService {
       prisma.caso.count({ where: { abogadoId: userId, estaCerrado: false } }),
       prisma.caso.count({ where: { abogadoId: userId, estaCerrado: true } }),
       prisma.cliente.count({
-        where: {
-          casos: { some: { abogadoId: userId } }
-        }
-      }),
+          where: {
+            abogadoId: userId
+          }
+        }),
       prisma.caso.count({ where: { estaCerrado: false } }),
     ])
 
@@ -168,4 +168,39 @@ export class DashboardService {
       .sort((a, b) => b.cantidad - a.cantidad)
       .slice(0, 5)
   }
+
+  // ============================================================================
+// 5. CASOS CON CAMPOS PENDIENTES (juzgado o ubicación física vacíos)
+// ============================================================================
+async getCasosIncompletos(userId: string, rol: string) {
+  const rolUpper = rol?.toUpperCase()
+  
+  const where = {
+    estaCerrado: false,
+    OR: [
+      { juzgado: null },
+      { juzgado: '' },
+      { ubicacionFisica: null },
+      { ubicacionFisica: '' },
+    ],
+    // ABOGADO solo ve sus casos, ASISTENTE ve todos
+    ...(rolUpper === 'ABOGADO' ? { abogadoId: userId } : {}),
+  }
+
+  return await prisma.caso.findMany({
+    where,
+    take: 8,
+    orderBy: { updatedAt: 'desc' },
+    select: {
+      id: true,
+      titulo: true,
+      numero: true,
+      juzgado: true,
+      ubicacionFisica: true,
+      abogado: { select: { nombre: true, apellido: true } }
+    }
+  })
 }
+
+}
+

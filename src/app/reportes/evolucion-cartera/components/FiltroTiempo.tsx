@@ -1,7 +1,8 @@
-// app/reportes/evolucion-cartera/components/FiltroTiempo.tsx
 'use client'
 
-import { useRouter } from "next/navigation"
+// app/reportes/evolucion-cartera/components/FiltroTiempo.tsx
+
+import { useRouter, useSearchParams } from "next/navigation"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Calendar } from "lucide-react"
 
@@ -18,9 +19,11 @@ export function FiltroTiempo({
   periodoActual: string
 }) {
   const router = useRouter()
+  const searchParams = useSearchParams()
 
   const handleChange = (value: string) => {
-    const params = new URLSearchParams(window.location.search)
+    // Preserva todos los params existentes (incluido vista)
+    const params = new URLSearchParams(searchParams.toString())
     params.set('periodo', value)
     router.push(`?${params.toString()}`)
   }

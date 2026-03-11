@@ -1,5 +1,6 @@
-// app/reportes/tiempo-por-etapa/components/SelectorCasoTimeline.tsx
 'use client'
+
+// app/reportes/tiempo-por-etapa/components/SelectorCasoTimeline.tsx
 
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -95,7 +96,7 @@ export function SelectorCasoTimeline({
                         {caso.titulo}
                       </span>
                       <span className="text-xs text-slate-500">
-                        {caso.numero} • {caso.cliente?.nombre} {caso.cliente?.apellido || ''} • {caso.diasSinMovimiento}d sin movimiento
+                        {caso.numero} · {caso.cliente?.nombre} {caso.cliente?.apellido || ''} · {caso.diasSinMovimiento}d sin movimiento
                       </span>
                     </div>
                   </SelectItem>
@@ -105,7 +106,7 @@ export function SelectorCasoTimeline({
           </div>
         </div>
 
-        {/* Timeline del caso seleccionado */}
+        {/* Estado vacío */}
         {!casoActual && (
           <div className="text-center py-8 text-slate-400">
             <Search className="h-12 w-12 mx-auto mb-3 text-slate-300" />
@@ -122,7 +123,7 @@ export function SelectorCasoTimeline({
         {timelineCaso && (
           <div className="space-y-6 animate-in fade-in-50">
 
-            {/* Info del caso seleccionado */}
+            {/* Info del caso */}
             {casoSeleccionado && (
               <div className="p-3 rounded-lg border border-slate-200 bg-slate-50 text-sm text-slate-600 flex items-center justify-between">
                 <span>
@@ -169,7 +170,7 @@ export function SelectorCasoTimeline({
               </div>
             </div>
 
-            {/* Stepper vertical */}
+            {/* Cronología */}
             <div>
               <h3 className="text-sm font-bold text-slate-700 mb-4">
                 Cronología de Estados — {timelineCaso.numero}
@@ -178,7 +179,6 @@ export function SelectorCasoTimeline({
               <div className="relative border-l-2 border-slate-200 ml-3 space-y-0">
                 {timelineCaso.tiempos.map((etapa, index) => {
                   const esActual = etapa.esActual
-                  const esLargo = etapa.porcentaje > 40
 
                   return (
                     <div key={index} className="relative pl-8 pb-8 last:pb-0">
@@ -193,19 +193,14 @@ export function SelectorCasoTimeline({
                           <h4 className={`text-sm font-bold ${esActual ? "text-blue-700" : "text-slate-700"}`}>
                             {etapa.estado}
                           </h4>
-                          <div className="flex flex-wrap items-center gap-2 mt-1">
-                            <Badge variant="secondary" className="text-[10px] font-normal text-slate-500 bg-slate-100">
-                              {etapa.porcentaje}% del tiempo total
+                          {esActual && (
+                            <Badge className="mt-1 bg-blue-100 text-blue-700 hover:bg-blue-100 border-none text-[10px]">
+                              Actual
                             </Badge>
-                            {esActual && (
-                              <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100 border-none text-[10px]">
-                                Actual
-                              </Badge>
-                            )}
-                          </div>
+                          )}
                         </div>
                         <div className="mt-2 sm:mt-0 text-right">
-                          <span className={`block text-lg font-bold ${esLargo ? 'text-amber-600' : 'text-slate-700'}`}>
+                          <span className="block text-lg font-bold text-slate-700">
                             {etapa.dias === 0 ? '<1' : etapa.dias}
                           </span>
                           <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">
@@ -216,9 +211,7 @@ export function SelectorCasoTimeline({
 
                       <div className="w-full bg-slate-50 rounded-full h-1.5 mt-2 overflow-hidden">
                         <div
-                          className={`h-full rounded-full ${
-                            esActual ? "bg-blue-500" : esLargo ? "bg-amber-400" : "bg-emerald-400"
-                          }`}
+                          className={`h-full rounded-full ${esActual ? "bg-blue-500" : "bg-emerald-400"}`}
                           style={{ width: `${Math.max(etapa.porcentaje, 5)}%` }}
                         />
                       </div>

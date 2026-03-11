@@ -1,5 +1,7 @@
 'use client'
 
+// app/reportes/analisis-resultados/components/FiltroPeriodoResultados.tsx
+
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -38,7 +40,11 @@ export function FiltrosPeriodoResultados({ abogados = [] }: { abogados?: Abogado
   const handleAbogadoChange = (value: string) => updateParams("abogado", value, "todos")
 
   const handleLimpiar = () => {
-    router.push("?")
+    const params = new URLSearchParams()
+    // FIX: preservar vista al limpiar para no saltar a vista personal
+    const vistaActual = searchParams.get("vista")
+    if (vistaActual) params.set("vista", vistaActual)
+    router.push(`?${params.toString()}`)
   }
 
   const hayFiltrosActivos = searchParams.has("periodo") || searchParams.has("abogado")
@@ -63,6 +69,7 @@ export function FiltrosPeriodoResultados({ abogados = [] }: { abogados?: Abogado
         </SelectContent>
       </Select>
 
+      {/* FIX: solo renderizar si hay abogados — en vista personal se pasa [] */}
       {abogados.length > 0 && (
         <Select value={abogadoActual} onValueChange={handleAbogadoChange}>
           <SelectTrigger className="w-[200px] h-9 text-sm bg-white">

@@ -250,6 +250,58 @@ function ZonaItem({ zona, vistaGeneral, seleccionada, onToggle }: {
   )
 }
 
+function ProvinciaGroup({ provincia, zonas, vistaGeneral, zonasSeleccionadas, onToggle }: {
+  provincia: string
+  zonas: ZonaGeografica[]
+  vistaGeneral: boolean
+  zonasSeleccionadas: Set<string>
+  onToggle: (id: string) => void
+}) {
+  const [expandida, setExpandida] = useState(true)
+  const totalCasos = zonas.reduce((sum, z) => sum + z.totalCasos, 0)
+  const totalUrgentes = zonas.reduce((sum, z) => sum + z.casosUrgentes, 0)
+
+  return (
+    <div className="space-y-2">
+      {/* Header de provincia */}
+      <div 
+        className="flex items-center gap-3 px-4 py-2 bg-slate-100 rounded-lg cursor-pointer hover:bg-slate-200 transition-colors"
+        onClick={() => setExpandida(!expandida)}
+      >
+        <MapPin className="h-4 w-4 text-slate-500" />
+        <span className="font-bold text-slate-700">{provincia}</span>
+        <span className="text-xs text-slate-500">
+          {zonas.length} ciudad{zonas.length > 1 ? 'es' : ''} · {totalCasos} caso{totalCasos > 1 ? 's' : ''}
+        </span>
+        {totalUrgentes > 0 && (
+          <Badge className="bg-amber-100 text-amber-700 text-xs ml-1">
+            <AlertTriangle className="h-3 w-3 mr-1" />
+            {totalUrgentes} urgente{totalUrgentes > 1 ? 's' : ''}
+          </Badge>
+        )}
+        <div className="ml-auto text-slate-400">
+          {expandida ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+        </div>
+      </div>
+
+      {/* Zonas de la provincia */}
+      {expandida && (
+        <div className="space-y-3 pl-4 border-l-2 border-slate-200 ml-2">
+          {zonas.map(zona => (
+            <ZonaItem
+              key={zona.id}
+              zona={zona}
+              vistaGeneral={vistaGeneral}
+              seleccionada={zonasSeleccionadas.has(zona.id)}
+              onToggle={() => onToggle(zona.id)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function AcordeonZonas({ zonas, vistaGeneral }: AcordeonZonasProps) {
   const [zonasSeleccionadas, setZonasSeleccionadas] = useState<Set<string>>(
     new Set(zonas.map(z => z.id))
@@ -258,25 +310,27 @@ export function AcordeonZonas({ zonas, vistaGeneral }: AcordeonZonasProps) {
   const toggleZona = (zonaId: string) => {
     setZonasSeleccionadas(prev => {
       const nuevo = new Set(prev)
-      if (nuevo.has(zonaId)) {
-        nuevo.delete(zonaId)
-      } else {
-        nuevo.add(zonaId)
-      }
+      if (nuevo.has(zonaId)) nuevo.delete(zonaId)
+      else nuevo.add(zonaId)
       return nuevo
     })
   }
 
-  const seleccionarTodas = () => {
-    setZonasSeleccionadas(new Set(zonas.map(z => z.id)))
-  }
-
-  const deseleccionarTodas = () => {
-    setZonasSeleccionadas(new Set())
-  }
-
+  const seleccionarTodas = () => setZonasSeleccionadas(new Set(zonas.map(z => z.id)))
+  const deseleccionarTodas = () => setZonasSeleccionadas(new Set())
   const zonasParaPDF = zonas.filter(z => zonasSeleccionadas.has(z.id))
 
+  // Agrupar por provincia
+const normalizarProvincia = (p: string) =>
+  p.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim()
+
+const provinciaMap = new Map<string, { display: string; zonas: ZonaGeografica[] }>()
+zonas.forEach(zona => {
+  const display = zona.provincia || 'Sin Especificar'
+  const key = normalizarProvincia(display) || 'sin especificar'
+  if (!provinciaMap.has(key)) provinciaMap.set(key, { display, zonas: [] })
+  provinciaMap.get(key)!.zonas.push(zona)
+})
   return (
     <div className="space-y-4">
       {/* Toolbar */}
@@ -286,15 +340,10 @@ export function AcordeonZonas({ zonas, vistaGeneral }: AcordeonZonasProps) {
             {zonasSeleccionadas.size} de {zonas.length} zonas seleccionadas
           </span>
           <div className="flex gap-2">
-            <Button variant="ghost" size="sm" onClick={seleccionarTodas}>
-              Seleccionar todas
-            </Button>
-            <Button variant="ghost" size="sm" onClick={deseleccionarTodas}>
-              Deseleccionar todas
-            </Button>
+            <Button variant="ghost" size="sm" onClick={seleccionarTodas}>Seleccionar todas</Button>
+            <Button variant="ghost" size="sm" onClick={deseleccionarTodas}>Deseleccionar todas</Button>
           </div>
         </div>
-
         <GenerarPDFButton 
           zonas={zonasParaPDF} 
           vistaGeneral={vistaGeneral}
@@ -302,15 +351,16 @@ export function AcordeonZonas({ zonas, vistaGeneral }: AcordeonZonasProps) {
         />
       </div>
 
-      {/* Lista de zonas */}
-      <div className="space-y-3">
-        {zonas.map((zona) => (
-          <ZonaItem 
-            key={zona.id}
-            zona={zona}
+      {/* Agrupado por provincia */}
+      <div className="space-y-6">
+        {Array.from(provinciaMap.entries()).map(([key, { display, zonas: zonasEnProv }]) => (
+          <ProvinciaGroup
+            key={key}
+            provincia={display}
+            zonas={zonasEnProv}
             vistaGeneral={vistaGeneral}
-            seleccionada={zonasSeleccionadas.has(zona.id)}
-            onToggle={() => toggleZona(zona.id)}
+            zonasSeleccionadas={zonasSeleccionadas}
+            onToggle={toggleZona}
           />
         ))}
       </div>

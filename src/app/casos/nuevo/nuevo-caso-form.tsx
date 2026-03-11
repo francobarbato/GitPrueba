@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { ArrowLeft, Save, Plus, Trash2, Star, Flame, AlertTriangle, Building, User, MapPin, Scale, Briefcase, UserPlus } from 'lucide-react' 
+import { ArrowLeft, Save, Plus, Trash2, Star, Flame, AlertTriangle, Building, User, MapPin, Scale, Briefcase, UserPlus, Loader2 } from 'lucide-react' 
 import Link from "next/link"
 import { useFormState, useFormStatus } from "react-dom"
 import { useState, useEffect } from "react" 
@@ -18,7 +18,6 @@ import {
   getProvinciasParaSelect 
 } from "src/lib/data/argentina-ubicaciones"
 
-// ENUM de tipos (CIVIL y COMERCIAL unificados)
 const TIPOS_CASO = [
   { value: "LABORAL", label: "Laboral" },
   { value: "CIVIL_COMERCIAL", label: "Civil y Comercial" },
@@ -26,7 +25,6 @@ const TIPOS_CASO = [
   { value: "PENAL", label: "Penal" },
   { value: "SUCESIONES", label: "Sucesiones" },
   { value: "CONTENCIOSO_ADMINISTRATIVO", label: "Contencioso Administrativo" },
-  // { value: "OTRO", label: "Otro" }
 ]
 
 const ESTADOS_CASO = [
@@ -41,7 +39,6 @@ const ESTADOS_CASO = [
   "Archivado"
 ]
 
-// Tipos
 type ClienteSimple = { 
   id: string
   nombre: string
@@ -56,7 +53,6 @@ type AbogadoSimple = {
   email: string
 }
 
-// Props del formulario
 interface NuevoCasoFormProps {
   clientes: ClienteSimple[]
   abogados: AbogadoSimple[]
@@ -78,7 +74,7 @@ function SubmitButton({ disabled }: { disabled?: boolean }) {
   )
 }
 
-export function NuevoCasoForm({ clientes, abogados, userRol, currentUserId }: NuevoCasoFormProps) {
+export function NuevoCasoForm({ clientes: clientesIniciales, abogados, userRol, currentUserId }: NuevoCasoFormProps) {
   const initialState = { message: null, error: null }
   const [state, dispatch] = useFormState(crearCasoAction, initialState)
   
@@ -86,33 +82,60 @@ export function NuevoCasoForm({ clientes, abogados, userRol, currentUserId }: Nu
   const [clienteSeleccionado, setClienteSeleccionado] = useState("")
   const [mostrarAlertaConflicto, setMostrarAlertaConflicto] = useState(false)
 
-  // Estados para ubicación geográfica
   const [provinciaSeleccionada, setProvinciaSeleccionada] = useState("")
   const [departamentoSeleccionado, setDepartamentoSeleccionado] = useState("")
   const [departamentosDisponibles, setDepartamentosDisponibles] = useState<{ value: string; label: string }[]>([])
 
-  // Obtener lista de provincias para el select
+  // Estado para el flujo asistente: abogado seleccionado → clientes dinámicos
+  const [abogadoSeleccionadoId, setAbogadoSeleccionadoId] = useState("")
+  const [clientesDinamicos, setClientesDinamicos] = useState<ClienteSimple[]>([])
+  const [cargandoClientes, setCargandoClientes] = useState(false)
+
   const provinciasParaSelect = getProvinciasParaSelect()
 
-  // Actualizar departamentos cuando cambia la provincia
+  const esAsistente = userRol === 'ASISTENTE'
+  const esAbogado = userRol === 'ABOGADO'
+  const puedeSeleccionarAbogado = userRol === 'ASISTENTE' || userRol === 'ADMIN'
+
+  // Clientes que se muestran en el combobox según rol
+  const clientesDisponibles = esAsistente ? clientesDinamicos : clientesIniciales
+  const hayClientesDisponibles = clientesDisponibles.length > 0
+
   useEffect(() => {
     if (provinciaSeleccionada) {
       const deptos = getDepartamentosParaSelect(provinciaSeleccionada)
       setDepartamentosDisponibles(deptos)
-      setDepartamentoSeleccionado("") // Reset departamento al cambiar provincia
+      setDepartamentoSeleccionado("")
     } else {
       setDepartamentosDisponibles([])
       setDepartamentoSeleccionado("")
     }
   }, [provinciaSeleccionada])
 
-  // Verificar si el usuario puede seleccionar abogado
-  const puedeSeleccionarAbogado = userRol === 'ASISTENTE' || userRol === 'ADMIN'
-  const esAbogado = userRol === 'ABOGADO'
-  const esAsistente = userRol === 'ASISTENTE'
+  // Cuando el asistente cambia el abogado, fetchea sus clientes
+  useEffect(() => {
+    if (!esAsistente || !abogadoSeleccionadoId) {
+      setClientesDinamicos([])
+      setClienteSeleccionado("")
+      return
+    }
 
-  // Verificar si hay clientes disponibles
-  const hayClientesDisponibles = clientes.length > 0
+    const fetchClientes = async () => {
+      setCargandoClientes(true)
+      try {
+        const res = await fetch(`/api/clientes/por-abogado?abogadoId=${abogadoSeleccionadoId}`)
+        const data = await res.json()
+        setClientesDinamicos(data.clientes || [])
+        setClienteSeleccionado("") // resetear selección al cambiar abogado
+      } catch {
+        setClientesDinamicos([])
+      } finally {
+        setCargandoClientes(false)
+      }
+    }
+
+    fetchClientes()
+  }, [abogadoSeleccionadoId, esAsistente])
 
   const agregarRequisito = () => setRequisitos([...requisitos, { description: "", dueDate: "" }])
   
@@ -130,14 +153,18 @@ export function NuevoCasoForm({ clientes, abogados, userRol, currentUserId }: Nu
 
   const verificarConflicto = async (dni: string) => {
     if (!dni || dni.length < 5) return
-    const esCliente = clientes.some(c => c.numeroDocumento === dni)
+    const esCliente = clientesIniciales.some(c => c.numeroDocumento === dni)
     setMostrarAlertaConflicto(esCliente)
   }
 
-  // Construir el valor del fuero combinando provincia y departamento
   const fueroValue = departamentoSeleccionado && provinciaSeleccionada
     ? `${departamentoSeleccionado}, ${PROVINCIAS_ARGENTINA.find(p => p.id === provinciaSeleccionada)?.nombre || ''}`
     : ''
+
+  // El botón se deshabilita para el asistente si no eligió abogado todavía
+  const submitDisabled = esAsistente 
+    ? (!abogadoSeleccionadoId || !hayClientesDisponibles)
+    : !hayClientesDisponibles
 
   return (
     <Card className="max-w-5xl shadow-md border-slate-200">
@@ -158,32 +185,24 @@ export function NuevoCasoForm({ clientes, abogados, userRol, currentUserId }: Nu
           </div>
         )}
 
-        {/* Indicador de modo Asistente */}
+        {/* Banner asistente — actualizado */}
         {esAsistente && (
           <div className="mb-6 p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm">
-            <strong>Modo Asistente:</strong> Solo puedes asignar clientes que hayas creado tú y que no tengan casos activos.
-            Debes seleccionar un abogado responsable para este caso.
+            <strong>Modo Asistente:</strong> Seleccioná primero al abogado responsable.
+            El buscador de clientes se habilitará automáticamente con los clientes de ese abogado.
           </div>
         )}
 
-        {/* Alerta si no hay clientes disponibles */}
-        {!hayClientesDisponibles && (
+        {/* Alerta sin clientes — solo para abogado (el asistente tiene su propio flujo) */}
+        {!esAsistente && !hayClientesDisponibles && (
           <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
             <div className="flex items-start gap-3">
               <UserPlus className="h-6 w-6 text-blue-600 mt-0.5" />
               <div>
                 <p className="font-semibold text-blue-900">No hay clientes disponibles</p>
-                {esAsistente ? (
-                  <p className="text-sm text-blue-700 mt-1">
-                    No tenés clientes creados o todos ya están asignados a casos activos.
-                    <br />
-                    <strong>Primero debés crear un cliente nuevo</strong> antes de poder crear un caso.
-                  </p>
-                ) : (
-                  <p className="text-sm text-blue-700 mt-1">
-                    No hay clientes registrados. Primero debés crear un cliente.
-                  </p>
-                )}
+                <p className="text-sm text-blue-700 mt-1">
+                  No hay clientes registrados. Primero debés crear un cliente.
+                </p>
                 <Link href="/clientes/nuevo" className="inline-block mt-3">
                   <Button size="sm" className="gap-2">
                     <UserPlus className="h-4 w-4" />
@@ -197,7 +216,7 @@ export function NuevoCasoForm({ clientes, abogados, userRol, currentUserId }: Nu
 
         <form action={dispatch} className="space-y-8">
           
-          {/* SECCIÓN 1: IDENTIFICACIÓN */}
+          {/* SECCIÓN 1: IDENTIFICACIÓN — sin cambios */}
           <div className="space-y-4">
             <div className="flex items-center gap-2 pb-2 border-b border-slate-200">
               <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-sm">1</div>
@@ -210,7 +229,6 @@ export function NuevoCasoForm({ clientes, abogados, userRol, currentUserId }: Nu
                 <Input id="numero" name="numero" placeholder="Ej: 2345/2024" required />
                 <p className="text-xs text-slate-500">ID único del caso</p>
               </div>
-
               <div className="space-y-2">
                 <Label htmlFor="tipo">Fuero / Materia *</Label>
                 <Select name="tipo" required>
@@ -222,7 +240,6 @@ export function NuevoCasoForm({ clientes, abogados, userRol, currentUserId }: Nu
                   </SelectContent>
                 </Select>
               </div>
-
               <div className="space-y-2">
                 <Label htmlFor="estado">Etapa Procesal Inicial</Label>
                 <Select name="estado" defaultValue="Inicio / Demanda">
@@ -240,10 +257,71 @@ export function NuevoCasoForm({ clientes, abogados, userRol, currentUserId }: Nu
               <Label htmlFor="titulo">Carátula / Título del Caso *</Label>
               <Input id="titulo" name="titulo" placeholder="Ej: GÓMEZ, Juan c/ PÉREZ, María s/ DAÑOS Y PERJUICIOS" required />
             </div>
-
             <div className="space-y-2">
               <Label htmlFor="descripcion">Descripción / Estrategia</Label>
               <Textarea id="descripcion" name="descripcion" rows={3} placeholder="Resumen del caso, estrategia legal, antecedentes relevantes..." />
+            </div>
+          </div>
+
+          {/* SECCIÓN 2.5: ABOGADO RESPONSABLE — movida ANTES de cliente para el asistente */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 pb-2 border-b border-slate-200">
+              <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-sm">
+                <Briefcase className="h-4 w-4" />
+              </div>
+              <h2 className="text-lg font-semibold text-slate-800">Abogado Responsable</h2>
+            </div>
+
+            <div className="p-4 bg-slate-50 rounded-lg">
+              {puedeSeleccionarAbogado && (
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <Briefcase className="h-4 w-4" />
+                    Seleccionar Abogado Responsable *
+                  </Label>
+                  <Select 
+                    name="abogadoId" 
+                    required
+                    onValueChange={(val) => {
+                      if (esAsistente) setAbogadoSeleccionadoId(val)
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar abogado..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {abogados.map(abogado => (
+                        <SelectItem key={abogado.id} value={abogado.id}>
+                          {abogado.nombre || ''} {abogado.apellido || ''}
+                          <span className="text-slate-400 ml-2">({abogado.email})</span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-slate-500">
+                    El abogado seleccionado será responsable de llevar este caso
+                  </p>
+                </div>
+              )}
+
+              {esAbogado && (
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2 text-slate-600">
+                    <Briefcase className="h-4 w-4" />
+                    Abogado Responsable
+                  </Label>
+                  <div className="flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-lg">
+                    <div className="h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center">
+                      <User className="h-5 w-5 text-indigo-600" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-slate-900">Tú serás el responsable</p>
+                      <p className="text-xs text-slate-500">El caso se asignará automáticamente a tu cuenta</p>
+                    </div>
+                  </div>
+                  <input type="hidden" name="abogadoId" value={currentUserId} />
+                </div>
+              )}
             </div>
           </div>
 
@@ -260,25 +338,40 @@ export function NuevoCasoForm({ clientes, abogados, userRol, currentUserId }: Nu
                   <User className="h-4 w-4" />
                   Cliente (Nuestro Representado) *
                 </Label>
-                {hayClientesDisponibles ? (
-                  <>
-                    <ClienteSearchCombobox 
-                      clientes={clientes}
-                      onSelect={setClienteSeleccionado}
-                    />
-                    {esAsistente && (
-                      <p className="text-xs text-slate-500">
-                        Solo se muestran clientes que creaste y sin casos activos
-                      </p>
-                    )}
-                  </>
-                ) : (
+
+                {/* Flujo asistente: espera que elija abogado primero */}
+                {esAsistente && !abogadoSeleccionadoId && (
                   <div className="p-3 bg-slate-100 border border-slate-200 rounded-lg text-slate-500 text-sm">
-                    No hay clientes disponibles. 
-                    <Link href="/clientes/nuevo" className="text-blue-600 hover:underline ml-1">
-                      Crear uno nuevo
+                    Primero seleccioná un abogado responsable para ver sus clientes.
+                  </div>
+                )}
+
+                {esAsistente && abogadoSeleccionadoId && cargandoClientes && (
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg flex items-center gap-2 text-slate-500 text-sm">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Cargando clientes...
+                  </div>
+                )}
+
+                {esAsistente && abogadoSeleccionadoId && !cargandoClientes && !hayClientesDisponibles && (
+                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p className="text-sm text-blue-700">
+                      Este abogado no tiene clientes registrados.
+                    </p>
+                    <Link href="/clientes/nuevo" className="inline-block mt-2">
+                      <Button size="sm" variant="outline" className="gap-2 text-blue-600 border-blue-300">
+                        <UserPlus className="h-4 w-4" />
+                        Crear Cliente Nuevo
+                      </Button>
                     </Link>
                   </div>
+                )}
+
+                {(!esAsistente || (abogadoSeleccionadoId && !cargandoClientes && hayClientesDisponibles)) && (
+                  <ClienteSearchCombobox 
+                    clientes={clientesDisponibles}
+                    onSelect={setClienteSeleccionado}
+                  />
                 )}
               </div>
 
@@ -310,65 +403,7 @@ export function NuevoCasoForm({ clientes, abogados, userRol, currentUserId }: Nu
             )}
           </div>
 
-          {/* SECCIÓN 2.5: ABOGADO RESPONSABLE */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-2 pb-2 border-b border-slate-200">
-              <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-sm">
-                <Briefcase className="h-4 w-4" />
-              </div>
-              <h2 className="text-lg font-semibold text-slate-800">Abogado Responsable</h2>
-            </div>
-
-            <div className="p-4 bg-slate-50 rounded-lg">
-              {/* Si es ASISTENTE o ADMIN: puede elegir abogado */}
-              {puedeSeleccionarAbogado && (
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <Briefcase className="h-4 w-4" />
-                    Seleccionar Abogado Responsable *
-                  </Label>
-                  <Select name="abogadoId" required>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar abogado..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {abogados.map(abogado => (
-                        <SelectItem key={abogado.id} value={abogado.id}>
-                          {abogado.nombre || ''} {abogado.apellido || ''} 
-                          <span className="text-slate-400 ml-2">({abogado.email})</span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-slate-500">
-                    El abogado seleccionado será responsable de llevar este caso
-                  </p>
-                </div>
-              )}
-
-              {/* Si es ABOGADO: se asigna automáticamente a sí mismo */}
-              {esAbogado && (
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2 text-slate-600">
-                    <Briefcase className="h-4 w-4" />
-                    Abogado Responsable
-                  </Label>
-                  <div className="flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-lg">
-                    <div className="h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center">
-                      <User className="h-5 w-5 text-indigo-600" />
-                    </div>
-                    <div>
-                      <p className="font-medium text-slate-900">Tú serás el responsable</p>
-                      <p className="text-xs text-slate-500">El caso se asignará automáticamente a tu cuenta</p>
-                    </div>
-                  </div>
-                  <input type="hidden" name="abogadoId" value={currentUserId} />
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* SECCIÓN 3: RADICACIÓN - ACTUALIZADA CON PROVINCIAS/DEPARTAMENTOS */}
+          {/* SECCIÓN 3: RADICACIÓN — sin cambios */}
           <div className="space-y-4">
             <div className="flex items-center gap-2 pb-2 border-b border-slate-200">
               <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 font-bold text-sm">3</div>
@@ -376,25 +411,19 @@ export function NuevoCasoForm({ clientes, abogados, userRol, currentUserId }: Nu
             </div>
 
             <div className="p-4 bg-slate-50 rounded-lg space-y-4">
-              {/* Fila 1: Provincia y Ciudad/Departamento */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2">
                     <MapPin className="h-4 w-4" />
                     Provincia *
                   </Label>
-                  <Select 
-                    value={provinciaSeleccionada}
-                    onValueChange={setProvinciaSeleccionada}
-                  >
+                  <Select value={provinciaSeleccionada} onValueChange={setProvinciaSeleccionada}>
                     <SelectTrigger>
                       <SelectValue placeholder="Seleccionar provincia..." />
                     </SelectTrigger>
                     <SelectContent className="max-h-[300px]">
                       {provinciasParaSelect.map(prov => (
-                        <SelectItem key={prov.value} value={prov.value}>
-                          {prov.label}
-                        </SelectItem>
+                        <SelectItem key={prov.value} value={prov.value}>{prov.label}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -415,9 +444,7 @@ export function NuevoCasoForm({ clientes, abogados, userRol, currentUserId }: Nu
                     </SelectTrigger>
                     <SelectContent className="max-h-[300px]">
                       {departamentosDisponibles.map(depto => (
-                        <SelectItem key={depto.value} value={depto.value}>
-                          {depto.label}
-                        </SelectItem>
+                        <SelectItem key={depto.value} value={depto.value}>{depto.label}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -427,10 +454,10 @@ export function NuevoCasoForm({ clientes, abogados, userRol, currentUserId }: Nu
                 </div>
               </div>
 
-              {/* Campo oculto con el fuero combinado */}
               <input type="hidden" name="fuero" value={fueroValue} />
+              <input type="hidden" name="provincia" value={provinciaSeleccionada} />
+              <input type="hidden" name="ciudad" value={departamentoSeleccionado} />
 
-              {/* Mostrar ubicación seleccionada */}
               {fueroValue && (
                 <div className="p-3 bg-white border border-slate-200 rounded-lg">
                   <p className="text-xs text-slate-500 mb-1">Ubicación seleccionada:</p>
@@ -441,14 +468,12 @@ export function NuevoCasoForm({ clientes, abogados, userRol, currentUserId }: Nu
                 </div>
               )}
 
-              {/* Fila 2: Juzgado y Monto */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Juzgado / Secretaría</Label>
                   <Input name="juzgado" placeholder="Ej: Juzgado Nº 45 Civil y Comercial" />
                   <p className="text-xs text-slate-500">Nombre completo del juzgado asignado</p>
                 </div>
-
                 <div className="space-y-2">
                   <Label>Monto en Disputa ($)</Label>
                   <Input name="monto_disputa" type="number" step="0.01" placeholder="0.00" />
@@ -456,7 +481,6 @@ export function NuevoCasoForm({ clientes, abogados, userRol, currentUserId }: Nu
                 </div>
               </div>
 
-              {/* Fila 3: Ubicación física */}
               <div className="space-y-2">
                 <Label>Ubicación Física del Expediente</Label>
                 <Input name="ubicacion_fisica" placeholder="Ej: Bibliorato A - Estante 2 - Sector Laborales" />
@@ -464,7 +488,7 @@ export function NuevoCasoForm({ clientes, abogados, userRol, currentUserId }: Nu
             </div>
           </div>
 
-          {/* SECCIÓN 4: PRIORIDAD */}
+          {/* SECCIÓN 4: PRIORIDAD — sin cambios */}
           <div className="space-y-4">
             <div className="flex items-center gap-2 pb-2 border-b border-slate-200">
               <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 font-bold text-sm">4</div>
@@ -473,9 +497,7 @@ export function NuevoCasoForm({ clientes, abogados, userRol, currentUserId }: Nu
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="p-4 bg-slate-50 rounded-lg space-y-3">
-                <Label className="flex items-center gap-2">
-                  Nivel de Prioridad
-                </Label>
+                <Label className="flex items-center gap-2">Nivel de Prioridad</Label>
                 <Select name="priority" defaultValue="NORMAL">
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -499,62 +521,15 @@ export function NuevoCasoForm({ clientes, abogados, userRol, currentUserId }: Nu
             </div>
           </div>
 
-          {/* SECCIÓN 5: CHECKLIST */}
-          {/* <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 pb-2 border-b border-slate-200 flex-1">
-                <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center text-teal-600 font-bold text-sm">5</div>
-                <h2 className="text-lg font-semibold text-slate-800">Checklist de Requisitos Previos</h2>
-              </div>
-              <Button type="button" variant="outline" size="sm" onClick={agregarRequisito}>
-                <Plus className="h-4 w-4 mr-2" /> Agregar Item
-              </Button>
-            </div>
-
-            <div className="space-y-3">
-              {requisitos.length === 0 ? (
-                <div className="text-center py-8 bg-slate-50 rounded-lg border-2 border-dashed border-slate-300">
-                  <p className="text-slate-500 mb-2">📋 No hay requisitos cargados</p>
-                  <p className="text-xs text-slate-400">Agregue documentos o trámites previos necesarios</p>
-                </div>
-              ) : (
-                requisitos.map((req, index) => (
-                  <div key={index} className="flex gap-3 items-start p-3 bg-white border border-slate-200 rounded-lg">
-                    <div className="flex-1">
-                      <Input 
-                        placeholder="Ej: Solicitar certificado de trabajo al empleador"
-                        value={req.description}
-                        onChange={(e) => actualizarRequisito(index, 'description', e.target.value)}
-                        required
-                      />
-                    </div>
-                    <div className="w-40">
-                      <Input 
-                        type="date"
-                        value={req.dueDate}
-                        onChange={(e) => actualizarRequisito(index, 'dueDate', e.target.value)}
-                        required
-                      />
-                    </div>
-                    <Button type="button" variant="ghost" size="icon" onClick={() => eliminarRequisito(index)} className="text-red-500">
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))
-              )}
-            </div>
-          </div> */}
-
           <input type="hidden" name="requirements" value={JSON.stringify(requisitos)} />
 
-          {/* BOTONES */}
           <div className="flex justify-end gap-3 pt-4 border-t">
             <Link href="/casos">
               <Button variant="outline" type="button">
                 <ArrowLeft className="h-4 w-4 mr-2" /> Cancelar
               </Button>
             </Link>
-            <SubmitButton disabled={!hayClientesDisponibles} />
+            <SubmitButton disabled={submitDisabled} />
           </div>
         </form>
       </CardContent>

@@ -40,13 +40,11 @@ export type MotivoCierreRow = {
 // ============================================================================
 
 const MOTIVO_COLORS: Record<string, { bg: string; text: string; border: string }> = {
-  "Sentencia favorable": { bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200" },
-  "Acuerdo/Conciliación": { bg: "bg-blue-50", text: "text-blue-700", border: "border-blue-200" },
-  "Sentencia desfavorable": { bg: "bg-red-50", text: "text-red-700", border: "border-red-200" },
-  "Desistimiento": { bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200" },
-  "Archivo": { bg: "bg-slate-50", text: "text-slate-600", border: "border-slate-200" },
-  "Prescripción": { bg: "bg-orange-50", text: "text-orange-700", border: "border-orange-200" },
-  "Otro": { bg: "bg-gray-50", text: "text-gray-600", border: "border-gray-200" },
+  "FAVORABLE":    { bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200" },
+  "ACUERDO":      { bg: "bg-blue-50",    text: "text-blue-700",    border: "border-blue-200" },
+  "DESFAVORABLE": { bg: "bg-red-50",     text: "text-red-700",     border: "border-red-200" },
+  "DESISTIMIENTO":{ bg: "bg-amber-50",   text: "text-amber-700",   border: "border-amber-200" },
+  "ARCHIVO":      { bg: "bg-slate-50",   text: "text-slate-600",   border: "border-slate-200" },
 }
 
 const DEFAULT_COLOR = { bg: "bg-slate-50", text: "text-slate-600", border: "border-slate-200" }
@@ -56,14 +54,14 @@ const DEFAULT_COLOR = { bg: "bg-slate-50", text: "text-slate-600", border: "bord
 // ============================================================================
 
 function DetalleExpandido({ casos }: { casos: CasoDetalle[] }) {
-  const [filtroAbogado, setFiltroAbogado] = useState<string>("todos")
+  // const [filtroAbogado, setFiltroAbogado] = useState<string>("todos")
   const [filtroFuero, setFiltroFuero] = useState<string>("todos")
 
   // Opciones únicas para los selects
-  const abogados = useMemo(() => {
-    const set = new Set(casos.map((c) => c.abogadoNombre))
-    return Array.from(set).sort()
-  }, [casos])
+  // const abogados = useMemo(() => {
+  //   const set = new Set(casos.map((c) => c.abogadoNombre))
+  //   return Array.from(set).sort()
+  // }, [casos])
 
   const fueros = useMemo(() => {
     const set = new Set(casos.map((c) => c.tipoLabel))
@@ -73,16 +71,16 @@ function DetalleExpandido({ casos }: { casos: CasoDetalle[] }) {
   // Filtrado
   const casosFiltrados = useMemo(() => {
     return casos.filter((c) => {
-      if (filtroAbogado !== "todos" && c.abogadoNombre !== filtroAbogado) return false
+      // if (filtroAbogado !== "todos" && c.abogadoNombre !== filtroAbogado) return false
       if (filtroFuero !== "todos" && c.tipoLabel !== filtroFuero) return false
       return true
     })
-  }, [casos, filtroAbogado, filtroFuero])
+  }, [casos, filtroFuero])
 
-  const hayFiltrosActivos = filtroAbogado !== "todos" || filtroFuero !== "todos"
+  // const hayFiltrosActivos = filtroAbogado !== "todos" || filtroFuero !== "todos"
 
   const handleLimpiar = () => {
-    setFiltroAbogado("todos")
+    // setFiltroAbogado("todos")
     setFiltroFuero("todos")
   }
 
@@ -94,25 +92,10 @@ function DetalleExpandido({ casos }: { casos: CasoDetalle[] }) {
       {/* Filtros inline */}
       <div className="flex items-center gap-3 mb-3 flex-wrap">
         <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-          Expedientes ({casosFiltrados.length}{hayFiltrosActivos ? ` de ${casos.length}` : ""})
+          Expedientes ({casosFiltrados.length})
         </span>
 
         <div className="flex items-center gap-2 ml-auto">
-          {/* Select Abogado */}
-          {abogados.length > 1 && (
-            <Select value={filtroAbogado} onValueChange={setFiltroAbogado}>
-              <SelectTrigger className="h-7 text-xs w-[160px] bg-white">
-                <SelectValue placeholder="Abogado" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todos los abogados</SelectItem>
-                {abogados.map((a) => (
-                  <SelectItem key={a} value={a}>{a}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-
           {/* Select Fuero */}
           {fueros.length > 1 && (
             <Select value={filtroFuero} onValueChange={setFiltroFuero}>
@@ -127,18 +110,7 @@ function DetalleExpandido({ casos }: { casos: CasoDetalle[] }) {
               </SelectContent>
             </Select>
           )}
-
-          {/* Limpiar */}
-          {hayFiltrosActivos && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleLimpiar}
-              className="text-slate-400 hover:text-slate-600 h-7 px-2"
-            >
-              <X className="w-3 h-3" />
-            </Button>
-          )}
+          
         </div>
       </div>
 

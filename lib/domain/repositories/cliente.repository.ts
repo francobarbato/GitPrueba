@@ -1,11 +1,13 @@
+// src/lib/domain/repositories/cliente.repository.ts
+// FIX: IDs eran number, métodos alineados con PrismaClienteRepository
+
 import type { Cliente, CrearClienteDto, ActualizarClienteDto } from "@/lib/types"
 
 export interface IClienteRepository {
-  obtenerTodos(filtros?: any): Promise<Cliente[]>
-  obtenerPorId(id: number): Promise<Cliente | null>
-  crear(datos: CrearClienteDto): Promise<Cliente>
-  actualizar(id: number, datos: ActualizarClienteDto): Promise<Cliente>
-  eliminar(id: number): Promise<void>
-  verificarEmailExistente(email: string, idExcluir?: number): Promise<boolean>
-  contarTotal(): Promise<number>
+  findAll(): Promise<Cliente[]>
+  findById(id: string): Promise<Cliente | null>           // FIX: era number, nombre alineado
+  findByAbogado(abogadoId: string): Promise<Cliente[]>
+  create(data: CrearClienteDto, abogadoId: string): Promise<Cliente>   // FIX: era number + nombre alineado
+  update(id: string, data: ActualizarClienteDto): Promise<Cliente>     // FIX: era number + nombre alineado
+  delete(id: string): Promise<void>                       // FIX: era number + nombre alineado
 }

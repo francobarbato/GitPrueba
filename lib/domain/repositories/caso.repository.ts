@@ -1,26 +1,25 @@
+// src/lib/domain/repositories/caso.repository.ts
+// FIX: IDs eran number, ahora son string para coincidir con UUID del schema
+
 import type { Caso } from "../../types"
 
-// Interfaz del repositorio de casos
 export interface CasoRepository {
   [x: string]: any
-  // Métodos básicos CRUD
+
   findAll(): Promise<Caso[]>
-  findById(id: number): Promise<Caso | null>
+  findById(id: string): Promise<Caso | null>       // FIX: era number
   create(data: any): Promise<Caso>
-  update(id: number, data: any): Promise<Caso>
-  delete(id: number): Promise<void>
+  update(id: string, data: any): Promise<Caso>     // FIX: era number
+  delete(id: string): Promise<void>                // FIX: era number
 
-  // Métodos específicos existentes
-  findByAbogado(abogadoId: number): Promise<Caso[]>
-  findByCliente(clienteId: number): Promise<Caso[]>
+  findByAbogado(abogadoId: string): Promise<Caso[]>  // FIX: era number
+  findByCliente(clienteId: string): Promise<Caso[]>  // FIX: era number
 
-  // Nuevo método para actualizar el porcentaje de avance
-  updatePorcentajeAvance(id: number, porcentaje: number): Promise<Caso>
+  updatePorcentajeAvance(id: string, porcentaje: number): Promise<Caso>  // FIX: era number
 
-  // Método para obtener casos por abogado con estadísticas
   getCasosPorAbogado(): Promise<
     {
-      abogadoId: number
+      abogadoId: string    // FIX: era number
       nombre: string
       apellido: string
       totalCasos: number
@@ -28,7 +27,6 @@ export interface CasoRepository {
     }[]
   >
 
-  // Método para obtener estadísticas de avance
   getEstadisticasAvance(): Promise<{
     totalCasos: number
     promedioAvance: number

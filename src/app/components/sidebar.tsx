@@ -31,13 +31,13 @@ const getMenuItems = (rol?: string) => {
       name: "Gestión de casos", 
       href: "/casos", 
       icon: FileText,
-      roles: ['ADMIN', 'ABOGADO', 'ASISTENTE']
+      roles: ['ABOGADO', 'ASISTENTE']
     },
     { 
       name: "Gestión de clientes", 
       href: "/clientes", 
       icon: Users,
-      roles: ['ADMIN', 'ABOGADO', 'ASISTENTE']
+      roles: ['ABOGADO', 'ASISTENTE']
     },
     // { 
     //   name: "Gestión de tareas", 

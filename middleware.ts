@@ -78,7 +78,6 @@ export async function middleware(request: NextRequest) {
       '/calculos-indemnizacion',
       '/portal',
       // Reportes estratégicos: no accesibles para Asistentes
-      '/reportes/rendimiento',
       '/reportes/cartera-fuero',
       '/reportes/analisis-resultados',
     ]
@@ -111,10 +110,19 @@ export async function middleware(request: NextRequest) {
   // ROL ADMIN: Acceso total (excepto /portal)
   // =====================================================
   if (userRol === 'ADMIN') {
-    if (pathname.startsWith('/portal')) {
-      return NextResponse.redirect(new URL('/', request.url))
-    }
+  const rutasRestringidasAdmin = [
+    '/portal',
+    '/casos',
+    '/clientes',
+    '/reportes',
+  ]
+  
+  const rutaRestringida = rutasRestringidasAdmin.some(ruta => pathname.startsWith(ruta))
+  
+  if (rutaRestringida) {
+    return NextResponse.redirect(new URL('/', request.url))
   }
+}
 
   return NextResponse.next()
 }

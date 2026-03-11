@@ -1,5 +1,7 @@
 'use client'
 
+// app/reportes/cartera-fuero/components/KPICards.tsx
+
 import { Card, CardContent } from "@/components/ui/card"
 import { Briefcase, DollarSign, TrendingUp, Scale } from "lucide-react"
 
@@ -11,9 +13,25 @@ type KPIData = {
   fueroConMasValor: string
 }
 
-export function KPICards({ data }: { data: KPIData }) {
+type Props = {
+  data: KPIData
+  vista?: string
+  colegaNombre?: string
+}
+
+export function KPICards({ data, vista = "personal", colegaNombre }: Props) {
   const formatMoney = (n: number) =>
     new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(n)
+
+  const labelCasos = vista === "general"
+    ? colegaNombre ? `Casos activos de ${colegaNombre}` : "Casos activos en el estudio"
+    : "Casos Activos"
+
+  const labelCapital = vista === "general"
+    ? colegaNombre ? "Capital en litigio" : "Capital total del estudio"
+    : "Capital en Litigio"
+
+  const labelTicket = "Ticket Promedio"
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
@@ -24,7 +42,7 @@ export function KPICards({ data }: { data: KPIData }) {
               <Briefcase className="w-5 h-5 text-blue-600" />
             </div>
             <div>
-              <p className="text-xs text-slate-500 font-medium">Casos Activos</p>
+              <p className="text-xs text-slate-500 font-medium">{labelCasos}</p>
               <p className="text-2xl font-bold text-slate-900">{data.totalCasosActivos}</p>
             </div>
           </div>
@@ -38,7 +56,7 @@ export function KPICards({ data }: { data: KPIData }) {
               <DollarSign className="w-5 h-5 text-emerald-600" />
             </div>
             <div>
-              <p className="text-xs text-slate-500 font-medium">Capital en Litigio</p>
+              <p className="text-xs text-slate-500 font-medium">{labelCapital}</p>
               <p className="text-xl font-bold text-slate-900">{formatMoney(data.capitalTotalEnLitigio)}</p>
             </div>
           </div>
@@ -52,7 +70,7 @@ export function KPICards({ data }: { data: KPIData }) {
               <TrendingUp className="w-5 h-5 text-amber-600" />
             </div>
             <div>
-              <p className="text-xs text-slate-500 font-medium">Ticket Promedio</p>
+              <p className="text-xs text-slate-500 font-medium">{labelTicket}</p>
               <p className="text-xl font-bold text-slate-900">{formatMoney(data.ticketPromedioGlobal)}</p>
             </div>
           </div>

@@ -1,5 +1,4 @@
 // src/app/api/auth/[...nextauth]/route.ts
-// VERSIÓN CORREGIDA
 
 import prisma from "src/lib/db/prisma";
 import NextAuth, { NextAuthOptions } from "next-auth";
@@ -37,8 +36,6 @@ export const authOptions: NextAuthOptions = {
 
         if (!user) return null;
 
-        // Solo retornamos los campos básicos
-        // El callback jwt se encarga de obtener debeResetearPassword de la BD
         return {
           id: String(user.id),
           name: user.name,
@@ -57,8 +54,39 @@ export const authOptions: NextAuthOptions = {
   },
 
   callbacks: {
+
+    // ===== NUEVO: Bloquear OAuth para usuarios no registrados =====
+    // Sin esto, cualquier cuenta de Google/GitHub crea un usuario automáticamente
+    // vía PrismaAdapter, saltándose el control de acceso del estudio.
+    async signIn({ user, account }) {
+      // El flujo de Credentials no pasa por acá — ya tiene su propia validación en authorize()
+      if (account?.provider === 'credentials') {
+        return true
+      }
+
+      // Para Google y GitHub: verificar que el email ya existe en la BD y está activo
+      if (account?.provider === 'google' || account?.provider === 'github') {
+        const usuarioExistente = await prisma.user.findUnique({
+          where: { email: user.email ?? '' },
+          select: { isActive: true }
+        })
+
+        // Si no existe o está inactivo → acceso denegado → redirige a /auth/error
+        if (!usuarioExistente || !usuarioExistente.isActive) {
+          console.log(`❌ OAuth bloqueado para: ${user.email} (no registrado o inactivo)`)
+          return false
+        }
+
+        console.log(`✅ OAuth permitido para: ${user.email}`)
+        return true
+      }
+
+      // Cualquier otro provider no configurado → denegar por defecto
+      return false
+    },
+    // =============================================================
+
     async jwt({ token, user }): Promise<any> {
-      // Siempre consultar la BD para tener datos actualizados
       const dbUser = await prisma.user.findUnique({
         where: { email: token.email ?? "" },
         select: {

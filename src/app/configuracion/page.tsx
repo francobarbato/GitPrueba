@@ -8,12 +8,13 @@ export default async function ConfiguracionPage() {
   const user = await getUserSessionServer()
   
   if (!user) {
-    redirect("/api/auth/signin")
+    redirect("/auth/signin")
   }
 
-  // Solo admin puede acceder
+  // Segunda barrera: el middleware ya bloqueó antes de llegar acá.
+  // Este guard redirige a "/" que sí existe.
   if (user.rol !== 'ADMIN') {
-    redirect("/dashboard")
+    redirect("/")
   }
 
   return (

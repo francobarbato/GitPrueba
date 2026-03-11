@@ -16,6 +16,7 @@ import {
   TrendingUp, Trophy, Clock, Users,
   PieChart
 } from "lucide-react"
+import { ShieldCheck } from "lucide-react"
 
 export default async function ReportesPage() {
   const user = await getUserSessionServer()
@@ -80,7 +81,23 @@ export default async function ReportesPage() {
       descripcion: "Cómo venimos: ingresos vs cierres por período y cambio en el perfil del estudio",
       visible: esGerencial,
     },
+    
   ]
+
+  
+
+  const reportesPersonales = [
+  {
+    href: "/reportes/auditoria",
+    color: "slate",
+    icon: ShieldCheck,
+    titulo: "Auditoría Personal",
+    descripcion: "Registro de actividad en tus expedientes: cambios, modificaciones y quién los realizó",
+    visible: userRol === "ABOGADO",
+  },
+]
+
+
 
   // Filtrar por visibilidad
   const operativosVisibles = reportesOperativos.filter((r) => r.visible)
@@ -114,6 +131,22 @@ export default async function ReportesPage() {
               </Button>
             )}
           </div>
+                    {/* BLOQUE 4: PERSONAL — solo ABOGADO */}
+          {reportesPersonales.some(r => r.visible) && (
+            <div className="mb-4">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="h-6 w-1 bg-slate-400 rounded-full"></div>
+                <h2 className="text-sm font-bold text-slate-500 uppercase tracking-wider">Personal</h2>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+                {reportesPersonales.filter(r => r.visible).map(r => (
+                  <ReporteCard key={r.href} {...r} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          <p className="text-center text-xs text-slate-400 py-8 mt-4 border-t border-slate-100"></p>
 
           {/* BLOQUE 1: GESTIÓN OPERATIVA */}
           {operativosVisibles.length > 0 && (
@@ -181,6 +214,7 @@ const COLOR_MAP: Record<string, { border: string; bg: string; text: string; hove
   indigo:  { border: "border-l-indigo-500",  bg: "bg-indigo-100",  text: "text-indigo-600",  hoverBg: "hover:bg-indigo-50/30",  hoverText: "group-hover:text-indigo-700",  arrowHover: "group-hover:text-indigo-600" },
   violet:  { border: "border-l-violet-500",  bg: "bg-violet-100",  text: "text-violet-600",  hoverBg: "hover:bg-violet-50/30",  hoverText: "group-hover:text-violet-700",  arrowHover: "group-hover:text-violet-600" },
   teal:    { border: "border-l-teal-500",    bg: "bg-teal-100",    text: "text-teal-600",    hoverBg: "hover:bg-teal-50/30",    hoverText: "group-hover:text-teal-700",    arrowHover: "group-hover:text-teal-600" },
+  slate:   { border: "border-l-slate-500", bg: "bg-slate-100", text: "text-slate-600", hoverBg: "hover:bg-slate-50/30", hoverText: "group-hover:text-slate-700", arrowHover: "group-hover:text-slate-600" },
 }
 
 function ReporteCard({

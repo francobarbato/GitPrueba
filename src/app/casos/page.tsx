@@ -1,5 +1,3 @@
-// src/app/casos/page.tsx
-
 import { getUserSessionServer } from "@/auth/actions/auth-actions"
 import { redirect } from "next/navigation"
 import { CasoService } from "@/lib/aplication/services/caso.service"
@@ -7,6 +5,10 @@ import Link from "next/link"
 import { Sidebar } from "@/app/components/sidebar"
 import { Header } from "@/app/components/header"
 import { Star, Flame, FolderOpen, Plus } from "lucide-react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card" // <-- Agregado para el buscador
+import { Buscador } from "../components/buscador" 
+import { FiltrosCasos } from "./components/filtros"
+import { Button } from "@/components/ui/button"
 
 const casoService = new CasoService()
 
@@ -23,7 +25,11 @@ const isAdmin = (rol: string) => rol?.toUpperCase() === 'ADMIN'
 const isAbogado = (rol: string) => rol?.toUpperCase() === 'ABOGADO'
 const isAsistente = (rol: string) => rol?.toUpperCase() === 'ASISTENTE'
 
-export default async function CasosPage() {
+export default async function CasosPage({
+  searchParams,
+}: {
+  searchParams?: { buscar?: string; tipo?: string; etapa?: string }
+}) {
   const user = await getUserSessionServer()
 
   if (!user) {
@@ -31,6 +37,19 @@ export default async function CasosPage() {
   }
 
   const userRol = user.rol?.toUpperCase() || ''
+  if (userRol === 'ADMIN') {
+      return (
+    <div className="flex h-screen bg-slate-50 items-center justify-center p-4">
+      <div className="bg-white p-8 rounded-xl shadow text-center max-w-md">
+        <h1 className="text-xl font-bold text-red-600 mb-2">Acceso restringido</h1>
+        <p className="text-slate-600 mb-4">El administrador no puede crear casos.</p>
+        <Link href="/">
+          <Button variant="outline">Volver al inicio</Button>
+        </Link>
+      </div>
+    </div>
+  )
+}
 
   // Lógica de Roles para obtener casos
   let casos;
@@ -41,6 +60,26 @@ export default async function CasosPage() {
     // Abogado ve solo sus casos
     casos = await casoService.getCasosByAbogado(user.id)
   }
+
+  // Filtrado por Expediente y Carátula/Título
+  const terminoBusqueda = searchParams?.buscar?.toLowerCase() || ""
+  const terminoTipo = searchParams?.tipo || ""
+  const terminoEtapa = searchParams?.etapa || ""
+
+  if (terminoBusqueda) {
+    casos = casos.filter(c => 
+      c.titulo?.toLowerCase().includes(terminoBusqueda) || 
+      c.numero?.toLowerCase().includes(terminoBusqueda)
+    )
+  }
+
+  if (terminoTipo) {
+  casos = casos.filter(c => c.tipo === terminoTipo)
+}
+
+if (terminoEtapa) {
+  casos = casos.filter(c => c.estado === terminoEtapa)
+}
 
   // Textos según rol
   const getTitulo = () => {
@@ -70,14 +109,16 @@ export default async function CasosPage() {
             </div>
             
             {/* Botón Nuevo Caso - Todos los roles pueden crear */}
+            {!isAdmin(userRol) && (
             <Link 
               href="/casos/nuevo" 
               className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition flex items-center gap-2 shadow-sm font-medium"
             >
               <Plus className="w-4 h-4" /> Nuevo Caso
             </Link>
+          )}
           </div>
-
+            
           {/* Indicador de rol para Asistente */}
           {isAsistente(userRol) && (
             <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm">
@@ -85,6 +126,19 @@ export default async function CasosPage() {
               Para modificar estados o ver información financiera, contacta al abogado responsable.
             </div>
           )}
+
+          {/* Bloque del Buscador */}
+          <Card className="mb-6 shadow-sm border-slate-200">
+            <CardHeader>
+              <CardTitle className="text-lg">Filtros de Búsqueda</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex gap-4">
+                <Buscador placeholder="Buscar por número de expediente o carátula..." />
+                <FiltrosCasos />
+              </div>
+            </CardContent>
+          </Card>
 
           {/* TABLA DE CASOS */}
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
@@ -111,8 +165,10 @@ export default async function CasosPage() {
                     <td colSpan={(isAdmin(userRol) || isAsistente(userRol)) ? 7 : 6} className="p-16 text-center">
                       <div className="flex flex-col items-center justify-center text-slate-400">
                         <FolderOpen className="w-12 h-12 mb-3 opacity-50" />
-                        <p className="text-lg font-medium text-slate-600">No hay casos registrados</p>
-                        <p className="text-sm">Comienza creando un nuevo expediente.</p>
+                        <p className="text-lg font-medium text-slate-600">No se encontraron expedientes</p>
+                        {terminoBusqueda === "" && (
+                           <p className="text-sm">Comienza creando un nuevo expediente.</p>
+                        )}
                       </div>
                     </td>
                   </tr>

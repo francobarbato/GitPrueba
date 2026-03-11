@@ -11,6 +11,8 @@ import { TaskManager } from "./components/TaskManager"
 import { TimelineAuditoria } from "./components/TimelineAuditoria"
 import { PagosManager } from "./components/PagosManager"
 import { CasoHeader } from "./components/caso-header"
+import { Sidebar } from "@/app/components/sidebar"
+import { Header } from "@/app/components/header"
 import { 
   MapPin, Archive, Calendar, 
   Clock, User, Building2, Mail, Phone, Eye, AlertTriangle,
@@ -51,6 +53,20 @@ export default async function CasoDetailPage({ params }: { params: { id: string 
 
   if (!caso) notFound()
 
+  // ===== VERIFICACIÓN DE ACCESO AL CASO =====
+  if (isAbogado(userRol)) {
+    const esAbogadoTitular = caso.abogadoId === user.id
+
+    // TODO: Descomentar cuando se habilite el sistema de colaboradores
+    // const colaboradorEnCaso = await prisma.colaboradorCaso.findFirst({
+    //   where: { casoId: params.id, userId: user.id }
+    // })
+    // const esColaborador = !!colaboradorEnCaso
+    // if (!esAbogadoTitular && !esColaborador) notFound()
+
+    if (!esAbogadoTitular) notFound()
+  }
+
   // Obtener bitácora de auditoría (solo automáticas)
   const bitacoras = await prisma.bitacora.findMany({
     where: { 
@@ -64,6 +80,19 @@ export default async function CasoDetailPage({ params }: { params: { id: string 
     },
     orderBy: { createdAt: "asc" }
   })
+
+    const bitacorasCampos = await prisma.bitacora.findMany({
+    where: {
+      casoId: params.id,
+      accion: { in: ["JUZGADO_CHANGE", "UBICACION_CHANGE", "MONTO_CHANGE"] }
+    },
+    orderBy: { createdAt: "desc" },
+    take: 10
+  })
+
+  // Helper para buscar el último cambio de un campo
+  const ultimoCambio = (accion: string) => 
+    bitacorasCampos.find(b => b.accion === accion)
 
   // Obtener colaboradores del caso
   const colaboradores = await obtenerColaboradores(params.id)
@@ -82,10 +111,10 @@ export default async function CasoDetailPage({ params }: { params: { id: string 
   }
 
   // ===== PERMISOS POR ROL =====
-  const puedeEditar = (isAdmin(userRol) || isAbogado(userRol)) && !caso.estaCerrado
-  const puedeVerPagos = isAdmin(userRol) || isAbogado(userRol)
-  const puedeVerAuditoria = isAdmin(userRol)
-  const puedeVerMontoDisputa = isAdmin(userRol) || isAbogado(userRol)
+const puedeEditar = (isAbogado(userRol) || isAsistente(userRol)) && !caso.estaCerrado
+const puedeVerPagos = isAbogado(userRol)                // admin no ve pagos
+const puedeVerAuditoria = isAdmin(userRol)              // solo admin ve auditoría
+const puedeVerMontoDisputa = isAbogado(userRol) 
 
   // Permiso para gestionar colaboradores
   const esTitular = caso.abogadoId === user.id
@@ -98,493 +127,582 @@ export default async function CasoDetailPage({ params }: { params: { id: string 
   const cantidadPestanas = 3 + (puedeVerPagos ? 1 : 0) + (puedeVerAuditoria ? 1 : 0)
 
   return (
-    <div className="container mx-auto py-8 px-4">
+    <div className="flex h-screen bg-gray-50">
+      <Sidebar />
+
+      <div className="flex flex-col flex-1 overflow-hidden">
+        <Header />
+
+        <main className="flex-1 overflow-auto">
+          <div className="container mx-auto py-8 px-4">
       
-      {/* ===== Header con botones de Cierre/Reapertura ===== */}
-      <CasoHeader 
-        caso={{
-          id: caso.id,
-          numero: caso.numero,
-          titulo: caso.titulo,
-          estado: caso.estado,
-          priority: caso.priority,
-          isFavorite: caso.isFavorite,
-          montoDisputa: caso.montoDisputa ? Number(caso.montoDisputa) : null,
-          estaCerrado: caso.estaCerrado,
-          motivoCierre: caso.motivoCierre,
-          fechaCierre: caso.fechaCierre?.toISOString() || null,
-          observacionCierre: caso.observacionCierre,
-          estadoAntesCierre: caso.estadoAntesCierre
-        }}
-        userRol={userRol}
-        puedeEditar={isAdmin(userRol) || isAbogado(userRol)}
-      />
+            {/* ===== Header con botones de Cierre/Reapertura ===== */}
+              <CasoHeader 
+                caso={{
+                  id: caso.id,
+                  numero: caso.numero,
+                  titulo: caso.titulo,
+                  estado: caso.estado,
+                  priority: caso.priority,
+                  isFavorite: caso.isFavorite,
+                  montoDisputa: caso.montoDisputa ? Number(caso.montoDisputa) : null,
+                  estaCerrado: caso.estaCerrado,
+                  motivoCierre: caso.motivoCierre,
+                  fechaCierre: caso.fechaCierre?.toISOString() || null,
+                  observacionCierre: caso.observacionCierre,
+                  estadoAntesCierre: caso.estadoAntesCierre,
+                  abogadoId: caso.abogadoId, 
+                }}
+                userRol={userRol}
+                userId={user.id}            
+                puedeEditar={puedeEditar}
+              />
 
-      {/* Indicador de modo Asistente */}
-      {isAsistente(userRol) && (
-        <div className="mb-6 p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm flex items-start gap-2">
-          <ShieldAlert className="w-5 h-5 mt-0.5 flex-shrink-0" />
-          <div>
-            <strong>Modo Asistente:</strong> Puedes ver la información del caso y gestionar tareas. 
-            La edición del caso y la información financiera están restringidas.
-          </div>
-        </div>
-      )}
-
-      <Tabs defaultValue="resumen" className="w-full space-y-6">
-        
-        <TabsList className={`grid w-full h-auto p-1 gap-1 grid-cols-2 md:grid-cols-${Math.min(cantidadPestanas, 5)}`}>
-          <TabsTrigger value="resumen" className="h-9">
-            <FileText className="w-4 h-4 mr-2 shrink-0" />
-            Resumen
-          </TabsTrigger>
-          
-          <TabsTrigger value="agenda" className="h-9">
-            <CalendarClock className="w-4 h-4 mr-2 shrink-0" />
-            Agenda
-          </TabsTrigger>
-          
-          <TabsTrigger value="expediente" className="h-9">
-            <Briefcase className="w-4 h-4 mr-2 shrink-0" />
-            Expediente
-          </TabsTrigger>
-
-          {/* Pestaña Pagos - Solo Admin y Abogado */}
-          {puedeVerPagos && (
-            <TabsTrigger value="pagos" className="h-9">
-              <DollarSign className="w-4 h-4 mr-2 shrink-0" />
-              Pagos
-            </TabsTrigger>
-          )}
-          
-          {/* Pestaña Auditoría - Solo Admin */}
-          {puedeVerAuditoria && (
-            <TabsTrigger value="auditoria" className="h-9">
-              <History className="w-4 h-4 mr-2 shrink-0" />
-              Auditoría
-            </TabsTrigger>
-          )}
-        </TabsList>
-
-        {/* TAB 1: RESUMEN COMPLETO DEL CASO */}
-        <TabsContent value="resumen" className="animate-in fade-in-50">
-          <div className="space-y-6">
-
-            {/* Descripción y Estrategia */}
-            <Card>
-              <CardHeader className="border-b bg-slate-50/50">
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-5 w-5 text-blue-600" />
-                  Descripción y Estrategia del Caso
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-6">
-                <div className="prose max-w-none">
-                  <p className="text-slate-700 whitespace-pre-wrap leading-relaxed">
-                    {caso.descripcion || "No hay descripción disponible"}
-                  </p>
+            {/* Indicador de modo Asistente */}
+            {isAsistente(userRol) && (
+              <div className="mb-6 p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm flex items-start gap-2">
+                <ShieldAlert className="w-5 h-5 mt-0.5 flex-shrink-0" />
+                <div>
+                  <strong>Modo Asistente:</strong> Puedes ver la información del caso y gestionar tareas. 
+                  La edición del caso y la información financiera están restringidas.
                 </div>
-              </CardContent>
-            </Card>
-
-            {/* Información Judicial */}
-            <Card>
-              <CardHeader className="border-b bg-slate-50/50">
-                <CardTitle className="flex items-center gap-2">
-                  <Scale className="h-5 w-5 text-purple-600" />
-                  Información Judicial y Radicación
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  
-                  <div className="space-y-4">
-                    <div>
-                      <label className="text-sm font-semibold text-slate-600 flex items-center gap-1">
-                        <FileText className="h-4 w-4" />
-                        Carátula / Expediente
-                      </label>
-                      <p className="mt-1 text-slate-900 font-medium">
-                        {caso.numero || "No especificado"}
-                      </p>
-                    </div>
-
-                    <div>
-                      <label className="text-sm font-semibold text-slate-600">Tipo de Caso</label>
-                      <div className="mt-1">
-                        <Badge variant="outline" className="text-sm">
-                          {caso.tipo === 'LABORAL' ? 'Laboral' :
-                           caso.tipo === 'CIVIL_COMERCIAL' ? 'Civil Y Comercial' :
-                           caso.tipo === 'FAMILIA' ? 'Familia' :
-                           caso.tipo === 'PENAL' ? 'Penal' :
-                           caso.tipo === 'SUCESIONES' ? 'Sucesiones' :
-                           caso.tipo || 'No categorizado'}
-                        </Badge>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div>
-                      <label className="text-sm font-semibold text-slate-600">Juzgado / Tribunal</label>
-                      <p className="mt-1 text-slate-900">
-                        {caso.juzgado || <span className="text-slate-400">No especificado</span>}
-                      </p>
-                    </div>
-
-                    <div>
-                      <label className="text-sm font-semibold text-slate-600">Estado / Etapa Procesal</label>
-                      <div className="mt-1">
-                        <Badge className={getStateColor(caso.estado)}>
-                          {caso.estado}
-                        </Badge>
-                        {casoCerrado && (
-                          <Badge variant="secondary" className="ml-2 bg-slate-200">
-                            Caso Cerrado
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Contraparte (si existe) */}
-                {(caso.contraparteNombre || caso.contraparteDni) && (
-                  <div className="mt-6 pt-6 border-t border-slate-100">
-                    <h4 className="text-sm font-semibold text-slate-900 mb-3 flex items-center gap-2">
-                      <AlertTriangle className="h-4 w-4 text-amber-600" />
-                      Información de la Contraparte
-                    </h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {caso.contraparteNombre && (
-                        <div>
-                          <label className="text-sm text-slate-600">Nombre/Razón Social</label>
-                          <p className="mt-1 text-slate-900 font-medium">{caso.contraparteNombre}</p>
-                        </div>
-                      )}
-                      {caso.contraparteDni && (
-                        <div>
-                          <label className="text-sm text-slate-600">DNI/CUIT</label>
-                          <p className="mt-1 text-slate-900 font-mono">{caso.contraparteDni}</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Información Financiera - Solo Admin y Abogado */}
-            {puedeVerMontoDisputa && (caso.montoDisputa || caso.montoFinal) && (
-              <Card>
-                <CardHeader className="border-b bg-slate-50/50">
-                  <CardTitle className="flex items-center gap-2">
-                    <DollarSign className="h-5 w-5 text-green-600" />
-                    Información Financiera
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {caso.montoDisputa && (
-                      <div>
-                        <label className="text-sm font-semibold text-slate-600">Monto en Disputa</label>
-                        <p className="mt-1 text-2xl font-bold text-slate-700">
-                          ${Number(caso.montoDisputa).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </p>
-                      </div>
-                    )}
-                    
-                    {/* Monto Final (si el caso está cerrado) */}
-                    {casoCerrado && caso.montoFinal && (
-                      <div>
-                        <label className="text-sm font-semibold text-slate-600">Monto Final (Cierre)</label>
-                        <p className="mt-1 text-2xl font-bold text-green-600">
-                          ${Number(caso.montoFinal).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </p>
-                        {caso.montoDisputa && (
-                          <p className="text-sm text-slate-500 mt-1">
-                            {Number(caso.montoFinal) >= Number(caso.montoDisputa) 
-                              ? `✅ ${((Number(caso.montoFinal) / Number(caso.montoDisputa)) * 100).toFixed(1)}% del monto en disputa`
-                              : `📉 ${((Number(caso.montoFinal) / Number(caso.montoDisputa)) * 100).toFixed(1)}% del monto en disputa`
-                            }
-                          </p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
+              </div>
             )}
 
-            {/* Ubicación Física del Expediente */}
-            {caso.ubicacionFisica && (
-              <Card>
-                <CardHeader className="border-b bg-slate-50/50">
-                  <CardTitle className="flex items-center gap-2">
-                    <MapPin className="h-5 w-5 text-orange-600" />
-                    Ubicación Física del Expediente
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-6">
-                  <div className="flex items-start gap-3 p-4 bg-orange-50 border border-orange-200 rounded-lg">
-                    <Archive className="h-5 w-5 text-orange-600 mt-0.5" />
-                    <div>
-                      <p className="text-sm text-slate-600 mb-1">El expediente físico se encuentra en:</p>
-                      <p className="text-slate-900 font-semibold">{caso.ubicacionFisica}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Fechas Importantes */}
-            <Card>
-              <CardHeader className="border-b bg-slate-50/50">
-                <CardTitle className="flex items-center gap-2">
-                  <Calendar className="h-5 w-5 text-indigo-600" />
-                  Fechas Importantes
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-6">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div>
-                    <label className="text-sm font-semibold text-slate-600 flex items-center gap-1">
-                      <Clock className="h-4 w-4" />
-                      Fecha de Inicio
-                    </label>
-                    <p className="mt-1 text-slate-900">
-                      {new Date(caso.fechaInicio).toLocaleDateString('es-AR', { 
-                        year: 'numeric', 
-                        month: 'long', 
-                        day: 'numeric' 
-                      })}
+            {/* ===== BANNER CAMPOS PENDIENTES ===== */}
+            {!caso.estaCerrado && (!caso.juzgado || !caso.ubicacionFisica) && (
+              <div className="mb-6 rounded-xl border-2 border-amber-400 bg-amber-50 shadow-md overflow-hidden">
+                <div className="bg-amber-400 px-4 py-2 flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5 text-amber-900" />
+                  <span className="font-bold text-amber-900 text-sm uppercase tracking-wide">
+                    Expediente incompleto
+                  </span>
+                </div>
+                <div className="px-4 py-3 flex items-center justify-between gap-4">
+                  <div className="flex flex-col gap-1">
+                    <p className="text-amber-900 text-sm font-medium">
+                      Los siguientes campos están pendientes de completar:
                     </p>
+                    <ul className="flex gap-3 mt-1">
+                      {!caso.juzgado && (
+                        <li className="flex items-center gap-1 text-sm text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full border border-amber-300">
+                          <AlertTriangle className="w-3 h-3" /> Juzgado / Tribunal
+                        </li>
+                      )}
+                      {!caso.ubicacionFisica && (
+                        <li className="flex items-center gap-1 text-sm text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full border border-amber-300">
+                          <AlertTriangle className="w-3 h-3" /> Ubicación Física
+                        </li>
+                      )}
+                    </ul>
                   </div>
+                  
+                </div>
+              </div>
+            )}
+            {/* ===================================== */}
 
-                  {caso.fechaCierre && (
-                    <div>
-                      <label className="text-sm font-semibold text-slate-600">Fecha de Cierre</label>
-                      <p className="mt-1 text-slate-900">
-                        {new Date(caso.fechaCierre).toLocaleDateString('es-AR', { 
-                          year: 'numeric', 
-                          month: 'long', 
-                          day: 'numeric' 
-                        })}
-                      </p>
-                    </div>
+            <Tabs defaultValue="resumen" className="w-full space-y-6">
+              
+              <TabsList className={`grid w-full h-auto p-1 gap-1 grid-cols-2 md:grid-cols-${Math.min(cantidadPestanas, 5)}`}>
+                <TabsTrigger value="resumen" className="h-9">
+                  <FileText className="w-4 h-4 mr-2 shrink-0" />
+                  Resumen
+                </TabsTrigger>
+                
+                {/* <TabsTrigger value="agenda" className="h-9">
+                  <CalendarClock className="w-4 h-4 mr-2 shrink-0" />
+                  Agenda
+                </TabsTrigger> */}
+                
+                {/* <TabsTrigger value="expediente" className="h-9">
+                  <Briefcase className="w-4 h-4 mr-2 shrink-0" />
+                  Expediente
+                </TabsTrigger> */}
+
+                {/* Pestaña Pagos - Solo Admin y Abogado */}
+                {/* {puedeVerPagos && (
+                  <TabsTrigger value="pagos" className="h-9">
+                    <DollarSign className="w-4 h-4 mr-2 shrink-0" />
+                    Pagos
+                  </TabsTrigger>
+                )} */}
+                
+                {/* Pestaña Auditoría - Solo Admin */}
+                {puedeVerAuditoria && (
+                  <TabsTrigger value="auditoria" className="h-9">
+                    <History className="w-4 h-4 mr-2 shrink-0" />
+                    Auditoría
+                  </TabsTrigger>
+                )}
+              </TabsList>
+
+              {/* TAB 1: RESUMEN COMPLETO DEL CASO */}
+              <TabsContent value="resumen" className="animate-in fade-in-50">
+                <div className="space-y-6">
+
+                  {/* Descripción y Estrategia */}
+                  <Card>
+                    <CardHeader className="border-b bg-slate-50/50">
+                      <CardTitle className="flex items-center gap-2">
+                        <FileText className="h-5 w-5 text-blue-600" />
+                        Descripción y Estrategia del Caso
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-6">
+                      <div className="prose max-w-none">
+                        <p className="text-slate-700 whitespace-pre-wrap leading-relaxed">
+                          {caso.descripcion || "No hay descripción disponible"}
+                        </p>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Información Judicial */}
+                  <Card>
+                    <CardHeader className="border-b bg-slate-50/50">
+                      <CardTitle className="flex items-center gap-2">
+                        <Scale className="h-5 w-5 text-purple-600" />
+                        Información Judicial y Radicación
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        
+                        <div className="space-y-4">
+                          <div>
+                            <label className="text-sm font-semibold text-slate-600 flex items-center gap-1">
+                              <FileText className="h-4 w-4" />
+                              Carátula / Expediente
+                            </label>
+                            <p className="mt-1 text-slate-900 font-medium">
+                              {caso.numero || "No especificado"}
+                            </p>
+                          </div>
+
+                          <div>
+                            <label className="text-sm font-semibold text-slate-600">Tipo de Caso</label>
+                            <div className="mt-1">
+                              <Badge variant="outline" className="text-sm">
+                                {caso.tipo === 'LABORAL' ? 'Laboral' :
+                                 caso.tipo === 'CIVIL_COMERCIAL' ? 'Civil Y Comercial' :
+                                 caso.tipo === 'FAMILIA' ? 'Familia' :
+                                 caso.tipo === 'PENAL' ? 'Penal' :
+                                 caso.tipo === 'SUCESIONES' ? 'Sucesiones' :
+                                 caso.tipo || 'No categorizado'}
+                              </Badge>
+                            </div>
+                          </div>
+
+                          {/* NUEVO: Provincia / Ciudad */}
+                          {caso.fuero && (
+                            <div>
+                              <label className="text-sm font-semibold text-slate-600 flex items-center gap-1">
+                                <MapPin className="h-4 w-4" />
+                                Provincia / Ciudad
+                              </label>
+                              <p className="mt-1 text-slate-900">{caso.fuero}</p>
+                              {ultimoCambio("UBICACION_CHANGE") && (
+                                <p className="mt-1 text-xs text-amber-600 flex items-center gap-1">
+                                  <AlertTriangle className="w-3 h-3" />
+                                  Modificado — {ultimoCambio("UBICACION_CHANGE")?.detalle?.replace("Motivo: ", "")}
+                                </p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="space-y-4">
+                          <div>
+                            <label className="text-sm font-semibold text-slate-600">Juzgado / Tribunal</label>
+                                <p className="mt-1 text-slate-900">
+                                  {caso.juzgado || <span className="text-slate-400">No especificado</span>}
+                                </p>
+                                {ultimoCambio("JUZGADO_CHANGE") && (
+                                  <p className="mt-1 text-xs text-amber-600 flex items-center gap-1">
+                                    <AlertTriangle className="w-3 h-3" />
+                                    Modificado — {ultimoCambio("JUZGADO_CHANGE")?.detalle?.replace("Motivo: ", "")}
+                                  </p>
+                                )}
+                          </div>
+
+                          <div>
+                            <label className="text-sm font-semibold text-slate-600">Estado / Etapa Procesal</label>
+                            <div className="mt-1">
+                              <Badge className={getStateColor(caso.estado)}>
+                                {caso.estado}
+                              </Badge>
+                              {casoCerrado && (
+                                <Badge variant="secondary" className="ml-2 bg-slate-200">
+                                  Caso Cerrado
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Contraparte (si existe) */}
+                      {(caso.contraparteNombre || caso.contraparteDni) && (
+                        <div className="mt-6 pt-6 border-t border-slate-100">
+                          <h4 className="text-sm font-semibold text-slate-900 mb-3 flex items-center gap-2">
+                            <AlertTriangle className="h-4 w-4 text-amber-600" />
+                            Información de la Contraparte
+                          </h4>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {caso.contraparteNombre && (
+                              <div>
+                                <label className="text-sm text-slate-600">Nombre/Razón Social</label>
+                                <p className="mt-1 text-slate-900 font-medium">{caso.contraparteNombre}</p>
+                              </div>
+                            )}
+                            {caso.contraparteDni && (
+                              <div>
+                                <label className="text-sm text-slate-600">DNI/CUIT</label>
+                                <p className="mt-1 text-slate-900 font-mono">{caso.contraparteDni}</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {/* Información Financiera - Solo Admin y Abogado */}
+                  {puedeVerMontoDisputa && (caso.montoDisputa || caso.montoFinal) && (
+                    <Card>
+                      <CardHeader className="border-b bg-slate-50/50">
+                        <CardTitle className="flex items-center gap-2">
+                          <DollarSign className="h-5 w-5 text-green-600" />
+                          Información Financiera
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="p-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          {caso.montoDisputa && (
+                              <div>
+                                <label className="text-sm font-semibold text-slate-600">Monto en Disputa</label>
+                                <p className="mt-1 text-2xl font-bold text-slate-700">
+                                  ${Number(caso.montoDisputa).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </p>
+                                {ultimoCambio("MONTO_CHANGE") && (
+                                  <p className="mt-1 text-xs text-amber-600 flex items-center gap-1">
+                                    <AlertTriangle className="w-3 h-3" />
+                                    Modificado — {ultimoCambio("MONTO_CHANGE")?.detalle?.replace("Motivo: ", "")}
+                                  </p>
+                                )}
+                              </div>
+                            )}
+                          
+                          {/* Monto Final (si el caso está cerrado) */}
+                          {casoCerrado && caso.montoFinal && (
+                            <div>
+                              <label className="text-sm font-semibold text-slate-600">Monto Final (Cierre)</label>
+                              <p className="mt-1 text-2xl font-bold text-green-600">
+                                ${Number(caso.montoFinal).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </p>
+                              {caso.montoDisputa && (
+                                <p className="text-sm text-slate-500 mt-1">
+                                  {Number(caso.montoFinal) >= Number(caso.montoDisputa) 
+                                    ? `✅ ${((Number(caso.montoFinal) / Number(caso.montoDisputa)) * 100).toFixed(1)}% del monto en disputa`
+                                    : `📉 ${((Number(caso.montoFinal) / Number(caso.montoDisputa)) * 100).toFixed(1)}% del monto en disputa`
+                                  }
+                                </p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
                   )}
 
-                  <div>
-                    <label className="text-sm font-semibold text-slate-600">Duración</label>
-                    <p className="mt-1 text-slate-900">
-                      {caso.fechaCierre 
-                        ? `${Math.floor((new Date(caso.fechaCierre).getTime() - new Date(caso.fechaInicio).getTime()) / (1000 * 60 * 60 * 24))} días (finalizado)`
-                        : `${Math.floor((new Date().getTime() - new Date(caso.fechaInicio).getTime()) / (1000 * 60 * 60 * 24))} días (en curso)`
-                      }
-                    </p>
-                  </div>
+                  {/* Ubicación Física del Expediente */}
+                  {caso.ubicacionFisica && (
+                    <Card>
+                      <CardHeader className="border-b bg-slate-50/50">
+                        <CardTitle className="flex items-center gap-2">
+                          <MapPin className="h-5 w-5 text-orange-600" />
+                          Ubicación Física del Expediente
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="p-6">
+                        <div className="flex items-start gap-3 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                          <Archive className="h-5 w-5 text-orange-600 mt-0.5" />
+                          <div>
+                            <p className="text-sm text-slate-600 mb-1">El expediente físico se encuentra en:</p>
+                            <p className="text-slate-900 font-semibold">{caso.ubicacionFisica}</p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Fechas Importantes */}
+                  <Card>
+                    <CardHeader className="border-b bg-slate-50/50">
+                      <CardTitle className="flex items-center gap-2">
+                        <Calendar className="h-5 w-5 text-indigo-600" />
+                        Fechas Importantes
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-6">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div>
+                          <label className="text-sm font-semibold text-slate-600 flex items-center gap-1">
+                            <Clock className="h-4 w-4" />
+                            Fecha de Inicio
+                          </label>
+                          <p className="mt-1 text-slate-900">
+                            {new Date(caso.fechaInicio).toLocaleDateString('es-AR', { 
+                              year: 'numeric', 
+                              month: 'long', 
+                              day: 'numeric' 
+                            })}
+                          </p>
+                        </div>
+
+                        {caso.fechaCierre && (
+                          <div>
+                            <label className="text-sm font-semibold text-slate-600">Fecha de Cierre</label>
+                            <p className="mt-1 text-slate-900">
+                              {new Date(caso.fechaCierre).toLocaleDateString('es-AR', { 
+                                year: 'numeric', 
+                                month: 'long', 
+                                day: 'numeric' 
+                              })}
+                            </p>
+                          </div>
+                        )}
+
+                        <div>
+                          <label className="text-sm font-semibold text-slate-600">Duración</label>
+                          <p className="mt-1 text-slate-900">
+                            {caso.fechaCierre 
+                              ? `${Math.floor((new Date(caso.fechaCierre).getTime() - new Date(caso.fechaInicio).getTime()) / (1000 * 60 * 60 * 24))} días (finalizado)`
+                              : `${Math.floor((new Date().getTime() - new Date(caso.fechaInicio).getTime()) / (1000 * 60 * 60 * 24))} días (en curso)`
+                            }
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Datos del Cliente */}
+                  <Card>
+                    <CardHeader className="border-b bg-slate-50/50">
+                      <CardTitle className="flex items-center gap-2">
+                        <User className="h-5 w-5 text-blue-600" />
+                        Información del Cliente
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-6">
+                      {caso.cliente ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div className="space-y-4">
+                            <div>
+                              <label className="text-sm font-semibold text-slate-600">Nombre Completo</label>
+                              <p className="mt-1 text-slate-900 font-medium">
+                                {caso.cliente.nombre} {caso.cliente.apellido}
+                              </p>
+                            </div>
+
+                            <div>
+                              <label className="text-sm font-semibold text-slate-600">Documento</label>
+                              <p className="mt-1 text-slate-900 font-mono">
+                                {caso.cliente.tipoDocumento}: {caso.cliente.numeroDocumento || "No registrado"}
+                              </p>
+                            </div>
+
+                            <div>
+                              <label className="text-sm font-semibold text-slate-600">Tipo de Persona</label>
+                              <div className="mt-1 flex items-center gap-2">
+                                {caso.cliente.tipoPersona === 'FISICA' ? (
+                                  <>
+                                    <User className="h-4 w-4 text-blue-600" />
+                                    <span className="text-slate-900">Persona Física</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Building2 className="h-4 w-4 text-purple-600" />
+                                    <span className="text-slate-900">Persona Jurídica</span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Representante Legal si es Persona Jurídica */}
+                            {caso.cliente.tipoPersona === 'JURIDICA' && caso.cliente.representanteNombre && (
+                              <div>
+                                <label className="text-sm font-semibold text-slate-600">Representante Legal</label>
+                                <p className="mt-1 text-slate-900">
+                                  {caso.cliente.representanteNombre}
+                                  {caso.cliente.representanteDni && (
+                                    <span className="text-slate-500 font-mono text-sm ml-2">
+                                      — DNI {caso.cliente.representanteDni}
+                                    </span>
+                                  )}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="space-y-4">
+                            <div>
+                              <label className="text-sm font-semibold text-slate-600 flex items-center gap-1">
+                                <Mail className="h-4 w-4" />
+                                Email
+                              </label>
+                              <p className="mt-1 text-slate-900">
+                                {caso.cliente.email ? (
+                                  <a href={`mailto:${caso.cliente.email}`} className="hover:text-blue-600 hover:underline">
+                                    {caso.cliente.email}
+                                  </a>
+                                ) : (
+                                  <span className="text-slate-400">No registrado</span>
+                                )}
+                              </p>
+                            </div>
+
+                            <div>
+                              <label className="text-sm font-semibold text-slate-600 flex items-center gap-1">
+                                <Phone className="h-4 w-4" />
+                                Teléfono
+                              </label>
+                              <p className="mt-1 text-slate-900">
+                                {caso.cliente.telefono ? (
+                                  <a href={`tel:${caso.cliente.telefono}`} className="hover:text-blue-600 hover:underline">
+                                    {caso.cliente.telefono}
+                                  </a>
+                                ) : (
+                                  <span className="text-slate-400">No registrado</span>
+                                )}
+                              </p>
+                            </div>
+
+                            <div>
+                              <label className="text-sm font-semibold text-slate-600 flex items-center gap-1">
+                                <MapPin className="h-4 w-4" />
+                                Dirección
+                              </label>
+                              <p className="mt-1 text-slate-900">
+                                {caso.cliente.direccion || <span className="text-slate-400">No registrada</span>}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="md:col-span-2">
+                            <Link href={`/clientes/${caso.cliente.id}`}>
+                              <Button variant="outline" size="sm" className="gap-2">
+                                <Eye className="h-4 w-4" />
+                                Ver Perfil Completo del Cliente
+                              </Button>
+                            </Link>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-slate-500 text-center py-4">Sin cliente asignado</p>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {/* Equipo del Caso: Abogado Titular + Colaboradores */}
+                  {/* <Card>
+                    <CardHeader className="border-b bg-slate-50/50">
+                      <CardTitle className="flex items-center gap-2">
+                        <Briefcase className="h-5 w-5 text-slate-600" />
+                        Equipo del Caso
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-6">
+                      <ColaboradoresPanel
+                        casoId={caso.id}
+                        colaboradores={colaboradores as any}
+                        abogadosDisponibles={abogadosDisponibles}
+                        puedeEditar={puedeEditarColaboradores}
+                        abogadoTitular={caso.abogado ? { nombre: caso.abogado.nombre, apellido: caso.abogado.apellido } : null}
+                      />
+                    </CardContent>
+                  </Card> */}
+
                 </div>
-              </CardContent>
-            </Card>
+              </TabsContent>
 
-            {/* Datos del Cliente */}
-            <Card>
-              <CardHeader className="border-b bg-slate-50/50">
-                <CardTitle className="flex items-center gap-2">
-                  <User className="h-5 w-5 text-blue-600" />
-                  Información del Cliente
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-6">
-                {caso.cliente ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-4">
-                      <div>
-                        <label className="text-sm font-semibold text-slate-600">Nombre Completo</label>
-                        <p className="mt-1 text-slate-900 font-medium">
-                          {caso.cliente.nombre} {caso.cliente.apellido}
-                        </p>
-                      </div>
-
-                      <div>
-                        <label className="text-sm font-semibold text-slate-600">Documento</label>
-                        <p className="mt-1 text-slate-900 font-mono">
-                          {caso.cliente.tipoDocumento}: {caso.cliente.numeroDocumento || "No registrado"}
-                        </p>
-                      </div>
-
-                      <div>
-                        <label className="text-sm font-semibold text-slate-600">Tipo de Persona</label>
-                        <p className="mt-1 flex items-center gap-2">
-                          {caso.cliente.tipoPersona === 'FISICA' ? (
-                            <>
-                              <User className="h-4 w-4 text-blue-600" />
-                              <span className="text-slate-900">Persona Física</span>
-                            </>
-                          ) : (
-                            <>
-                              <Building2 className="h-4 w-4 text-purple-600" />
-                              <span className="text-slate-900">Persona Jurídica</span>
-                            </>
-                          )}
-                        </p>
-                      </div>
+              {/* TAB 2: AGENDA Y TAREAS - Disponible para todos */}
+              <TabsContent value="agenda" className="animate-in fade-in-50">
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between border-b bg-slate-50/50">
+                    <div>
+                      <CardTitle>Bitácora de Tareas</CardTitle>
+                      <p className="text-sm text-slate-500 mt-1">Gestión de vencimientos, audiencias y escritos.</p>
                     </div>
+                  </CardHeader>
+                  <CardContent className="p-6">
+                    <TaskManager casoId={caso.id} requirements={caso.requirements} />
+                  </CardContent>
+                </Card>
+              </TabsContent>
 
-                    <div className="space-y-4">
-                      <div>
-                        <label className="text-sm font-semibold text-slate-600 flex items-center gap-1">
-                          <Mail className="h-4 w-4" />
-                          Email
-                        </label>
-                        <p className="mt-1 text-slate-900">
-                          {caso.cliente.email ? (
-                            <a href={`mailto:${caso.cliente.email}`} className="hover:text-blue-600 hover:underline">
-                              {caso.cliente.email}
-                            </a>
-                          ) : (
-                            <span className="text-slate-400">No registrado</span>
-                          )}
-                        </p>
-                      </div>
-
-                      <div>
-                        <label className="text-sm font-semibold text-slate-600 flex items-center gap-1">
-                          <Phone className="h-4 w-4" />
-                          Teléfono
-                        </label>
-                        <p className="mt-1 text-slate-900">
-                          {caso.cliente.telefono ? (
-                            <a href={`tel:${caso.cliente.telefono}`} className="hover:text-blue-600 hover:underline">
-                              {caso.cliente.telefono}
-                            </a>
-                          ) : (
-                            <span className="text-slate-400">No registrado</span>
-                          )}
-                        </p>
-                      </div>
-
-                      <div>
-                        <label className="text-sm font-semibold text-slate-600 flex items-center gap-1">
-                          <MapPin className="h-4 w-4" />
-                          Dirección
-                        </label>
-                        <p className="mt-1 text-slate-900">
-                          {caso.cliente.direccion || <span className="text-slate-400">No registrada</span>}
-                        </p>
-                      </div>
+              {/* TAB 3: EXPEDIENTE DIGITAL - Disponible para todos */}
+              <TabsContent value="expediente" className="animate-in fade-in-50">
+                <Card>
+                  <CardHeader className="border-b bg-slate-50/50">
+                    <CardTitle>Documentos y Actuaciones</CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-6">
+                    <div className="text-center py-12 text-slate-500">
+                      <FileText className="w-12 h-12 mx-auto mb-3 text-slate-300" />
+                      <p className="font-medium">Sección en desarrollo</p>
+                      <p className="text-sm">Aquí se mostrarán los documentos adjuntos</p>
                     </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
 
-                    <div className="md:col-span-2">
-                      <Link href={`/clientes/${caso.cliente.id}`}>
-                        <Button variant="outline" size="sm" className="gap-2">
-                          <Eye className="h-4 w-4" />
-                          Ver Perfil Completo del Cliente
-                        </Button>
-                      </Link>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-slate-500 text-center py-4">Sin cliente asignado</p>
-                )}
-              </CardContent>
-            </Card>
+              {/* TAB 4: PAGOS - Solo Admin y Abogado */}
+              {puedeVerPagos && (
+                <TabsContent value="pagos" className="animate-in fade-in-50">
+                  <Card>
+                    <CardHeader className="border-b bg-slate-50/50">
+                      <CardTitle>Gestión de Pagos y Gastos</CardTitle>
+                      <p className="text-sm text-slate-500 mt-1">
+                        Honorarios, tasas, sellados y gastos del caso
+                      </p>
+                    </CardHeader>
+                    <CardContent className="p-6">
+                      <PagosManager casoId={caso.id} pagos={caso.pagos as any} />
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+              )}
 
-            {/* Equipo del Caso: Abogado Titular + Colaboradores */}
-            {/* <Card>
-              <CardHeader className="border-b bg-slate-50/50">
-                <CardTitle className="flex items-center gap-2">
-                  <Briefcase className="h-5 w-5 text-slate-600" />
-                  Equipo del Caso
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-6">
-                <ColaboradoresPanel
-                  casoId={caso.id}
-                  colaboradores={colaboradores as any}
-                  abogadosDisponibles={abogadosDisponibles}
-                  puedeEditar={puedeEditarColaboradores}
-                  abogadoTitular={caso.abogado ? { nombre: caso.abogado.nombre, apellido: caso.abogado.apellido } : null}
-                />
-              </CardContent>
-            </Card> */}
-
+              {/* TAB 5: AUDITORÍA - Solo Admin */}
+              {puedeVerAuditoria && (
+                <TabsContent value="auditoria" className="animate-in fade-in-50">
+                  <Card>
+                    <CardHeader className="border-b bg-slate-50/50">
+                      <CardTitle>Timeline de Auditoría</CardTitle>
+                      <p className="text-sm text-slate-500 mt-1">
+                        Historial automático de cambios y movimientos del caso
+                      </p>
+                    </CardHeader>
+                    <CardContent className="p-6">
+                      {bitacoras.length > 0 ? (
+                        <TimelineAuditoria bitacoras={bitacoras.filter(b => b.accion !== null) as any} />
+                      ) : (
+                        <div className="text-center py-12 text-slate-500">
+                          <History className="w-12 h-12 mx-auto mb-3 text-slate-300" />
+                          <p className="font-medium">Sin movimientos registrados</p>
+                          <p className="text-sm">La auditoría automática comenzará a registrar cambios</p>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+              )}
+            </Tabs>
           </div>
-        </TabsContent>
-
-        {/* TAB 2: AGENDA Y TAREAS - Disponible para todos */}
-        <TabsContent value="agenda" className="animate-in fade-in-50">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between border-b bg-slate-50/50">
-              <div>
-                <CardTitle>Bitácora de Tareas</CardTitle>
-                <p className="text-sm text-slate-500 mt-1">Gestión de vencimientos, audiencias y escritos.</p>
-              </div>
-            </CardHeader>
-            <CardContent className="p-6">
-              <TaskManager casoId={caso.id} requirements={caso.requirements} />
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* TAB 3: EXPEDIENTE DIGITAL - Disponible para todos */}
-        <TabsContent value="expediente" className="animate-in fade-in-50">
-          <Card>
-            <CardHeader className="border-b bg-slate-50/50">
-              <CardTitle>Documentos y Actuaciones</CardTitle>
-            </CardHeader>
-            <CardContent className="p-6">
-              <div className="text-center py-12 text-slate-500">
-                <FileText className="w-12 h-12 mx-auto mb-3 text-slate-300" />
-                <p className="font-medium">Sección en desarrollo</p>
-                <p className="text-sm">Aquí se mostrarán los documentos adjuntos</p>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* TAB 4: PAGOS - Solo Admin y Abogado */}
-        {puedeVerPagos && (
-          <TabsContent value="pagos" className="animate-in fade-in-50">
-            <Card>
-              <CardHeader className="border-b bg-slate-50/50">
-                <CardTitle>Gestión de Pagos y Gastos</CardTitle>
-                <p className="text-sm text-slate-500 mt-1">
-                  Honorarios, tasas, sellados y gastos del caso
-                </p>
-              </CardHeader>
-              <CardContent className="p-6">
-                <PagosManager casoId={caso.id} pagos={caso.pagos as any} />
-              </CardContent>
-            </Card>
-          </TabsContent>
-        )}
-
-        {/* TAB 5: AUDITORÍA - Solo Admin */}
-        {puedeVerAuditoria && (
-          <TabsContent value="auditoria" className="animate-in fade-in-50">
-            <Card>
-              <CardHeader className="border-b bg-slate-50/50">
-                <CardTitle>Timeline de Auditoría</CardTitle>
-                <p className="text-sm text-slate-500 mt-1">
-                  Historial automático de cambios y movimientos del caso
-                </p>
-              </CardHeader>
-              <CardContent className="p-6">
-                {bitacoras.length > 0 ? (
-                  <TimelineAuditoria bitacoras={bitacoras.filter(b => b.accion !== null) as any} />
-                ) : (
-                  <div className="text-center py-12 text-slate-500">
-                    <History className="w-12 h-12 mx-auto mb-3 text-slate-300" />
-                    <p className="font-medium">Sin movimientos registrados</p>
-                    <p className="text-sm">La auditoría automática comenzará a registrar cambios</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-        )}
-      </Tabs>
+        </main>
+      </div>
     </div>
   )
 }

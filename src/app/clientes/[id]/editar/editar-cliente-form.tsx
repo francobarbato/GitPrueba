@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ArrowLeft, Save, User, Building2, FileText, Phone, Mail, MapPin, Hash, AlertCircle, CheckCircle2, Calendar } from "lucide-react"
+import { ArrowLeft, Save, User, Building2, FileText, Phone, Mail, MapPin, Hash, AlertCircle, CheckCircle2, Calendar, Briefcase, IdCard, Scale, Lock } from "lucide-react"
 import Link from "next/link"
 import { useFormState, useFormStatus } from "react-dom"
 import { useState, useEffect } from "react"
@@ -124,13 +124,8 @@ export function EditarClienteForm({ cliente }: { cliente: any }) {
     <div className="min-h-screen bg-slate-50 p-6">
       <div className="max-w-4xl mx-auto">
         
-        {/* Header mejorado */}
+        {/* Header — sin cambios */}
         <div className="mb-6 flex items-center gap-4">
-          <Link href="/clientes">
-            <Button variant="ghost" size="icon" className="h-10 w-10">
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
-          </Link>
           <div className="flex-1">
             <h1 className="text-3xl font-bold text-slate-800 flex items-center gap-3">
               {tipoPersona === 'FISICA' ? (
@@ -202,7 +197,7 @@ export function EditarClienteForm({ cliente }: { cliente: any }) {
             <form action={dispatch} className="space-y-8">
               <input type="hidden" name="id" value={cliente.id} />
 
-              {/* SECCIÓN 1: TIPO DE PERSONA */}
+              {/* SECCIÓN 1: TIPO DE PERSONA — sin cambios */}
               <div className="space-y-4">
                 <div className="flex items-center gap-2 pb-2 border-b border-slate-200">
                   <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-sm">1</div>
@@ -222,7 +217,8 @@ export function EditarClienteForm({ cliente }: { cliente: any }) {
                       name="tipoPersona"
                       value="FISICA"
                       checked={tipoPersona === 'FISICA'}
-                      onChange={() => setTipoPersona('FISICA')}
+                      onChange={() =>{}}
+                      disabled  
                       className="w-5 h-5 accent-blue-600"
                     />
                     <User className="h-5 w-5 text-blue-600" />
@@ -244,19 +240,29 @@ export function EditarClienteForm({ cliente }: { cliente: any }) {
                       name="tipoPersona"
                       value="JURIDICA"
                       checked={tipoPersona === 'JURIDICA'}
-                      onChange={() => setTipoPersona('JURIDICA')}
+                      onChange={() => {}}
+                      disabled  
                       className="w-5 h-5 accent-purple-600"
                     />
                     <Building2 className="h-5 w-5 text-purple-600" />
                     <div>
                       <p className="font-semibold text-slate-900">Persona Jurídica</p>
                       <p className="text-xs text-slate-600">Empresa / Sociedad</p>
+                      <p className="text-xs text-slate-500 flex items-center gap-1 mt-1">
+                        <Lock className="w-3 h-3" />
+                        El tipo de persona no puede modificarse una vez creado el cliente.
+                      </p>
                     </div>
                   </Label>
                 </div>
+
+                <p className="text-xs text-slate-500 flex items-center gap-1 mt-1">
+                  <Lock className="w-3 h-3" />
+                  El tipo de persona no puede modificarse una vez creado el cliente.
+                </p>
               </div>
 
-              {/* SECCIÓN 2: DATOS PERSONALES */}
+              {/* SECCIÓN 2: DATOS PERSONALES — con campos nuevos */}
               <div className="space-y-4">
                 <div className="flex items-center gap-2 pb-2 border-b border-slate-200">
                   <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-600 font-bold text-sm">2</div>
@@ -266,6 +272,8 @@ export function EditarClienteForm({ cliente }: { cliente: any }) {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-slate-50 rounded-lg">
+                  
+                  {/* Nombre / Razón Social — sin cambios */}
                   <div className="space-y-2">
                     <Label>
                       {tipoPersona === 'FISICA' ? 'Nombre/s' : 'Razón Social'}
@@ -274,8 +282,8 @@ export function EditarClienteForm({ cliente }: { cliente: any }) {
                     <Input 
                       name="nombre" 
                       defaultValue={cliente.nombre}
-                      minLength={2}
-                      required 
+                      disabled
+                      className="bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed"
                     />
                   </div>
 
@@ -288,17 +296,133 @@ export function EditarClienteForm({ cliente }: { cliente: any }) {
                       <Input 
                         name="apellido" 
                         defaultValue={cliente.apellido || ""}
-                        minLength={2}
-                        required 
+                        disabled
+                        className="bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed" 
                       />
                     </div>
                   ) : (
                     <input type="hidden" name="apellido" value="" />
                   )}
+
+                  {/* NUEVO: Tipo de Sociedad (solo JURIDICA) */}
+                  {tipoPersona === 'JURIDICA' && (
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-2">
+                        <Briefcase className="h-4 w-4 text-purple-600" />
+                        Tipo de Sociedad
+                        <span className="text-red-500">*</span>
+                      </Label>
+                      <Select name="tipoSociedad" defaultValue={cliente.tipoSociedad || ""} required>
+                        <SelectTrigger className="border-slate-300">
+                          <SelectValue placeholder="Seleccionar tipo..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="SA">S.A. — Sociedad Anónima</SelectItem>
+                          <SelectItem value="SRL">S.R.L. — Sociedad de Resp. Limitada</SelectItem>
+                          <SelectItem value="SAS">S.A.S. — Sociedad por Acciones Simplificada</SelectItem>
+                          <SelectItem value="COOPERATIVA">Cooperativa</SelectItem>
+                          <SelectItem value="ASOCIACION_CIVIL">Asociación Civil</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-slate-500">Requerido para redacción de demandas y documentos formales</p>
+                    </div>
+                  )}
+
+                  {tipoPersona === 'FISICA' && (
+                    <input type="hidden" name="tipoSociedad" value="" />
+                  )}
+
+                  {/* NUEVO: Representante Legal (solo JURIDICA) */}
+                  {tipoPersona === 'JURIDICA' && (
+                    <>
+                      <div className="space-y-2">
+                        <Label className="flex items-center gap-2">
+                          <IdCard className="h-4 w-4 text-purple-600" />
+                          Nombre del Representante Legal
+                          <span className="text-red-500">*</span>
+                        </Label>
+                        <Input
+                          name="representanteNombre"
+                          defaultValue={cliente.representanteNombre || ""}
+                          placeholder="Ej: Juan Pérez"
+                          required
+                          className="border-slate-300"
+                        />
+                        <p className="text-xs text-slate-500">Presidente, gerente o apoderado de la sociedad</p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label className="flex items-center gap-2">
+                          <Hash className="h-4 w-4 text-purple-600" />
+                          DNI del Representante
+                          <span className="text-red-500">*</span>
+                        </Label>
+                        <Input
+                          name="representanteDni"
+                          defaultValue={cliente.representanteDni || ""}
+                          placeholder="Ej: 12345678"
+                          required
+                          className="border-slate-300"
+                        />
+                        <p className="text-xs text-slate-500">Necesario para escritos y poderes judiciales</p>
+                      </div>
+                    </>
+                  )}
+
+                  {tipoPersona === 'FISICA' && (
+                    <>
+                      <input type="hidden" name="representanteNombre" value="" />
+                      <input type="hidden" name="representanteDni" value="" />
+                    </>
+                  )}
+
+                  {/* NUEVO: Bienes Embargables (solo FISICA) */}
+                  {tipoPersona === 'FISICA' && (
+                    <div className="space-y-2 md:col-span-2">
+                      <Label className="flex items-center gap-2">
+                        <Scale className="h-4 w-4 text-blue-600" />
+                        Bienes Embargables
+                      </Label>
+                      <div className="flex gap-3">
+                        {[
+                          { value: "SI", label: "Sí", desc: "Tiene bienes registrables" },
+                          { value: "NO", label: "No", desc: "Sin bienes conocidos" },
+                          { value: "NO_CORRESPONDE", label: "No corresponde", desc: "No aplica al caso" },
+                        ].map(({ value, label, desc }) => (
+                          <Label
+                            key={value}
+                            className="flex-1 flex items-center gap-2 p-3 border-2 rounded-lg cursor-pointer transition-all text-sm"
+                          >
+                            <input
+                              type="radio"
+                              name="bienesEmbargables"
+                              value={value}
+                              defaultChecked={
+                                cliente.bienesEmbargables 
+                                  ? cliente.bienesEmbargables === value
+                                  : value === "NO_CORRESPONDE"
+                              }
+                              className="w-4 h-4"
+                            />
+                            <div>
+                              <p className="font-medium text-slate-800">{label}</p>
+                              <p className="text-xs text-slate-500">{desc}</p>
+                            </div>
+                          </Label>
+                        ))}
+                      </div>
+                      <p className="text-xs text-slate-500">Indica si el cliente tiene bienes sobre los cuales ejecutar una sentencia</p>
+                    </div>
+                  )}
+
+                  {tipoPersona === 'JURIDICA' && (
+                    <input type="hidden" name="bienesEmbargables" value="" />
+                  )}
+
                 </div>
               </div>
 
-              {/* SECCIÓN 3: DOCUMENTACIÓN */}
+              {/* SECCIÓN 3: DOCUMENTACIÓN — con CUIT bloqueado para JURIDICA */}
               <div className="space-y-4">
                 <div className="flex items-center gap-2 pb-2 border-b border-slate-200">
                   <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 font-bold text-sm">3</div>
@@ -312,13 +436,15 @@ export function EditarClienteForm({ cliente }: { cliente: any }) {
                       Tipo de Documento
                       <span className="text-red-500">*</span>
                     </Label>
+                    {/* Hidden para que el form envíe CUIT cuando está disabled */}
+                    {tipoPersona === 'JURIDICA' && (
+                      <input type="hidden" name="tipoDocumento" value="CUIT" />
+                    )}
                     <Select 
-                      name="tipoDocumento"
-                      value={documentoTipo}
-                      onValueChange={setDocumentoTipo}
-                      required
+                      disabled 
+                      value={cliente.tipoDocumento}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className="bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -329,6 +455,9 @@ export function EditarClienteForm({ cliente }: { cliente: any }) {
                         <SelectItem value="OTRO">Otro Documento</SelectItem>
                       </SelectContent>
                     </Select>
+                    {tipoPersona === 'JURIDICA' && (
+                      <p className="text-xs text-slate-500">Las personas jurídicas se identifican siempre con CUIT</p>
+                    )}
                   </div>
 
                   <div className="space-y-2">
@@ -338,18 +467,11 @@ export function EditarClienteForm({ cliente }: { cliente: any }) {
                       <span className="text-red-500">*</span>
                     </Label>
                     <Input 
-                      name="numeroDocumento"
-                      value={numeroDocumento}
-                      onChange={(e) => setNumeroDocumento(e.target.value)}
-                      required
-                      className={`border-2 ${
-                        numeroDocumento.length > 0 
-                          ? validaciones.documento.valido 
-                            ? 'border-green-500' 
-                            : 'border-red-500'
-                          : 'border-slate-300'
-                      }`}
-                    />
+                        name="numeroDocumento"
+                        value={cliente.numeroDocumento}
+                        disabled
+                        className="bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed"
+                      />
                     {numeroDocumento.length > 0 && (
                       <p className={`text-xs flex items-center gap-1 ${
                         validaciones.documento.valido ? 'text-green-600' : 'text-red-600'
@@ -391,7 +513,7 @@ export function EditarClienteForm({ cliente }: { cliente: any }) {
                 </div>
               </div>
 
-              {/* SECCIÓN 4: CONTACTO */}
+              {/* SECCIÓN 4: CONTACTO — con dirección dinámica según tipoPersona */}
               <div className="space-y-4">
                 <div className="flex items-center gap-2 pb-2 border-b border-slate-200">
                   <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 font-bold text-sm">4</div>
@@ -403,20 +525,22 @@ export function EditarClienteForm({ cliente }: { cliente: any }) {
                     <Label className="flex items-center gap-2">
                       <Mail className="h-4 w-4" />
                       Email
+                      <span className="text-red-500">*</span> 
                     </Label>
                     <Input 
-                      type="email" 
-                      name="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className={`border-2 ${
-                        email.length > 0 
-                          ? validaciones.email.valido 
-                            ? 'border-green-500' 
-                            : 'border-red-500'
-                          : 'border-slate-300'
-                      }`}
-                    />
+                        type="email" 
+                        name="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        required  
+                        className={`border-2 ${
+                          email.length > 0 
+                            ? validaciones.email.valido 
+                              ? 'border-green-500' 
+                              : 'border-red-500'
+                            : 'border-slate-300'
+                        }`}
+                      />
                     {email.length > 0 && !validaciones.email.valido && (
                       <p className="text-xs text-red-600 flex items-center gap-1">
                         <AlertCircle className="h-3 w-3" />
@@ -429,12 +553,17 @@ export function EditarClienteForm({ cliente }: { cliente: any }) {
                     <Label className="flex items-center gap-2">
                       <Phone className="h-4 w-4" />
                       Teléfono
+                      <span className="text-red-500">*</span>  
                     </Label>
                     <Input 
                       type="tel" 
                       name="telefono"
                       value={telefono}
-                      onChange={(e) => setTelefono(e.target.value)}
+                      onChange={(e) => {
+                        const valor = e.target.value.replace(/[^0-9+\s-]/g, '').slice(0, 13)
+                        setTelefono(valor)
+                      }}
+                      required 
                       className={`border-2 ${
                         telefono.length > 0 
                           ? validaciones.telefono.valido 
@@ -448,17 +577,28 @@ export function EditarClienteForm({ cliente }: { cliente: any }) {
                   <div className="space-y-2 md:col-span-2">
                     <Label className="flex items-center gap-2">
                       <MapPin className="h-4 w-4" />
-                      Dirección
+                      {tipoPersona === 'FISICA' ? 'Dirección' : 'Domicilio / Sede Social'}
                     </Label>
                     <Input 
                       name="direccion" 
                       defaultValue={cliente.direccion || ""}
+                      placeholder={
+                        tipoPersona === 'FISICA'
+                          ? "Calle, número, localidad, provincia"
+                          : "Domicilio inscripto en IGJ/DPPJ"
+                      }
                     />
+                    <p className="text-xs text-slate-500">
+                      {tipoPersona === 'FISICA'
+                        ? "Útil para logística y envíos de documentación"
+                        : "Domicilio inscripto en IGJ/DPPJ, válido para notificaciones legales aunque la empresa haya cambiado de sede"
+                      }
+                    </p>
                   </div>
                 </div>
               </div>
 
-              {/* SECCIÓN 5: ADICIONAL */}
+              {/* SECCIÓN 5: ADICIONAL — sin cambios */}
               <div className="space-y-4">
                 <div className="flex items-center gap-2 pb-2 border-b border-slate-200">
                   <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center text-teal-600 font-bold text-sm">5</div>
@@ -491,13 +631,14 @@ export function EditarClienteForm({ cliente }: { cliente: any }) {
                       className={`w-5 h-5 mt-0.5 ${activo ? 'accent-green-600' : 'accent-gray-500'}`}
                     />
                     <Label htmlFor="activo" className="cursor-pointer flex-1">
+                      
                       <p className={`font-semibold ${activo ? 'text-green-900' : 'text-gray-900'}`}>
-                        Cliente Activo
+                        {activo ? 'Cliente habilitado' : 'Cliente archivado'}
                       </p>
-                      <p className={`text-sm ${activo ? 'text-green-700' : 'text-gray-600'}`}>
+                      <p className={`text-sm mt-1 ${activo ? 'text-green-700' : 'text-gray-600'}`}>
                         {activo 
-                          ? 'El cliente aparece en listados y puede tener casos activos' 
-                          : 'El cliente se mantiene en historial pero no aparece en listados principales'
+                          ? 'El perfil está disponible para asignarle nuevos expedientes.' 
+                          : 'El perfil se mantiene en el historial pero se oculta de los listados principales.'
                         }
                       </p>
                     </Label>
@@ -505,7 +646,7 @@ export function EditarClienteForm({ cliente }: { cliente: any }) {
                 </div>
               </div>
 
-              {/* BOTONES */}
+              {/* BOTONES — sin cambios */}
               <div className="flex justify-end gap-4 pt-6 border-t-2 border-slate-200">
                 <Link href="/clientes">
                   <Button variant="outline" type="button" className="gap-2">

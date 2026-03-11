@@ -41,8 +41,8 @@ export default async function ClienteDetallePage({
   if (!user) redirect("/api/auth/signin")
 
   const userRol = user.rol?.toUpperCase() || ''
+  if (userRol === 'ADMIN') redirect('/')
 
-  // Obtener cliente con casos relacionados Y usuario de portal
   const cliente = await prisma.cliente.findUnique({
     where: { id: params.id },
     include: {
@@ -74,7 +74,6 @@ export default async function ClienteDetallePage({
     notFound()
   }
 
-  // Verificar permisos (Admin ve todo, Abogado solo sus clientes, Asistente ve todo)
   const isAdmin = userRol === 'ADMIN'
   const isAsistente = userRol === 'ASISTENTE'
   
@@ -82,12 +81,10 @@ export default async function ClienteDetallePage({
     redirect("/clientes")
   }
 
-  // Calcular estadísticas de casos
   const casosActivos = cliente.casos.filter(c => !c.estaCerrado).length
   const casosCerrados = cliente.casos.filter(c => c.estaCerrado).length
   const totalCasos = cliente.casos.length
 
-  // Formatear fecha
   const formatearFecha = (fecha: Date | string | null) => {
     if (!fecha) return "No disponible"
     const date = new Date(fecha)
@@ -170,7 +167,7 @@ export default async function ClienteDetallePage({
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               
-              {/* COLUMNA IZQUIERDA - Información Principal */}
+              {/* COLUMNA IZQUIERDA */}
               <div className="lg:col-span-2 space-y-6">
                 
                 {/* Datos Personales / Razón Social */}
@@ -212,6 +209,53 @@ export default async function ClienteDetallePage({
                           )}
                         </p>
                       </div>
+
+                      {/* NUEVO: Tipo de Sociedad (solo JURIDICA) */}
+                      {cliente.tipoPersona === 'JURIDICA' && cliente.tipoSociedad && (
+                        <div>
+                          <label className="text-sm font-medium text-slate-600">Tipo de Sociedad</label>
+                          <p className="mt-1 text-slate-900 font-medium">
+                            {cliente.tipoSociedad === 'SA' ? 'Sociedad Anónima (S.A.)' :
+                             cliente.tipoSociedad === 'SRL' ? 'Sociedad de Resp. Limitada (S.R.L.)' :
+                             cliente.tipoSociedad === 'SAS' ? 'Sociedad por Acciones Simplificada (S.A.S.)' :
+                             cliente.tipoSociedad === 'COOPERATIVA' ? 'Cooperativa' :
+                             cliente.tipoSociedad === 'ASOCIACION_CIVIL' ? 'Asociación Civil' :
+                             cliente.tipoSociedad}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* NUEVO: Representante Legal (solo JURIDICA) */}
+                      {cliente.tipoPersona === 'JURIDICA' && cliente.representanteNombre && (
+                        <div>
+                          <label className="text-sm font-medium text-slate-600">Representante Legal</label>
+                          <p className="mt-1 text-slate-900 font-medium">
+                            {cliente.representanteNombre}
+                            {cliente.representanteDni && (
+                              <span className="text-slate-500 font-mono text-sm ml-2">
+                                — DNI {cliente.representanteDni}
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* NUEVO: Bienes Embargables (solo FISICA, solo si tiene valor y no es NO_CORRESPONDE) */}
+                      {cliente.tipoPersona === 'FISICA' && cliente.bienesEmbargables && cliente.bienesEmbargables !== 'NO_CORRESPONDE' && (
+                        <div>
+                          <label className="text-sm font-medium text-slate-600">Bienes Embargables</label>
+                          <div className="mt-1">
+                            <Badge variant="outline" className={`text-xs ${
+                              cliente.bienesEmbargables === 'SI'
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                : 'bg-rose-50 text-rose-700 border-rose-200'
+                            }`}>
+                              {cliente.bienesEmbargables === 'SI' ? '✓ Tiene bienes registrables' : '✗ Sin bienes conocidos'}
+                            </Badge>
+                          </div>
+                        </div>
+                      )}
+
                     </div>
                   </CardContent>
                 </Card>
@@ -244,21 +288,21 @@ export default async function ClienteDetallePage({
                         </p>
                       </div>
 
-                      <div>
-                        <label className="text-sm font-medium text-slate-600 flex items-center gap-1">
-                          <Receipt className="h-3 w-3" />
-                          Condición IVA
-                        </label>
-                        <p className="mt-1">
-                          <Badge variant="outline" className="text-xs">
-                            {cliente.condicionIva === 'RESPONSABLE_INSCRIPTO' ? 'Responsable Inscripto' :
-                             cliente.condicionIva === 'MONOTRIBUTISTA' ? 'Monotributista' :
-                             cliente.condicionIva === 'CONSUMIDOR_FINAL' ? 'Consumidor Final' :
-                             cliente.condicionIva === 'EXENTO' ? 'Exento' :
-                             cliente.condicionIva || 'No categorizado'}
-                          </Badge>
-                        </p>
-                      </div>
+                        <div>
+                          <label className="text-sm font-medium text-slate-600 flex items-center gap-1">
+                            <Receipt className="h-3 w-3" />
+                            Condición IVA
+                          </label>
+                          <div className="mt-1">
+                            <Badge variant="outline" className="text-xs">
+                              {cliente.condicionIva === 'RESPONSABLE_INSCRIPTO' ? 'Responsable Inscripto' :
+                               cliente.condicionIva === 'MONOTRIBUTISTA' ? 'Monotributista' :
+                               cliente.condicionIva === 'CONSUMIDOR_FINAL' ? 'Consumidor Final' :
+                               cliente.condicionIva === 'EXENTO' ? 'Exento' :
+                               cliente.condicionIva || 'No categorizado'}
+                            </Badge>
+                          </div>
+                        </div>
                     </div>
 
                     <div className="mt-4 pt-4 border-t border-slate-100">
@@ -316,7 +360,9 @@ export default async function ClienteDetallePage({
                       <div className="flex items-start gap-3 p-3 bg-slate-50 rounded-lg">
                         <MapPin className="h-5 w-5 text-slate-600 mt-0.5" />
                         <div className="flex-1">
-                          <label className="text-sm font-medium text-slate-600">Dirección</label>
+                          <label className="text-sm font-medium text-slate-600">
+                            {cliente.tipoPersona === 'FISICA' ? 'Dirección' : 'Domicilio / Sede Social'}
+                          </label>
                           <p className="mt-0.5 text-slate-900">
                             {cliente.direccion || (
                               <span className="text-slate-400">No registrada</span>
@@ -425,7 +471,7 @@ export default async function ClienteDetallePage({
                 </Card>
               </div>
 
-              {/* COLUMNA DERECHA - Estadísticas, Portal y Metadata */}
+              {/* COLUMNA DERECHA */}
               <div className="space-y-6">
                 
                 {/* ===== NUEVO: Sección de Acceso al Portal ===== */}

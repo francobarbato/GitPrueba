@@ -188,43 +188,6 @@ function ClientesSinActivos({ clientes }: { clientes: any[] }) {
 }
 
 // ============================================================================
-// ACCESOS RÁPIDOS POR ROL
-// ============================================================================
-
-function getAccesosRapidos(rol: string) {
-  const rolUpper = rol?.toUpperCase()
-
-  const base = [
-    { title: 'Gestión de Casos', description: 'Ver y administrar expedientes.', href: '/casos', icon: Briefcase },
-    { title: 'Gestión de Clientes', description: 'Listado de clientes con historial.', href: '/clientes', icon: Users },
-  ]
-
-  if (rolUpper === 'ADMIN') {
-    return [
-      ...base,
-      { title: 'Nuevo Caso', description: 'Registro rápido de expediente.', href: '/casos/nuevo', icon: FileText },
-      { title: 'Reportes', description: 'Análisis avanzado de datos.', href: '/reportes', icon: TrendingUp },
-      { title: 'Configuración', description: 'Gestión de usuarios del sistema.', href: '/configuracion', icon: Settings },
-    ]
-  }
-
-  if (rolUpper === 'ASISTENTE') {
-    return [
-      ...base,
-      { title: 'Nuevo Caso', description: 'Registrar caso para un abogado.', href: '/casos/nuevo', icon: FileText },
-      { title: 'Nuevo Cliente', description: 'Registrar cliente nuevo.', href: '/clientes/nuevo', icon: UserPlus },
-    ]
-  }
-
-  // Abogado
-  return [
-    ...base,
-    { title: 'Nuevo Caso', description: 'Registro rápido de expediente.', href: '/casos/nuevo', icon: FileText },
-    { title: 'Reportes', description: 'Análisis avanzado de datos.', href: '/reportes', icon: TrendingUp },
-  ]
-}
-
-// ============================================================================
 // SALUDO POR ROL
 // ============================================================================
 
@@ -246,13 +209,19 @@ export default async function DashboardPage() {
   const rol = user.rol || 'ABOGADO'
   const esAdmin = rol.toUpperCase() === 'ADMIN'
 
-  const [stats, actividad, clientesSinActivos] = await Promise.all([
+  const esAsistente = rol.toUpperCase() === 'ASISTENTE'
+  const esAbogado = rol.toUpperCase() === 'ABOGADO'
+  const mostrarAlertas = esAbogado || esAsistente
+
+  const [stats, actividad, clientesSinActivos, casosIncompletos] = await Promise.all([
     dashboardService.getStats(user.id, rol),
     dashboardService.getActividadReciente(user.id, rol),
     dashboardService.getClientesSinCasosActivos(user.id, rol),
+    mostrarAlertas 
+      ? dashboardService.getCasosIncompletos(user.id, rol)
+      : Promise.resolve([]),
   ])
 
-  const accesos = getAccesosRapidos(rol)
   const saludo = getSaludo(rol)
 
   return (
@@ -270,43 +239,106 @@ export default async function DashboardPage() {
                 <h1 className="text-2xl font-bold text-slate-900">
                   Bienvenido, {user.nombre || user.email?.split('@')[0]}
                 </h1>
-                <p className="text-sm text-slate-500 mt-1">
-                  Panel principal del sistema
-                </p>
+                <p className="text-sm text-slate-500 mt-1">Panel principal del sistema</p>
               </div>
               <span className={`text-xs font-semibold px-3 py-1.5 rounded-full ${saludo.badgeColor}`}>
                 {saludo.badge}
               </span>
             </div>
 
-            {/* KPIs */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              {stats.cards.map((card: any, i: number) => (
-                <StatCard
-                  key={i}
-                  label={card.label}
-                  value={card.value}
-                  color={card.color}
-                />
-              ))}
-            </div>
+            {/* Layout con panel lateral de alertas */}
+            <div className={`flex gap-6 items-start ${mostrarAlertas ? '' : ''}`}>
+              
+                          {/* PANEL LATERAL DE ALERTAS — solo ABOGADO y ASISTENTE */}
+              {mostrarAlertas && (
+                <div className="w-72 shrink-0 sticky top-6">
+                  <div className="rounded-xl border-2 border-amber-300 bg-amber-50 shadow-md overflow-hidden">
+                    {/* Header del panel */}
+                    <div className="bg-amber-400 px-4 py-3 flex items-center gap-2">
+                      <AlertCircle className="w-5 h-5 text-amber-900" />
+                      <div>
+                        <p className="font-bold text-amber-900 text-sm">Expedientes Incompletos</p>
+                        <p className="text-amber-800 text-xs">
+                          {casosIncompletos.length === 0 
+                            ? 'Todo al día' 
+                            : `${casosIncompletos.length} caso${casosIncompletos.length !== 1 ? 's' : ''} requieren atención`
+                          }
+                        </p>
+                      </div>
+                    </div>
 
-            {/* Accesos Rápidos */}
-            <div>
-              <h2 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3">
-                Accesos Rápidos
-              </h2>
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {accesos.map((acceso, i) => (
-                  <DashboardCard key={i} {...acceso} />
-                ))}
+                    {/* Contenido */}
+                    {casosIncompletos.length === 0 ? (
+                      <div className="px-4 py-8 text-center">
+                        <p className="text-sm text-amber-700 font-medium">✅ Todos los expedientes están completos</p>
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-amber-200">
+                        {casosIncompletos.map((caso) => (
+                          <Link key={caso.id} href={`/casos/${caso.id}`} className="block">
+                            <div className="px-4 py-3 hover:bg-amber-100 transition-colors group">
+                              <p className="text-sm font-semibold text-slate-800 truncate group-hover:text-amber-900">
+                                {caso.titulo}
+                              </p>
+                              <p className="text-xs text-slate-500 font-mono mt-0.5">#{caso.numero}</p>
+                              <div className="flex gap-2 mt-1.5 flex-wrap">
+                                {!caso.juzgado && (
+                                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-200 text-amber-800 font-medium">
+                                    Sin juzgado
+                                  </span>
+                                )}
+                                {!caso.ubicacionFisica && (
+                                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-200 text-amber-800 font-medium">
+                                    Sin ubicación
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Footer con link a todos los casos */}
+                    {casosIncompletos.length > 0 && (
+                      <div className="border-t border-amber-300 px-4 py-2.5 bg-amber-100">
+                        <Link href="/casos" className="text-xs text-amber-800 hover:text-amber-900 font-medium flex items-center gap-1">
+                          Ver todos los casos <ArrowRight className="w-3 h-3" />
+                        </Link>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Placeholder tareas — para desarrollo futuro */}
+                  {/* 
+                  <div className="mt-4 rounded-xl border border-slate-200 bg-white shadow-sm p-4">
+                    <p className="text-sm font-semibold text-slate-600">Próximos Vencimientos</p>
+                    // query: prisma.tarea.findMany({ where: { completada: false, fecha: { lte: +7días } } })
+                  </div>
+                  */}
+                </div>
+              )} 
+              
+              
+              {/* CONTENIDO PRINCIPAL */}
+              <div className="flex-1 space-y-6 min-w-0">
+
+                {/* KPIs — ocultos para ASISTENTE */}
+                {!esAsistente && (
+                  <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+                    {stats.cards.map((card: any, i: number) => (
+                      <StatCard key={i} label={card.label} value={card.value} color={card.color} />
+                    ))}
+                  </div>
+                )}
+
+                {/* Actividad + Clientes */}
+                <div className="grid gap-6 lg:grid-cols-2">
+                  <RecentActivity actividad={actividad} esAdmin={esAdmin} />
+                  <ClientesSinActivos clientes={clientesSinActivos} />
+                </div>
               </div>
-            </div>
 
-            {/* Sección inferior: Actividad + Clientes */}
-            <div className="grid gap-6 lg:grid-cols-2">
-              <RecentActivity actividad={actividad} esAdmin={esAdmin} />
-              <ClientesSinActivos clientes={clientesSinActivos} />
             </div>
           </div>
         </main>

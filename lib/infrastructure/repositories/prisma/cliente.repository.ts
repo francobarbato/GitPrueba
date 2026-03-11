@@ -1,28 +1,27 @@
-import prisma from "src/lib/db/prisma" // Tu instancia singleton
+// src/lib/infrastructure/repositories/prisma/cliente.repository.ts
+
+import prisma from "src/lib/db/prisma"
 import { Cliente } from "@prisma/client"
 
 export class PrismaClienteRepository {
-  
-  // Obtener clientes filtrados por Abogado (Seguridad)
+
   async findByAbogado(abogadoId: string): Promise<Cliente[]> {
     try {
-      const clientes = await prisma.cliente.findMany({
-        where: { abogadoId: abogadoId },
+      return await prisma.cliente.findMany({
+        where: { abogadoId },
         orderBy: { createdAt: 'desc' }
       })
-      return clientes
     } catch (error) {
       console.error("Error en findByAbogado:", error)
       return []
     }
   }
 
-  // Obtener todos (Para Admin)
   async findAll(): Promise<Cliente[]> {
     return await prisma.cliente.findMany({
       orderBy: { createdAt: "desc" },
       include: {
-        abogado: true // Opcional: para ver quién es el abogado
+        abogado: true
       }
     })
   }
@@ -31,23 +30,23 @@ export class PrismaClienteRepository {
     return await prisma.cliente.findUnique({
       where: { id },
       include: {
-        casos: true // Traemos los casos asociados al cliente
+        casos: true
       }
     })
   }
 
-  // Crear Cliente
-async create(data: any, abogadoId: string): Promise<Cliente> {
+  async create(data: any, abogadoId: string): Promise<Cliente> {
+    // FIX: se eliminó estado: 'Activo' hardcodeado — el campo de estado real
+    // en el schema es `activo: Boolean @default(true)`, no un string 'Activo'.
+    // El campo `estado` (String?) existe pero no se usa para esto.
     return await prisma.cliente.create({
       data: {
-        ...data, // nombre, apellido, email, etc.
-        abogadoId: abogadoId, // <--- VINCULACIÓN AUTOMÁTICA
-        estado: 'Activo' // Por defecto
+        ...data,
+        abogadoId,
       }
     })
   }
 
-  // Actualizar Cliente
   async update(id: string, data: any): Promise<Cliente> {
     return await prisma.cliente.update({
       where: { id },
@@ -55,8 +54,7 @@ async create(data: any, abogadoId: string): Promise<Cliente> {
     })
   }
 
-  // Eliminar Cliente
-async delete(id: string): Promise<void> {
+  async delete(id: string): Promise<void> {
     await prisma.cliente.delete({ where: { id } })
   }
 }

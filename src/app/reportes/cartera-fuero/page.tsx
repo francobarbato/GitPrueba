@@ -1,7 +1,6 @@
 // app/reportes/cartera-fuero/page.tsx
-// REPORTE EST-14: Composición de Cartera por Fuero (Strategic Portfolio Analysis)
-// VISTA: Global del estudio con filtro opcional por abogado
-// Qué responde: ¿Somos un estudio de volumen o de valor? ¿Dónde está el dinero?
+// REPORTE EST-14: Composición de Cartera por Fuero
+// ACCESO: ABOGADO (ve su cartera + vista general del estudio) y ADMIN
 
 import Link from "next/link"
 import { Sidebar } from "@/app/components/sidebar"
@@ -13,14 +12,15 @@ import { differenceInDays, subDays } from "date-fns"
 import { ArrowLeft, Scale } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
-// Componentes Client
 import { KPICards } from "./components/KPICards"
 import { MatrizFuero } from "./components/MatrizFuero"
+import { MatrizFueroGeneral } from "./components/MatrizFueroGeneral"
 import { PanelLitigiosidad } from "./components/Panellitigiosidad"
 import { FiltrosCartera } from "./components/FiltrosCartera"
+import { ToggleVista } from "./components/ToggleVista"
 
 // ============================================================================
-// MAPEO DE TIPOS DE CASO A LABELS LEGIBLES
+// MAPEO Y CONSTANTES
 // ============================================================================
 
 const TIPO_CASO_LABELS: Record<string, string> = {
@@ -33,111 +33,217 @@ const TIPO_CASO_LABELS: Record<string, string> = {
   OTRO: "Otro",
 }
 
-// Clasificación de etapas procesales
 const ETAPAS_TEMPRANAS = ["Inicio / Demanda", "Mediación / Previo"]
 const ETAPAS_MEDIAS = ["Prueba (Oficios/Pericias)", "Alegatos / Conclusiones"]
 const ETAPAS_TARDIAS = ["Sentencia de 1ra Instancia", "Apelación / 2da Instancia", "Ejecución de Sentencia"]
 
 // ============================================================================
-// FUNCIONES DE DATOS (Server-side, consulta directa a Prisma)
+// TIPO CASO EXPANDIDO (para vista personal con casos individuales)
 // ============================================================================
 
-async function getCarteraPorFuero(abogadoId?: string) {
+export type CasoDetalle = {
+  id: string
+  numero: string
+  titulo: string
+  estado: string
+  montoDisputa: number
+  diasDuracion: number
+}
+
+// ============================================================================
+// QUERY VISTA PERSONAL — incluye casos individuales por fuero
+// ============================================================================
+
+async function getCarteraPersonal(abogadoId: string, filtroEtapa?: string) {
   const hoy = new Date()
   const hace30Dias = subDays(hoy, 30)
 
-  // 1. Filtro base: casos activos
-  const whereClause: any = {
+  const whereActivos: any = {
+    abogadoId,
     estaCerrado: false,
     estado: { notIn: ["Cerrado", "Archivado", "CERRADO", "ARCHIVADO"] },
   }
-
-  // Filtro por abogado si se seleccionó
-  if (abogadoId) {
-    whereClause.abogadoId = abogadoId
+  if (filtroEtapa && filtroEtapa !== "todas") {
+    whereActivos.estado = filtroEtapa
   }
 
   const casosActivos = await prisma.caso.findMany({
-    where: whereClause,
+    where: whereActivos,
     select: {
       id: true,
+      numero: true,
+      titulo: true,
       tipo: true,
       estado: true,
       montoDisputa: true,
+      fechaInicio: true,
       updatedAt: true,
     },
   })
 
-  // 2. Casos cerrados para promedio de días (también filtrados si hay abogado)
-  const whereCerrados: any = {
-    estaCerrado: true,
-    fechaCierre: { not: null },
-  }
-  if (abogadoId) {
-    whereCerrados.abogadoId = abogadoId
-  }
-
   const casosCerrados = await prisma.caso.findMany({
-    where: whereCerrados,
-    select: {
-      tipo: true,
-      fechaInicio: true,
-      fechaCierre: true,
-    },
+    where: { abogadoId, estaCerrado: true, fechaCierre: { not: null } },
+    select: { tipo: true, fechaInicio: true, fechaCierre: true },
   })
 
-  // 3. Agrupar por tipo de caso
   const totalActivos = casosActivos.length
 
   const agrupado: Record<string, typeof casosActivos> = {}
   for (const caso of casosActivos) {
-    const tipo = caso.tipo
-    if (!agrupado[tipo]) agrupado[tipo] = []
-    agrupado[tipo].push(caso)
+    if (!agrupado[caso.tipo]) agrupado[caso.tipo] = []
+    agrupado[caso.tipo].push(caso)
   }
 
   const cerradosPorTipo: Record<string, number[]> = {}
   for (const caso of casosCerrados) {
-    const tipo = caso.tipo
-    if (!cerradosPorTipo[tipo]) cerradosPorTipo[tipo] = []
+    if (!cerradosPorTipo[caso.tipo]) cerradosPorTipo[caso.tipo] = []
     if (caso.fechaCierre) {
       const dias = differenceInDays(caso.fechaCierre, caso.fechaInicio)
-      if (dias > 0) cerradosPorTipo[tipo].push(dias)
+      if (dias > 0) cerradosPorTipo[caso.tipo].push(dias)
     }
   }
 
-  // 4. Construir filas de la matriz
   const filas = Object.entries(agrupado)
     .map(([tipo, casos]) => {
       const cantidad = casos.length
       const pesoVolumen = totalActivos > 0 ? Math.round((cantidad / totalActivos) * 100) : 0
-
-      const capitalEnLitigio = casos.reduce((sum, c) => {
-        const monto = c.montoDisputa ? Number(c.montoDisputa) : 0
-        return sum + monto
-      }, 0)
-
+      const capitalEnLitigio = casos.reduce((sum, c) => sum + (c.montoDisputa ? Number(c.montoDisputa) : 0), 0)
       const ticketPromedio = cantidad > 0 ? Math.round(capitalEnLitigio / cantidad) : 0
-
-      const casosConActividad = casos.filter((c) => c.updatedAt >= hace30Dias).length
+      const casosConActividad = casos.filter(c => c.updatedAt >= hace30Dias).length
       const tasaActividad = cantidad > 0 ? Math.round((casosConActividad / cantidad) * 100) : 0
 
       const diasCierreArr = cerradosPorTipo[tipo] || []
-      const promedioDiasCierre =
-        diasCierreArr.length > 0
-          ? Math.round(diasCierreArr.reduce((a, b) => a + b, 0) / diasCierreArr.length)
-          : null
+      const promedioDiasCierre = diasCierreArr.length > 0
+        ? Math.round(diasCierreArr.reduce((a, b) => a + b, 0) / diasCierreArr.length)
+        : null
 
       const conteoEtapas: Record<string, number> = {}
       for (const c of casos) {
         conteoEtapas[c.estado] = (conteoEtapas[c.estado] || 0) + 1
       }
       const distribucionEtapas = Object.entries(conteoEtapas)
-        .map(([etapa, cant]) => ({
-          etapa,
-          cantidad: cant,
-          porcentaje: Math.round((cant / cantidad) * 100),
-        }))
+        .map(([etapa, cant]) => ({ etapa, cantidad: cant, porcentaje: Math.round((cant / cantidad) * 100) }))
+        .sort((a, b) => b.cantidad - a.cantidad)
+
+      // Casos individuales para el expand
+      const casosDetalle: CasoDetalle[] = casos.map(c => ({
+        id: c.id,
+        numero: c.numero,
+        titulo: c.titulo,
+        estado: c.estado,
+        montoDisputa: c.montoDisputa ? Number(c.montoDisputa) : 0,
+        diasDuracion: differenceInDays(hoy, c.fechaInicio),
+      })).sort((a, b) => b.diasDuracion - a.diasDuracion)
+
+      return {
+        tipo,
+        tipoLabel: TIPO_CASO_LABELS[tipo] || tipo,
+        cantidad,
+        pesoVolumen,
+        capitalEnLitigio,
+        ticketPromedio,
+        tasaActividad,
+        promedioDiasCierre,
+        distribucionEtapas,
+        casosDetalle,
+      }
+    })
+    .sort((a, b) => b.capitalEnLitigio - a.capitalEnLitigio)
+
+  const capitalTotal = filas.reduce((s, r) => s + r.capitalEnLitigio, 0)
+  const ticketGlobal = totalActivos > 0 ? Math.round(capitalTotal / totalActivos) : 0
+  const fueroMasVolumen = filas.length > 0 ? [...filas].sort((a, b) => b.cantidad - a.cantidad)[0].tipoLabel : "—"
+  const fueroMasValor = filas.length > 0 ? filas[0].tipoLabel : "—"
+
+  let etapaTemprana = 0, etapaMedia = 0, etapaTardia = 0
+  for (const caso of casosActivos) {
+    if (ETAPAS_TEMPRANAS.includes(caso.estado)) etapaTemprana++
+    else if (ETAPAS_MEDIAS.includes(caso.estado)) etapaMedia++
+    else if (ETAPAS_TARDIAS.includes(caso.estado)) etapaTardia++
+    else etapaTemprana++
+  }
+
+  return {
+    kpis: { totalCasosActivos: totalActivos, capitalTotalEnLitigio: capitalTotal, ticketPromedioGlobal: ticketGlobal, fueroConMasVolumen: fueroMasVolumen, fueroConMasValor: fueroMasValor },
+    filas,
+    litigiosidad: { etapaTemprana, etapaMedia, etapaTardia, totalActivos },
+  }
+}
+
+// ============================================================================
+// QUERY VISTA GENERAL — sin casos individuales, puede filtrar por un colega
+// ============================================================================
+
+async function getCarteraGeneral(excluirAbogadoId: string, filtroColegaId?: string) {
+  const hoy = new Date()
+  const hace30Dias = subDays(hoy, 30)
+
+  // Si filtra por colega, solo ese. Si no, todos EXCEPTO el logueado
+  const whereActivos: any = {
+    estaCerrado: false,
+    estado: { notIn: ["Cerrado", "Archivado", "CERRADO", "ARCHIVADO"] },
+  }
+
+  if (filtroColegaId && filtroColegaId !== "todos") {
+    whereActivos.abogadoId = filtroColegaId
+  } else {
+    // Vista "todos" incluye al logueado también — suma global del estudio
+    // no hay exclusión aquí
+  }
+
+  const casosActivos = await prisma.caso.findMany({
+    where: whereActivos,
+    select: {
+      tipo: true,
+      estado: true,
+      montoDisputa: true,
+      updatedAt: true,
+      abogadoId: true,
+    },
+  })
+
+  const casosCerrados = await prisma.caso.findMany({
+    where: { estaCerrado: true, fechaCierre: { not: null } },
+    select: { tipo: true, fechaInicio: true, fechaCierre: true },
+  })
+
+  const totalActivos = casosActivos.length
+
+  const agrupado: Record<string, typeof casosActivos> = {}
+  for (const caso of casosActivos) {
+    if (!agrupado[caso.tipo]) agrupado[caso.tipo] = []
+    agrupado[caso.tipo].push(caso)
+  }
+
+  const cerradosPorTipo: Record<string, number[]> = {}
+  for (const caso of casosCerrados) {
+    if (!cerradosPorTipo[caso.tipo]) cerradosPorTipo[caso.tipo] = []
+    if (caso.fechaCierre) {
+      const dias = differenceInDays(caso.fechaCierre, caso.fechaInicio)
+      if (dias > 0) cerradosPorTipo[caso.tipo].push(dias)
+    }
+  }
+
+  const filas = Object.entries(agrupado)
+    .map(([tipo, casos]) => {
+      const cantidad = casos.length
+      const pesoVolumen = totalActivos > 0 ? Math.round((cantidad / totalActivos) * 100) : 0
+      const capitalEnLitigio = casos.reduce((sum, c) => sum + (c.montoDisputa ? Number(c.montoDisputa) : 0), 0)
+      const ticketPromedio = cantidad > 0 ? Math.round(capitalEnLitigio / cantidad) : 0
+      const casosConActividad = casos.filter(c => c.updatedAt >= hace30Dias).length
+      const tasaActividad = cantidad > 0 ? Math.round((casosConActividad / cantidad) * 100) : 0
+
+      const diasCierreArr = cerradosPorTipo[tipo] || []
+      const promedioDiasCierre = diasCierreArr.length > 0
+        ? Math.round(diasCierreArr.reduce((a, b) => a + b, 0) / diasCierreArr.length)
+        : null
+
+      const conteoEtapas: Record<string, number> = {}
+      for (const c of casos) {
+        conteoEtapas[c.estado] = (conteoEtapas[c.estado] || 0) + 1
+      }
+      const distribucionEtapas = Object.entries(conteoEtapas)
+        .map(([etapa, cant]) => ({ etapa, cantidad: cant, porcentaje: Math.round((cant / cantidad) * 100) }))
         .sort((a, b) => b.cantidad - a.cantidad)
 
       return {
@@ -154,17 +260,12 @@ async function getCarteraPorFuero(abogadoId?: string) {
     })
     .sort((a, b) => b.capitalEnLitigio - a.capitalEnLitigio)
 
-  // 5. KPIs globales
   const capitalTotal = filas.reduce((s, r) => s + r.capitalEnLitigio, 0)
   const ticketGlobal = totalActivos > 0 ? Math.round(capitalTotal / totalActivos) : 0
   const fueroMasVolumen = filas.length > 0 ? [...filas].sort((a, b) => b.cantidad - a.cantidad)[0].tipoLabel : "—"
   const fueroMasValor = filas.length > 0 ? filas[0].tipoLabel : "—"
 
-  // 6. Datos de litigiosidad (pipeline)
-  let etapaTemprana = 0
-  let etapaMedia = 0
-  let etapaTardia = 0
-
+  let etapaTemprana = 0, etapaMedia = 0, etapaTardia = 0
   for (const caso of casosActivos) {
     if (ETAPAS_TEMPRANAS.includes(caso.estado)) etapaTemprana++
     else if (ETAPAS_MEDIAS.includes(caso.estado)) etapaMedia++
@@ -173,25 +274,14 @@ async function getCarteraPorFuero(abogadoId?: string) {
   }
 
   return {
-    kpis: {
-      totalCasosActivos: totalActivos,
-      capitalTotalEnLitigio: capitalTotal,
-      ticketPromedioGlobal: ticketGlobal,
-      fueroConMasVolumen: fueroMasVolumen,
-      fueroConMasValor: fueroMasValor,
-    },
+    kpis: { totalCasosActivos: totalActivos, capitalTotalEnLitigio: capitalTotal, ticketPromedioGlobal: ticketGlobal, fueroConMasVolumen: fueroMasVolumen, fueroConMasValor: fueroMasValor },
     filas,
-    litigiosidad: {
-      etapaTemprana,
-      etapaMedia,
-      etapaTardia,
-      totalActivos,
-    },
+    litigiosidad: { etapaTemprana, etapaMedia, etapaTardia, totalActivos },
   }
 }
 
 // ============================================================================
-// COMPONENTE PRINCIPAL (Server Component)
+// COMPONENTE PRINCIPAL
 // ============================================================================
 
 type PageProps = {
@@ -202,27 +292,49 @@ export default async function CarteraFueroPage({ searchParams }: PageProps) {
   const user = await getUserSessionServer()
   if (!user) redirect("/api/auth/signin")
 
-  // Leer filtro de abogado
-  const params = await searchParams
-  const abogadoParam = typeof params.abogado === "string" ? params.abogado : undefined
+  const userRol = user.rol?.toUpperCase()
+  if (userRol === "ASISTENTE") redirect("/reportes")
 
-  // Obtener lista de abogados para el filtro
-  const abogadosDb = await prisma.user.findMany({
-    where: { rol: "ABOGADO" },
+  const params = await searchParams
+  const vista = typeof params.vista === "string" ? params.vista : "personal"
+  const filtroEtapa = typeof params.etapa === "string" ? params.etapa : "todas"
+  const filtroColega = typeof params.colega === "string" ? params.colega : "todos"
+
+  // Lista de colegas para la vista general (excluye al logueado)
+  const colegas = await prisma.user.findMany({
+    where: { rol: "ABOGADO", id: { not: user.id } },
     select: { id: true, nombre: true, apellido: true },
     orderBy: { nombre: "asc" },
   })
-
-  const listaAbogados = abogadosDb.map((a) => ({
+  const colegasConNombre = colegas.map(a => ({
     id: a.id,
     nombre: a.nombre && a.apellido ? `${a.nombre} ${a.apellido}` : a.nombre || "Sin nombre",
   }))
 
-  // Validar que el abogado exista
-  const abogadoValido = abogadoParam && listaAbogados.some((a) => a.id === abogadoParam) ? abogadoParam : undefined
-  const abogadoSeleccionado = listaAbogados.find((a) => a.id === abogadoValido)
+  // Etapas disponibles para el filtro (vista personal)
+  const etapasDisponibles = [
+    "Inicio / Demanda",
+    "Mediación / Previo",
+    "Prueba (Oficios/Pericias)",
+    "Alegatos / Conclusiones",
+    "Sentencia de 1ra Instancia",
+    "Apelación / 2da Instancia",
+    "Ejecución de Sentencia",
+  ]
 
-  const { kpis, filas, litigiosidad } = await getCarteraPorFuero(abogadoValido)
+  // Datos según vista activa
+  const datosPersonal = vista === "personal"
+    ? await getCarteraPersonal(user.id, filtroEtapa)
+    : null
+
+  const datosGeneral = vista === "general"
+    ? await getCarteraGeneral(user.id, filtroColega)
+    : null
+
+  const datos = vista === "personal" ? datosPersonal! : datosGeneral!
+
+  // Etiqueta del colega seleccionado (para subtítulo)
+  const colegaSeleccionado = colegasConNombre.find(c => c.id === filtroColega)
 
   return (
     <div className="flex h-screen bg-slate-50">
@@ -232,6 +344,7 @@ export default async function CarteraFueroPage({ searchParams }: PageProps) {
 
         <main className="flex-1 overflow-auto p-6">
           <div className="max-w-7xl mx-auto">
+
             {/* Header */}
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-4">
@@ -247,46 +360,58 @@ export default async function CarteraFueroPage({ searchParams }: PageProps) {
                     Cartera activa por fuero
                   </h1>
                   <p className="text-sm text-slate-500">
-                    {abogadoSeleccionado
-                      ? `Cartera de ${abogadoSeleccionado.nombre}: volumen y capital por tipo de causa`
-                      : "Qué tenemos hoy: volumen de casos y capital en litigio por tipo de causa"
-                    }
+                    {vista === "personal"
+                      ? "Tu cartera: volumen y capital en litigio por tipo de causa"
+                      : colegaSeleccionado
+                        ? `Cartera de ${colegaSeleccionado.nombre}`
+                        : "Vista general del estudio — todos los abogados"}
                   </p>
                 </div>
               </div>
 
-              {abogadoSeleccionado ? (
-                <span className="text-xs font-medium px-3 py-1.5 rounded-full border bg-blue-50 text-blue-700 border-blue-200">
-                  {abogadoSeleccionado.nombre}
-                </span>
-              ) : (
-                <span className="text-xs font-medium px-3 py-1.5 rounded-full border bg-purple-50 text-purple-700 border-purple-200">
-                  Vista General
-                </span>
-              )}
+              <span className={`text-xs font-medium px-3 py-1.5 rounded-full border ${
+                vista === "personal"
+                  ? "bg-blue-50 text-blue-700 border-blue-200"
+                  : "bg-purple-50 text-purple-700 border-purple-200"
+              }`}>
+                {vista === "personal" ? "Mi cartera" : colegaSeleccionado ? colegaSeleccionado.nombre : "Vista General"}
+              </span>
             </div>
 
-            {/* Filtros */}
+            {/* Toggle Vista Personal / General */}
+            <div className="mb-5">
+              <ToggleVista vistaActual={vista} />
+            </div>
+
+            {/* Filtros — cambian según la vista */}
             <div className="mb-6">
-              <FiltrosCartera abogados={listaAbogados} />
+              <FiltrosCartera
+                vista={vista}
+                etapas={etapasDisponibles}
+                colegas={colegasConNombre}
+              />
             </div>
 
-            {/* SECCIÓN 1: KPIs */}
-            <KPICards data={kpis} />
+            {/* KPIs */}
+            <KPICards data={datos.kpis} vista={vista} colegaNombre={colegaSeleccionado?.nombre} />
 
-            {/* SECCIÓN 2: Matriz Principal */}
-            {filas.length > 0 ? (
-              <MatrizFuero data={filas} />
+            {/* Tabla */}
+            {datos.filas.length > 0 ? (
+              vista === "personal"
+                ? <MatrizFuero data={datosPersonal!.filas} />
+                : <MatrizFueroGeneral data={datosGeneral!.filas} />
             ) : (
               <div className="p-8 bg-white border border-slate-200 rounded-lg text-center">
                 <p className="text-slate-500">No hay casos activos para analizar.</p>
               </div>
             )}
 
-            {/* SECCIÓN 3: Pipeline / Litigiosidad */}
-            {litigiosidad.totalActivos > 0 && <PanelLitigiosidad data={litigiosidad} />}
+            {/* Panel litigiosidad */}
+            {datos.litigiosidad.totalActivos > 0 && (
+              <PanelLitigiosidad data={datos.litigiosidad} />
+            )}
 
-            {/* Nota informativa */}
+            {/* Nota de criterios */}
             <div className="mt-8 p-4 bg-slate-100 border border-slate-200 rounded-lg">
               <p className="text-xs text-slate-600">
                 <strong>Criterios del reporte:</strong> Solo incluye casos activos (no cerrados ni archivados) |
@@ -294,6 +419,7 @@ export default async function CarteraFueroPage({ searchParams }: PageProps) {
                 Promedio de cierre = calculado sobre casos históricos cerrados del mismo fuero
               </p>
             </div>
+
           </div>
         </main>
       </div>

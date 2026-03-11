@@ -17,12 +17,20 @@ export function Header() {
     signOut({ callbackUrl: "/auth/signin" })
   }
 
-  const avatar =
-    user?.image ??
-    "https://tailus.io/sources/blocks/stats-cards/preview/images/second_user.webp";
+  const getInitials = (name: string) => {
+  return name
+    .split(" ")
+    .map(n => n[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+};
 
   const nombre = user?.name ?? "Usuario";
   const rol = user?.rol ?? "sin rol";
+
+  const avatar = user?.image ?? null;
+const initials = getInitials(nombre); 
   
   // Verificar si es admin (case-insensitive)
   const isAdmin = typeof rol === 'string' && rol.toLowerCase() === "admin";
@@ -57,7 +65,13 @@ export function Header() {
             className="flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm"
             onClick={() => setShowUserMenu(!showUserMenu)}
           >
-            <img src={avatar} className="w-6 h-6 rounded-full" alt="avatar" />
+            {avatar ? (
+                <img src={avatar} className="w-6 h-6 rounded-full" alt="avatar" />
+              ) : (
+                <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-white text-[10px] font-bold">
+                  {initials}
+                </div>
+              )}
             <span>{nombre}</span>
           </button>
 

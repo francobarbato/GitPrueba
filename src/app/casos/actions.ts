@@ -20,14 +20,12 @@ export type State = {
 // ============================================================================
 const TIPOS_CASO_VALIDOS = [
   "LABORAL", 
-  "CIVIL_COMERCIAL",  // Nuevo unificado
+  "CIVIL_COMERCIAL",
   "FAMILIA", 
   "PENAL", 
   "SUCESIONES", 
-  "CONTENCIOSO_ADMINISTRATIVO",  // Nuevo
+  "CONTENCIOSO_ADMINISTRATIVO", 
   "OTRO",
-  "CIVIL",
-  "COMERCIAL"
 ]
 
 // ============================================================================
@@ -42,6 +40,9 @@ export async function crearCasoAction(prevState: State, formData: FormData): Pro
 
   const userRol = user.rol?.toUpperCase()
 
+  if (userRol === 'ADMIN') {
+  return { error: "El administrador no puede crear casos." }
+  }
   // 1. Parsear Checklist
   const requirementsRaw = formData.get("requirements") as string
   let requirementsData = []
@@ -76,7 +77,7 @@ export async function crearCasoAction(prevState: State, formData: FormData): Pro
       where: { 
         id: abogadoId, 
         isActive: true,
-        rol: { in: ['ABOGADO', 'ADMIN'] }
+        rol: { in: ['ABOGADO'] }
       }
     })
     
@@ -98,6 +99,8 @@ export async function crearCasoAction(prevState: State, formData: FormData): Pro
     descripcion: (formData.get("descripcion") as string) || "",
     tipo: tipoRaw as TipoCaso,
     estado: (formData.get("estado") as string) || "Inicio / Demanda",
+    provincia: formData.get("provincia") as string | null,
+    ciudad: formData.get("ciudad") as string | null,
     
     // Campos jurisdiccionales
     juzgado: formData.get("juzgado") as string | null,
@@ -176,6 +179,13 @@ export async function crearCasoAction(prevState: State, formData: FormData): Pro
 
   } catch (error: any) {
     console.error("Error en crearCasoAction:", error)
+    
+    // Manejo genérico de unicidad
+    if (error.code === 'P2002') {
+      const campo = error.meta?.target?.replace('Caso_', '').replace('_key', '') || 'campo'
+      return { error: `Ya existe un caso con ese ${campo}. Verificá el número de expediente.` }
+    }
+    
     return { error: error.message || "Error al crear el caso" }
   }
 
@@ -196,13 +206,28 @@ export async function actualizarCasoAction(prevState: State, formData: FormData)
 
   const userRol = user.rol?.toUpperCase()
 
-  // ===== VERIFICAR QUE ASISTENTE NO PUEDA EDITAR =====
-  if (userRol === 'ASISTENTE') {
-    return { error: "No tienes permiso para editar casos. Contacta al abogado responsable." }
+  if (userRol === 'ADMIN') {
+  return { error: "El administrador no puede crear casos." }
+  }
+
+  // Solo ABOGADO y ASISTENTE pueden editar
+  if (!['ABOGADO', 'ASISTENTE'].includes(userRol || '')) {
+    return { error: "No tienes permiso para editar casos." }
   }
 
   const casoId = formData.get("id") as string
   if (!casoId) return { error: "ID de caso no válido" }
+
+  // El ABOGADO solo puede editar sus propios casos
+  if (userRol === 'ABOGADO') {
+    const caso = await prisma.caso.findUnique({
+      where: { id: casoId },
+      select: { abogadoId: true }
+    })
+    if (!caso || caso.abogadoId !== user.id) {
+      return { error: "No puedes editar un caso que no te pertenece." }
+    }
+  }
 
   // 1. Parsear Checklist
   const requirementsRaw = formData.get("requirements") as string
@@ -234,64 +259,88 @@ export async function actualizarCasoAction(prevState: State, formData: FormData)
     fechaFin = new Date()
   }
 
-  // 5. Preparar datos actualizados
-  const rawData = {
-    numero: formData.get("numero") as string,
-    titulo: formData.get("titulo") as string,
-    descripcion: (formData.get("descripcion") as string) || "",
-    tipo: tipoRaw as TipoCaso,
-    clienteId: formData.get("clienteId") as string,
-    estado: nuevoEstado,
-    fechaFin: fechaFin, 
-    juzgado: formData.get("juzgado") as string | null,
-    fuero: formData.get("fuero") as string | null,
-    contraparteNombre: formData.get("contraparte_nombre") as string | null,
-    contraparteDni: formData.get("contraparte_dni") as string | null,
-    montoDisputa: formData.get("monto_disputa") 
-      ? parseFloat(formData.get("monto_disputa") as string) 
-      : null,
-    ubicacionFisica: formData.get("ubicacion_fisica") as string | null,
-    priority: priorityEnum,
-    isFavorite: formData.get("isFavorite") === "on",
+// 5. Obtener caso actual PRIMERO (antes de armar rawData)
+const casoActual = await prisma.caso.findUnique({
+  where: { id: casoId },
+  select: { 
+    estado: true, 
+    priority: true, 
+    clienteId: true,
+    titulo: true,
+    fuero: true,
+    numero: true,
+    tipo: true,
+    montoDisputa: true,
+    juzgado: true,
+    provincia: true,
+    ciudad: true,
   }
+})
 
-    try {
-    // 6. OBTENER CASO ACTUAL
-    const casoActual = await prisma.caso.findUnique({
-      where: { id: casoId },
-      select: { 
-        estado: true, 
-        priority: true, 
-        clienteId: true,
-        titulo: true,
-        fuero: true
+if (!casoActual) return { error: "Caso no encontrado" }
+
+// Campos con justificación — solo se actualizan si vienen con motivo
+
+const motivoJuzgado = formData.get("motivo_juzgado") as string | null
+const motivoUbicacion = formData.get("motivo_ubicacion") as string | null
+const motivoMonto = formData.get("motivo_monto") as string | null
+
+const nuevoJuzgado = formData.get("juzgado") as string | null
+const nuevaUbicacion = {
+  fuero: formData.get("fuero") as string | null,
+  provincia: formData.get("provincia") as string | null,
+  ciudad: formData.get("ciudad") as string | null,
+}
+const nuevoMonto = formData.get("monto_disputa") 
+  ? parseFloat(formData.get("monto_disputa") as string) 
+  : null
+
+// 6. Preparar datos — inmutables vienen de BD, libres del form
+const rawData = {
+  // INMUTABLES — de BD
+  numero: casoActual.numero,
+  tipo: casoActual.tipo,
+  cliente: { connect: { id: casoActual.clienteId } },
+  // LIBRES — del form
+  titulo: formData.get("titulo") as string,
+  descripcion: (formData.get("descripcion") as string) || "",
+  estado: nuevoEstado,
+  fechaFin: fechaFin,
+  contraparteNombre: formData.get("contraparte_nombre") as string | null,
+  contraparteDni: formData.get("contraparte_dni") as string | null,
+  ubicacionFisica: formData.get("ubicacion_fisica") as string | null,
+  priority: priorityEnum,
+  isFavorite: formData.get("isFavorite") === "on",
+
+  juzgado: motivoJuzgado?.trim() ? nuevoJuzgado : casoActual.juzgado,
+  fuero: motivoUbicacion?.trim() ? nuevaUbicacion.fuero : casoActual.fuero,
+  provincia: motivoUbicacion?.trim() ? nuevaUbicacion.provincia : casoActual.provincia,
+  ciudad: motivoUbicacion?.trim() ? nuevaUbicacion.ciudad : casoActual.ciudad,
+  montoDisputa: motivoMonto?.trim() ? nuevoMonto : casoActual.montoDisputa,
+}
+
+try {
+  const cambioEstado = casoActual.estado !== nuevoEstado
+
+  // Actualizar el caso
+  await prisma.caso.update({
+    where: { id: casoId },
+    data: {
+      ...rawData,
+      ...(cambioEstado && { fechaUltimoCambioEstado: new Date() }),
+      requirements: {
+        deleteMany: {},
+        create: requirementsData.map((req: any) => ({
+          description: req.description,
+          dueDate: req.dueDate ? new Date(req.dueDate) : null,
+          isCompleted: req.isCompleted || false
+        }))
       }
-    })
+    }
+  })
 
-    if (!casoActual) return { error: "Caso no encontrado" }
-
-    const cambioEstado = casoActual.estado !== nuevoEstado
-
-    // 7. Actualizar el caso
-    await prisma.caso.update({
-      where: { id: casoId },
-      data: {
-        ...rawData,
-        // SI CAMBIÓ ESTADO, ACTUALIZAR FECHA
-        ...(cambioEstado && { fechaUltimoCambioEstado: new Date() }),
-        requirements: {
-          deleteMany: {},
-          create: requirementsData.map((req: any) => ({
-            description: req.description,
-            dueDate: req.dueDate ? new Date(req.dueDate) : null,
-            isCompleted: req.isCompleted || false
-          }))
-        }
-      }
-    })
-
-    // 8. AUDITORÍA AUTOMÁTICA (Detectar cambios)
-    const cambios = []
+  // AUDITORÍA
+  const cambios = []
 
     // Cambio de estado
     if (cambioEstado) {
@@ -333,23 +382,40 @@ export async function actualizarCasoAction(prevState: State, formData: FormData)
       })
     }
 
-    // Cambio de cliente
-    if (casoActual.clienteId !== rawData.clienteId) {
-      cambios.push("Cliente reasignado")
-      
-      await registrarAuditoria({
-        casoId: casoId,
-        usuarioId: user.id,
-        accion: "CLIENTE_CHANGE",
-        texto: "Cliente del caso fue modificado",
-        detalle: `Nuevo cliente ID: ${rawData.clienteId}`
-      })
-    }
-
     // Cambio de fuero/ubicación
     if (casoActual.fuero !== rawData.fuero && rawData.fuero) {
       cambios.push(`Ubicación: ${casoActual.fuero || 'Sin definir'} → ${rawData.fuero}`)
     }
+
+      if (motivoJuzgado?.trim() && nuevoJuzgado !== casoActual.juzgado) {
+    await registrarAuditoria({
+      casoId,
+      usuarioId: user.id,
+      accion: "JUZGADO_CHANGE",
+      texto: `Juzgado modificado: "${casoActual.juzgado || 'Sin especificar'}" → "${nuevoJuzgado}"`,
+      detalle: `Motivo: ${motivoJuzgado}`
+    })
+  }
+
+  if (motivoUbicacion?.trim() && nuevaUbicacion.fuero !== casoActual.fuero) {
+    await registrarAuditoria({
+      casoId,
+      usuarioId: user.id,
+      accion: "UBICACION_CHANGE",
+      texto: `Ubicación modificada: "${casoActual.fuero || 'Sin especificar'}" → "${nuevaUbicacion.fuero}"`,
+      detalle: `Motivo: ${motivoUbicacion}`
+    })
+  }
+
+  if (motivoMonto?.trim() && nuevoMonto !== Number(casoActual.montoDisputa)) {
+    await registrarAuditoria({
+      casoId,
+      usuarioId: user.id,
+      accion: "MONTO_CHANGE",
+      texto: `Monto modificado: $${casoActual.montoDisputa || 0} → $${nuevoMonto}`,
+      detalle: `Motivo: ${motivoMonto}`
+    })
+  }
 
     // Registro general (si hubo cambios)
     if (cambios.length > 0) {
@@ -362,10 +428,17 @@ export async function actualizarCasoAction(prevState: State, formData: FormData)
       })
     }
 
-  } catch (error: any) {
-    console.error("Error actualizando caso:", error)
-    return { error: "Error al actualizar el caso" }
-  }
+    } catch (error: any) {
+      console.error("Error en crearCasoAction:", error)
+      
+      // Manejo genérico de unicidad
+      if (error.code === 'P2002') {
+        const campo = error.meta?.target?.replace('Caso_', '').replace('_key', '') || 'campo'
+        return { error: `Ya existe un caso con ese ${campo}. Verificá el número de expediente.` }
+      }
+      
+      return { error: error.message || "Error al crear el caso" }
+    }
 
   revalidatePath("/casos")
   revalidatePath(`/casos/${casoId}`)

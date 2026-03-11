@@ -2,11 +2,11 @@ import prisma from "../../lib/db/prisma" // Asegúrate que esta ruta sea la corr
 
 // Definición de tipos permitidos para la auditoría
 type AuditoriaData = {
+  texto: any
   casoId: string
   usuarioId: string
   // AQUÍ AGREGAMOS LAS NUEVAS ACCIONES: "CIERRE" | "REAPERTURA"
-  accion: "CREATE" | "UPDATE" | "ESTADO_CHANGE" | "PRIORIDAD_CHANGE" | "CLIENTE_CHANGE" | "CIERRE" | "REAPERTURA"
-  texto: string
+  accion: "CREATE" | "UPDATE" | "ESTADO_CHANGE" | "PRIORIDAD_CHANGE" | "CLIENTE_CHANGE" | "CIERRE" | "REAPERTURA" | "JUZGADO_CHANGE" | "UBICACION_CHANGE" | "MONTO_CHANGE"
   detalle?: string
   estadoAnterior?: string
   estadoNuevo?: string

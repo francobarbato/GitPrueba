@@ -1,4 +1,5 @@
 // lib/aplication/services/user.service.ts
+// FIX: estado 'CERRADO' → 'Cerrado' (consistente con el resto del sistema)
 
 import prisma from "src/lib/db/prisma"
 import bcrypt from "bcryptjs"
@@ -22,10 +23,8 @@ type ActualizarUsuarioData = {
 }
 
 export class UserService {
-  
-  // ===== CREAR USUARIO (Solo Admin) =====
+
   async crearUsuario(data: CrearUsuarioData) {
-    // Validar que el email no exista
     const existente = await prisma.user.findUnique({
       where: { email: data.email }
     })
@@ -34,15 +33,12 @@ export class UserService {
       throw new Error("Ya existe un usuario con ese email")
     }
 
-    // Validar rol permitido (no se pueden crear CLIENTES desde aquí)
     if (data.rol === 'CLIENTE') {
       throw new Error("Los clientes se crean automáticamente desde el módulo de clientes")
     }
 
-    // Hashear contraseña
     const hashedPassword = await bcrypt.hash(data.password, 10)
 
-    // Crear usuario
     const usuario = await prisma.user.create({
       data: {
         nombre: data.nombre,
@@ -51,13 +47,12 @@ export class UserService {
         password: hashedPassword,
         rol: data.rol,
         creadoPor: data.creadoPor,
-        debeResetearPassword: true, // Forzar cambio en primer login
+        debeResetearPassword: true,
         isActive: true,
-        name: `${data.nombre} ${data.apellido}` // Para compatibilidad con NextAuth
+        name: `${data.nombre} ${data.apellido}`
       }
     })
 
-    // Registrar en bitácora (opcional)
     try {
       await prisma.bitacora.create({
         data: {
@@ -81,7 +76,6 @@ export class UserService {
     }
   }
 
-  // ===== OBTENER TODOS LOS USUARIOS (Solo Admin) =====
   async obtenerTodos() {
     return await prisma.user.findMany({
       where: {
@@ -111,7 +105,6 @@ export class UserService {
     })
   }
 
-  // ===== OBTENER USUARIO POR ID =====
   async obtenerPorId(id: string) {
     const usuario = await prisma.user.findUnique({
       where: { id },
@@ -143,9 +136,7 @@ export class UserService {
     return usuario
   }
 
-  // ===== ACTUALIZAR USUARIO (Solo Admin) =====
   async actualizarUsuario(id: string, data: ActualizarUsuarioData) {
-    // Verificar que el usuario existe
     const existente = await prisma.user.findUnique({
       where: { id }
     })
@@ -154,7 +145,6 @@ export class UserService {
       throw new Error("Usuario no encontrado")
     }
 
-    // Si se cambia el email, verificar que no exista
     if (data.email && data.email !== existente.email) {
       const emailDuplicado = await prisma.user.findUnique({
         where: { email: data.email }
@@ -165,13 +155,12 @@ export class UserService {
       }
     }
 
-    // Actualizar
     const actualizado = await prisma.user.update({
       where: { id },
       data: {
         ...data,
-        name: data.nombre && data.apellido 
-          ? `${data.nombre} ${data.apellido}` 
+        name: data.nombre && data.apellido
+          ? `${data.nombre} ${data.apellido}`
           : existente.name
       }
     })
@@ -186,7 +175,6 @@ export class UserService {
     }
   }
 
-  // ===== CAMBIAR CONTRASEÑA =====
   async cambiarPassword(userId: string, nuevaPassword: string, adminId: string) {
     const hashedPassword = await bcrypt.hash(nuevaPassword, 10)
 
@@ -194,11 +182,10 @@ export class UserService {
       where: { id: userId },
       data: {
         password: hashedPassword,
-        debeResetearPassword: true // Forzar cambio en próximo login
+        debeResetearPassword: true
       }
     })
 
-    // Registrar acción
     await prisma.bitacora.create({
       data: {
         texto: `Contraseña restablecida para usuario ${userId}`,
@@ -211,7 +198,6 @@ export class UserService {
     return { success: true }
   }
 
-  // ===== ACTIVAR/DESACTIVAR USUARIO =====
   async toggleActivacion(id: string, adminId: string) {
     const usuario = await prisma.user.findUnique({
       where: { id }
@@ -221,13 +207,9 @@ export class UserService {
       throw new Error("Usuario no encontrado")
     }
 
-    // No permitir desactivar al único admin
     if (usuario.rol === 'ADMIN' && usuario.isActive) {
       const adminsActivos = await prisma.user.count({
-        where: {
-          rol: 'ADMIN',
-          isActive: true
-        }
+        where: { rol: 'ADMIN', isActive: true }
       })
 
       if (adminsActivos <= 1) {
@@ -237,12 +219,9 @@ export class UserService {
 
     const actualizado = await prisma.user.update({
       where: { id },
-      data: {
-        isActive: !usuario.isActive
-      }
+      data: { isActive: !usuario.isActive }
     })
 
-    // Registrar acción
     await prisma.bitacora.create({
       data: {
         texto: `Usuario ${actualizado.isActive ? 'activado' : 'desactivado'}: ${usuario.email}`,
@@ -255,27 +234,19 @@ export class UserService {
     return actualizado
   }
 
-  // ===== ELIMINAR USUARIO (Soft Delete) =====
   async eliminarUsuario(id: string, adminId: string) {
     const usuario = await prisma.user.findUnique({
       where: { id },
-      include: {
-        casos: true,
-        clientes: true
-      }
+      include: { casos: true, clientes: true }
     })
 
     if (!usuario) {
       throw new Error("Usuario no encontrado")
     }
 
-    // Validar que no sea el único admin
     if (usuario.rol === 'ADMIN') {
       const adminsActivos = await prisma.user.count({
-        where: {
-          rol: 'ADMIN',
-          isActive: true
-        }
+        where: { rol: 'ADMIN', isActive: true }
       })
 
       if (adminsActivos <= 1) {
@@ -283,18 +254,17 @@ export class UserService {
       }
     }
 
-    // Validar que no tenga casos activos
-    const casosActivos = usuario.casos.filter(c => c.estado !== 'CERRADO').length
+    // FIX: era 'CERRADO' (siempre false), ahora es 'Cerrado' consistente con el sistema
+    const casosActivos = usuario.casos.filter(c => c.estado !== 'Cerrado').length
     if (casosActivos > 0) {
       throw new Error(`El usuario tiene ${casosActivos} caso(s) activo(s). Debe cerrarlos o reasignarlos primero.`)
     }
 
-    // Soft delete (desactivar)
     await prisma.user.update({
       where: { id },
       data: {
         isActive: false,
-        email: `${usuario.email}.deleted.${Date.now()}` // Liberar el email
+        email: `${usuario.email}.deleted.${Date.now()}`
       }
     })
 
@@ -310,26 +280,17 @@ export class UserService {
     return { success: true }
   }
 
-  // ===== OBTENER ESTADÍSTICAS =====
   async obtenerEstadisticas() {
     const [total, activos, porRol] = await Promise.all([
       prisma.user.count({
-        where: {
-          rol: { in: ['ADMIN', 'ABOGADO', 'ASISTENTE'] }
-        }
+        where: { rol: { in: ['ADMIN', 'ABOGADO', 'ASISTENTE'] } }
       }),
       prisma.user.count({
-        where: {
-          rol: { in: ['ADMIN', 'ABOGADO', 'ASISTENTE'] },
-          isActive: true
-        }
+        where: { rol: { in: ['ADMIN', 'ABOGADO', 'ASISTENTE'] }, isActive: true }
       }),
       prisma.user.groupBy({
         by: ['rol'],
-        where: {
-          isActive: true,
-          rol: { in: ['ADMIN', 'ABOGADO', 'ASISTENTE'] }
-        },
+        where: { isActive: true, rol: { in: ['ADMIN', 'ABOGADO', 'ASISTENTE'] } },
         _count: true
       })
     ])

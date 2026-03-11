@@ -1,5 +1,3 @@
-// src/app/clientes/page.tsx
-
 import { getUserSessionServer } from "@/auth/actions/auth-actions"
 import { redirect } from "next/navigation"
 import { ClienteService } from "@/lib/aplication/services/cliente.service"
@@ -8,9 +6,9 @@ import { Sidebar } from "@/app/components/sidebar"
 import { Header } from "@/app/components/header"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Plus, Edit, User, Building2, Eye } from "lucide-react"
+import { Buscador } from "../components/buscador"
 
 const clienteService = new ClienteService()
 
@@ -28,6 +26,7 @@ export default async function ClientesPage({
   if (!user) redirect("/auth/signin")
 
   const userRol = user.rol?.toUpperCase() || ''
+  if (userRol === 'ADMIN') redirect('/')
 
   // Obtener clientes según rol
   let clientes = []
@@ -39,14 +38,28 @@ export default async function ClientesPage({
     clientes = await clienteService.getClientesByAbogado(user.id)
   }
 
-  // Filtrado
+  // 1. Filtrado por Estado (Lógica de Borrado Lógico / Archivo)
+  const filtroEstado = searchParams?.estado || "habilitados" // Por defecto muestra solo los que sirven
+  
+  if (filtroEstado === "habilitados") {
+    clientes = clientes.filter(c => c.activo === true)
+  } else if (filtroEstado === "archivados") {
+    clientes = clientes.filter(c => c.activo === false)
+  }
+  // Si es "todos", no filtramos por activo/inactivo
+
+  // 2. Filtrado por Búsqueda (Texto)
   const terminoBusqueda = searchParams?.buscar?.toLowerCase() || ""
   if (terminoBusqueda) {
     clientes = clientes.filter(c => 
-      c.nombre.toLowerCase().includes(terminoBusqueda) || 
+      c.nombre?.toLowerCase().includes(terminoBusqueda) || 
       c.apellido?.toLowerCase().includes(terminoBusqueda) ||
       c.email?.toLowerCase().includes(terminoBusqueda) ||
-      c.numeroDocumento?.includes(terminoBusqueda)
+      c.numeroDocumento?.includes(terminoBusqueda) ||
+      // @ts-ignore - Preparado para cuando agreguemos estos campos
+      c.cuit?.includes(terminoBusqueda) || 
+      // @ts-ignore - Preparado para cuando agreguemos estos campos
+      c.razonSocial?.toLowerCase().includes(terminoBusqueda)
     )
   }
 
@@ -61,6 +74,14 @@ export default async function ClientesPage({
     if (isAdmin(userRol)) return 'Administra todos los clientes del estudio'
     if (isAsistente(userRol)) return 'Visualización y registro de clientes'
     return 'Registra y administra los clientes de tus casos'
+  }
+
+  // Helper para armar las URLs de las pestañas de filtro manteniendo la búsqueda actual
+  const buildFilterUrl = (estado: string) => {
+    const params = new URLSearchParams()
+    if (terminoBusqueda) params.set("buscar", terminoBusqueda)
+    params.set("estado", estado)
+    return `?${params.toString()}`
   }
 
   return (
@@ -79,7 +100,7 @@ export default async function ClientesPage({
                 <p className="text-gray-600">{getSubtitulo()}</p>
               </div>
               
-              {/* Botón Nuevo Cliente - Todos los roles pueden crear */}
+              {/* Botón Nuevo Cliente */}
               <Link href="/clientes/nuevo">
                 <Button className="gap-2 bg-blue-600 hover:bg-blue-700">
                   <Plus className="w-4 h-4" />
@@ -96,20 +117,40 @@ export default async function ClientesPage({
               </div>
             )}
 
-            {/* Filtros */}
+            {/* Filtros con Buscador Inteligente y Pestañas de Estado */}
             <Card className="mb-6 shadow-sm border-slate-200">
-              <CardHeader>
-                <CardTitle className="text-lg">Filtros</CardTitle>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg">Filtros de Búsqueda</CardTitle>
               </CardHeader>
               <CardContent>
-                <form action="" className="flex gap-4">
-                  <Input
-                    name="buscar"
-                    placeholder="Buscar por nombre, DNI, email... (Presiona Enter)"
-                    defaultValue={searchParams?.buscar}
-                    className="flex-1"
-                  />
-                </form>
+                <div className="flex flex-col sm:flex-row gap-4">
+                  {/* Buscador de texto */}
+                  <div className="flex-1">
+                    <Buscador placeholder="Buscar por nombre, apellido, DNI, empresa..." />
+                  </div>
+
+                  {/* Selector de Estado (Estilo Pestañas/Toggle) */}
+                  <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200 shrink-0">
+                    <Link 
+                      href={buildFilterUrl('habilitados')}
+                      className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${filtroEstado === 'habilitados' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                      Habilitados
+                    </Link>
+                    <Link 
+                      href={buildFilterUrl('archivados')}
+                      className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${filtroEstado === 'archivados' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                      Archivados
+                    </Link>
+                    <Link 
+                      href={buildFilterUrl('todos')}
+                      className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${filtroEstado === 'todos' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                      Todos
+                    </Link>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
@@ -121,10 +162,12 @@ export default async function ClientesPage({
               <CardContent>
                 {clientes.length === 0 ? (
                   <div className="text-center py-12 text-gray-500">
-                    <p className="text-lg">No hay clientes registrados</p>
-                    <Link href="/clientes/nuevo" className="text-blue-600 hover:underline text-sm mt-2 block">
-                      Crear el primero
-                    </Link>
+                    <p className="text-lg">No se encontraron clientes</p>
+                    {terminoBusqueda === "" && filtroEstado === "habilitados" && (
+                      <Link href="/clientes/nuevo" className="text-blue-600 hover:underline text-sm mt-2 block">
+                        Crear el primero
+                      </Link>
+                    )}
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
@@ -174,11 +217,11 @@ export default async function ClientesPage({
                             {/* Teléfono */}
                             <TableCell className="text-slate-600 text-sm">{cliente.telefono || "-"}</TableCell>
                             
-                            {/* Estado */}
+                            {/* Estado (Actualizado a Habilitado/Archivado) */}
                             <TableCell>
                               <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium 
-                                ${cliente.activo ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}`}>
-                                {cliente.activo ? 'Activo' : 'Inactivo'}
+                                ${cliente.activo ? "bg-green-100 text-green-800 border border-green-200" : "bg-gray-100 text-gray-600 border border-gray-200"}`}>
+                                {cliente.activo ? 'Habilitado' : 'Archivado'}
                               </span>
                             </TableCell>
                             
@@ -195,7 +238,7 @@ export default async function ClientesPage({
                                   </Button>
                                 </Link>
                                 <Link href={`/clientes/${cliente.id}/editar`}>
-                                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" title="Editar / Restaurar">
                                     <Edit className="w-4 h-4 text-slate-500 hover:text-blue-600" />
                                   </Button>
                                 </Link>

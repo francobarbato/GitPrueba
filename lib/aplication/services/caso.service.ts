@@ -105,6 +105,14 @@ export class CasoService {
 
       // Aquí pasamos la estructura mágica para que Prisma cree los hijos
       requirements: requirementsFormat,
+      juzgado: data.juzgado || null,
+      fuero: data.fuero || null,
+      contraparteNombre: data.contraparteNombre || null,
+      contraparteDni: data.contraparteDni || null,
+      montoDisputa: data.montoDisputa || null,
+      ubicacionFisica: data.ubicacionFisica || null,
+      provincia: data.provincia || null,
+      ciudad: data.ciudad || null,
     }
 
     return await this.casoRepository.create(datosParaGuardar)
