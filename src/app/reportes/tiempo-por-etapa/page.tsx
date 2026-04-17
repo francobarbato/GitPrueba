@@ -8,7 +8,6 @@ import Link from "next/link"
 import { Sidebar } from "@/app/components/sidebar"
 import { Header } from "@/app/components/header"
 import { getUserSessionServer } from "@/auth/actions/auth-actions"
-import { redirect } from "next/navigation"
 import prisma from "src/lib/db/prisma"
 import { differenceInDays } from "date-fns"
 import { ArrowLeft, BarChart3, AlertTriangle } from "lucide-react"
@@ -18,7 +17,7 @@ import { Button } from "@/components/ui/button"
 import { CasosAgrupadosPorEtapa, type GrupoEtapa, type CasoEnEtapa } from "./components/CasosAgrupadosPorEtapa"
 import { SelectorCasoTimeline } from "./components/SelectorCasoTimeline"
 import { FiltrosEtapa } from "./components/FiltrosEtapa"
-
+import { redirect, notFound } from "next/navigation"
 // ============================================================================
 // TIPOS
 // ============================================================================
@@ -209,6 +208,8 @@ export default async function TiempoPorEtapaPage({
   if (!user) redirect("/api/auth/signin")
 
   const userRol = user.rol?.toUpperCase() || ''
+  // Defensa en profundidad — bloquear roles no operativos
+if (userRol === 'CLIENTE' || userRol === 'ADMIN') notFound()
   const params = await searchParams
 
   const filtroFuero  = params?.fuero   || 'todos'

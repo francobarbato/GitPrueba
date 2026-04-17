@@ -6,11 +6,11 @@ import Link from "next/link"
 import { Sidebar } from "@/app/components/sidebar"
 import { Header } from "@/app/components/header"
 import { getUserSessionServer } from "@/auth/actions/auth-actions"
-import { redirect } from "next/navigation"
 import prisma from "src/lib/db/prisma"
 import { differenceInDays, subDays, startOfMonth } from "date-fns"
 import { ArrowLeft, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { redirect, notFound } from "next/navigation"
 
 // Componentes
 import { KPICards } from "./components/KPICards"
@@ -239,6 +239,8 @@ export default async function MatrizTrabajoPage() {
   if (!user) redirect("/api/auth/signin")
 
   const esAdmin = user.rol?.toUpperCase() === 'ADMIN'
+  // Defensa en profundidad — bloquear roles no operativos
+  if (user.rol === 'CLIENTE' || user.rol === 'ADMIN') notFound()
 
   // Todos ven KPIs globales, matriz del equipo y casos problemáticos
   const [kpis, matrizEquipo, casosProblematicos] = await Promise.all([

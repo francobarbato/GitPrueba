@@ -39,12 +39,12 @@ const getMenuItems = (rol?: string) => {
       icon: Users,
       roles: ['ABOGADO', 'ASISTENTE']
     },
-    // { 
-    //   name: "Gestión de tareas", 
-    //   href: "/gestion-tareas", 
-    //   icon: Calendar,
-    //   roles: ['ADMIN', 'ABOGADO', 'ASISTENTE']
-    // },
+    { 
+      name: "Gestión de tareas", 
+      href: "/gestion-tareas", 
+      icon: Calendar,
+      roles: ['ABOGADO', 'ASISTENTE']
+    },
     // { 
     //   name: "Plantillas de documentos", 
     //   href: "/plantilla-documentos", 

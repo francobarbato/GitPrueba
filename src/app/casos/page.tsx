@@ -1,5 +1,4 @@
 import { getUserSessionServer } from "@/auth/actions/auth-actions"
-import { redirect } from "next/navigation"
 import { CasoService } from "@/lib/aplication/services/caso.service"
 import Link from "next/link"
 import { Sidebar } from "@/app/components/sidebar"
@@ -9,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card" 
 import { Buscador } from "../components/buscador" 
 import { FiltrosCasos } from "./components/filtros"
 import { Button } from "@/components/ui/button"
+import { redirect, notFound } from "next/navigation"
 
 const casoService = new CasoService()
 
@@ -37,6 +37,9 @@ export default async function CasosPage({
   }
 
   const userRol = user.rol?.toUpperCase() || ''
+  // Defensa en profundidad — bloquear roles no operativos
+  if (userRol === 'CLIENTE' || userRol === 'ADMIN') notFound()
+
   if (userRol === 'ADMIN') {
       return (
     <div className="flex h-screen bg-slate-50 items-center justify-center p-4">

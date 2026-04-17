@@ -24,6 +24,7 @@ model User {
   creadoPor            String?
   debeResetearPassword Boolean    @default(false)
   ultimoAcceso         DateTime?
+   ultimoAccesoTareas   DateTime?
   colaboracionesAsignadas CasoColaborador[] @relation("AsignadorColaboracion")
 
 
@@ -34,7 +35,11 @@ model User {
   clienteVinculado     Cliente?   @relation("ClienteUsuarioPortal")
   pagosValidados       Pago[]
   sessions             Session[]
-  tareas               Tarea[]
+  
+  tareasCreadas      Tarea[] @relation("TareasCreadas")
+  tareasAsignadas    Tarea[] @relation("TareasAsignadas")
+  tareasSupervisadas Tarea[] @relation("TareasSupervisadas")
+
   colaboraciones CasoColaborador[]
 
   @@map("usuario")
@@ -58,10 +63,12 @@ model Cliente {
   notasInternas   String?       @db.Text
   tipoPersona     TipoPersona   @default(FISICA)
   creadoPorId     String?
+  ultimoAccesoPortal  DateTime?
   usuarioPortalId String?       @unique
   casos           Caso[]        @relation("ClienteCasos")
   abogado         User          @relation("AbogadoClientes", fields: [abogadoId], references: [id])
   usuarioPortal   User?         @relation("ClienteUsuarioPortal", fields: [usuarioPortalId], references: [id])
+  tareas          Tarea[]
 
     // Campos para Persona Jurídica
   tipoSociedad          String?  // SA, SRL, SAS, COOPERATIVA, ASOCIACION_CIVIL
@@ -159,21 +166,45 @@ model CasoColaborador {
 }
 
 model Tarea {
-  id         String   @id @default(uuid())
-  titulo     String
-  prioridad  String   @default("Media")
-  fatal      Boolean  @default(false)
-  fecha      String?
-  completada Boolean  @default(false)
-  usuarioId  String
-  casoId     String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  caso       Caso?    @relation(fields: [casoId], references: [id], onDelete: Cascade)
-  usuario    User     @relation(fields: [usuarioId], references: [id])
+  id               String         @id @default(uuid())
+  titulo           String
+  descripcion      String?        @db.Text
+  tipo             TipoTarea      @default(INTERNA)
+  categoria        CategoriaTarea @default(REUNION_CLIENTE)
+  ambito           AmbitoTarea    @default(INTERNO)
+  prioridad        PrioridadTarea @default(MEDIA)
+  estado           EstadoTarea    @default(PENDIENTE)
+  motivoBloqueo    String?        @db.Text
+  motivoDesbloqueo String?        @db.Text
+  fechaVencimiento DateTime?
+  fechaInicio      DateTime?
+  fechaCompletada  DateTime?
+  lugarFisico      String?
+  visibleCliente   Boolean        @default(false)
+  clienteId        String?
 
-  @@index([casoId], map: "tarea_casoId_fkey")
-  @@index([usuarioId], map: "tarea_usuarioId_fkey")
+  // Relaciones de actores
+  casoId           String?
+  cliente          Cliente?       @relation(fields: [clienteId], references: [id], onDelete: SetNull)
+  creadorId        String
+  responsableId    String
+  supervisorId     String?
+
+  caso             Caso?          @relation(fields: [casoId], references: [id], onDelete: SetNull)
+  creador          User           @relation("TareasCreadas", fields: [creadorId], references: [id])
+  responsable      User           @relation("TareasAsignadas", fields: [responsableId], references: [id])
+  supervisor       User?          @relation("TareasSupervisadas", fields: [supervisorId], references: [id])
+
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@index([casoId])
+  @@index([clienteId])
+  @@index([creadorId])
+  @@index([responsableId])
+  @@index([supervisorId])
+  @@index([estado])
+  @@index([fechaVencimiento])
   @@map("tarea")
 }
 
@@ -305,4 +336,45 @@ enum UserRole {
   ABOGADO
   ASISTENTE
   CLIENTE
+}
+
+enum TipoTarea {
+  PROCESAL
+  INTERNA
+}
+
+enum CategoriaTarea {
+  PRESENTACION_ESCRITO
+  AUDIENCIA
+  NOTIFICACION_CEDULA
+  CONTROL_EXPEDIENTE
+  APELACION_RECURSO
+  PERICIA_PRUEBA
+  REUNION_CLIENTE
+  REDACCION_DOCUMENTACION
+  TRAMITE_ADMINISTRATIVO
+  REQUERIMIENTO_CLIENTE
+  GESTION_FINANCIERA
+  REUNION_EQUIPO
+  VENCIMIENTO_PLAZO
+}
+
+enum AmbitoTarea {
+  INTERNO
+  EXTERNO
+}
+
+enum PrioridadTarea {
+  BAJA
+  MEDIA
+  ALTA
+  FATAL
+}
+
+enum EstadoTarea {
+  PENDIENTE
+  EN_PROCESO
+  BLOQUEADA
+  COMPLETADA
+  VENCIDA
 }

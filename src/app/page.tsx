@@ -11,13 +11,15 @@ import { DashboardService } from "@/lib/aplication/services/dashboard.service"
 import {
   Briefcase, Users, Scale, FileText,
   TrendingUp, UserPlus, Settings,
-  ArrowRight, Clock, AlertCircle
+  ArrowRight, Clock, AlertCircle,
+  AlertTriangle, Lock, ShieldAlert,
+  CheckCircle2
 } from "lucide-react"
 
 const dashboardService = new DashboardService()
 
 // ============================================================================
-// COMPONENTES
+// COMPONENTES REUTILIZABLES
 // ============================================================================
 
 const CARD_COLORS: Record<string, { bg: string; text: string; icon: string }> = {
@@ -30,13 +32,13 @@ const CARD_COLORS: Record<string, { bg: string; text: string; icon: string }> = 
 }
 
 const CARD_ICONS: Record<string, React.ElementType> = {
-  'Mis Casos Activos': Briefcase,
+  'Mis casos activos': Briefcase,
   'Casos Activos': Briefcase,
   'Mis Cerrados': Scale,
   'Casos Cerrados': Scale,
-  'Mis Clientes': Users,
+  'Mis clientes': Users,
   'Clientes': Users,
-  'Activos en el Estudio': TrendingUp,
+  'Casos activos en el Estudio': TrendingUp,
   'Abogados Activos': Users,
   'Abogados': Users,
   'Sin Movimiento (30d)': AlertCircle,
@@ -59,130 +61,206 @@ function StatCard({ label, value, color }: { label: string; value: number; color
   )
 }
 
-function DashboardCard({ title, description, href, icon: Icon }: {
-  title: string; description: string; href: string; icon: React.ElementType
-}) {
-  return (
-    <Link href={href} className="block group">
-      <div className="rounded-xl border border-slate-200 p-5 bg-white shadow-sm transition-all hover:shadow-md hover:border-blue-300 h-full flex items-start gap-4">
-        <div className="p-2.5 bg-slate-50 rounded-lg group-hover:bg-blue-50 transition-colors">
-          <Icon className="h-5 w-5 text-slate-500 group-hover:text-blue-600 transition-colors" />
-        </div>
-        <div>
-          <h3 className="text-base font-semibold text-slate-800 group-hover:text-blue-700 transition-colors">
-            {title}
-          </h3>
-          <p className="mt-1 text-sm text-slate-500">{description}</p>
-        </div>
-      </div>
-    </Link>
-  )
-}
+// ============================================================================
+// BANDEJA DE ACCIÓN — Tareas urgentes
+// ============================================================================
 
-function RecentActivity({ actividad, esAdmin }: { actividad: any[]; esAdmin: boolean }) {
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-      <div className="border-b px-5 py-4 bg-slate-50/50 flex items-center gap-2">
-        <Clock className="h-4 w-4 text-slate-500" />
-        <div>
-          <h3 className="font-semibold text-slate-800 text-sm">Actividad Reciente</h3>
-          <p className="text-xs text-slate-500">
-            {esAdmin ? 'Últimas actualizaciones del estudio' : 'Últimas actualizaciones en tus casos'}
-          </p>
-        </div>
-      </div>
-      <div className="divide-y divide-slate-100">
-        {actividad.length === 0 ? (
-          <p className="text-sm text-slate-400 italic text-center py-10">
-            No hay actividad reciente.
-          </p>
-        ) : (
-          actividad.map((caso) => (
-            <Link key={caso.id} href={`/casos/${caso.id}`} className="block">
-              <div className="px-5 py-3.5 hover:bg-slate-50 transition-colors flex items-center justify-between group">
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium text-slate-800 text-sm truncate group-hover:text-blue-700 transition-colors">
-                    {caso.titulo}
-                  </p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-xs text-slate-500">
-                      {caso.cliente ? `${caso.cliente.nombre} ${caso.cliente.apellido || ''}`.trim() : 'Sin cliente'}
-                    </span>
-                    {esAdmin && caso.abogado && (
-                      <>
-                        <span className="text-slate-300">·</span>
-                        <span className="text-xs text-slate-400">
-                          {caso.abogado.nombre} {caso.abogado.apellido || ''}
-                        </span>
-                      </>
-                    )}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 ml-3">
-                  <span className="text-[10px] text-slate-400">
-                    {new Date(caso.updatedAt).toLocaleDateString('es-AR')}
-                  </span>
-                  <ArrowRight className="h-3.5 w-3.5 text-slate-300 group-hover:text-blue-500 transition-colors" />
-                </div>
-              </div>
-            </Link>
-          ))
-        )}
-      </div>
-    </div>
-  )
-}
-
-function ClientesSinActivos({ clientes }: { clientes: any[] }) {
-  if (clientes.length === 0) {
+function BandejaAccion({ tareas }: { tareas: any[] }) {
+  if (tareas.length === 0) {
     return (
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="border-b px-5 py-4 bg-slate-50/50 flex items-center gap-2">
-          <Users className="h-4 w-4 text-slate-500" />
+          <Clock className="h-4 w-4 text-slate-500" />
           <div>
-            <h3 className="font-semibold text-slate-800 text-sm">Clientes sin Casos Activos</h3>
-            <p className="text-xs text-slate-500">Clientes que podrían necesitar seguimiento</p>
+            <h3 className="font-semibold text-slate-800 text-sm">Tu Bandeja de Acción</h3>
+            <p className="text-xs text-slate-500">Tareas que requieren tu atención inmediata</p>
           </div>
         </div>
-        <div className="px-5 py-10 text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-700 rounded-full text-sm font-medium">
-            <Scale className="h-4 w-4" />
-            Todos tus clientes tienen casos activos
-          </div>
+        <div className="px-5 py-12 text-center">
+          <CheckCircle2 className="w-10 h-10 mx-auto mb-3 text-emerald-300" />
+          <p className="text-sm font-medium text-slate-600">Todo al día</p>
+          <p className="text-xs text-slate-400 mt-1">No tenés tareas urgentes por ahora</p>
         </div>
       </div>
     )
   }
 
+  // Agrupar por tipo de urgencia
+  const vencidas = tareas.filter(t => t.estado === "VENCIDA")
+  const porVencer = tareas.filter(t => t.estado !== "VENCIDA" && t.estado !== "BLOQUEADA" && t.fechaVencimiento)
+  const bloqueadas = tareas.filter(t => t.estado === "BLOQUEADA")
+
   return (
     <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-      <div className="border-b px-5 py-4 bg-slate-50/50 flex items-center gap-2">
-        <Users className="h-4 w-4 text-slate-500" />
-        <div>
-          <h3 className="font-semibold text-slate-800 text-sm">Clientes sin Casos Activos</h3>
-          <p className="text-xs text-slate-500">Clientes que podrían necesitar seguimiento</p>
+      <div className="border-b px-5 py-4 bg-slate-50/50 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <AlertTriangle className="h-4 w-4 text-slate-500" />
+          <div>
+            <h3 className="font-semibold text-slate-800 text-sm">Tu Bandeja de Acción</h3>
+            <p className="text-xs text-slate-500">
+              {tareas.length} tarea{tareas.length !== 1 ? "s" : ""} requiere{tareas.length !== 1 ? "n" : ""} tu atención
+            </p>
+          </div>
         </div>
+        <Link href="/gestion-tareas" className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1">
+          Ver todas <ArrowRight className="w-3 h-3" />
+        </Link>
       </div>
+
       <div className="divide-y divide-slate-100">
-        {clientes.map((cliente) => (
-          <Link key={cliente.id} href={`/clientes/${cliente.id}`} className="block">
-            <div className="px-5 py-3.5 hover:bg-slate-50 transition-colors flex items-center justify-between group">
-              <div>
-                <p className="font-medium text-slate-800 text-sm group-hover:text-blue-700 transition-colors">
-                  {cliente.nombre} {cliente.apellido || ''}
+        {/* Vencidas primero */}
+        {vencidas.map(t => (
+          <Link key={t.id} href="/gestion-tareas" className="block">
+            <div className="px-5 py-3.5 hover:bg-red-50/50 transition-colors group flex items-start gap-3">
+              <div className="mt-1 w-2 h-2 rounded-full bg-red-500 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] px-1.5 py-0.5 bg-red-100 text-red-700 rounded font-bold">VENCIDA</span>
+                  {t.tipo === "PROCESAL" && (
+                    <span className="text-[10px] px-1.5 py-0.5 bg-red-50 text-red-600 rounded border border-red-200 font-medium">Procesal</span>
+                  )}
+                </div>
+                <p className="text-sm font-medium text-slate-800 mt-1 truncate group-hover:text-red-700 transition-colors">
+                  {t.titulo}
                 </p>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  {cliente.todosCerrados
-                    ? `${cliente.totalCasos} caso${cliente.totalCasos !== 1 ? 's' : ''} cerrado${cliente.totalCasos !== 1 ? 's' : ''}`
-                    : 'Sin casos registrados'
-                  }
+                {t.caso && (
+                  <p className="text-[10px] text-slate-400 mt-0.5">
+                    <span className="font-mono text-blue-600">{t.caso.numero}</span> — {t.caso.titulo?.slice(0, 40)}
+                  </p>
+                )}
+              </div>
+              {t.fechaVencimiento && (
+                <span className="text-[10px] text-red-600 font-bold shrink-0 mt-1">
+                  {new Date(t.fechaVencimiento).toLocaleDateString("es-AR", { day: "numeric", month: "short" })}
+                </span>
+              )}
+            </div>
+          </Link>
+        ))}
+
+        {/* Por vencer (hoy/mañana) */}
+        {porVencer.map(t => {
+          const fecha = t.fechaVencimiento ? new Date(t.fechaVencimiento) : null
+          const esHoy = fecha && fecha.toDateString() === new Date().toDateString()
+          const dotColor = esHoy ? "bg-orange-500" : "bg-amber-400"
+          const labelColor = esHoy ? "bg-orange-100 text-orange-700" : "bg-amber-100 text-amber-700"
+          const labelText = esHoy ? "VENCE HOY" : "VENCE MAÑANA"
+
+          return (
+            <Link key={t.id} href="/gestion-tareas" className="block">
+              <div className="px-5 py-3.5 hover:bg-amber-50/50 transition-colors group flex items-start gap-3">
+                <div className={`mt-1 w-2 h-2 rounded-full ${dotColor} shrink-0`} />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[10px] px-1.5 py-0.5 ${labelColor} rounded font-bold`}>{labelText}</span>
+                    {t.prioridad === "FATAL" && (
+                      <span className="text-[10px] px-1.5 py-0.5 bg-red-100 text-red-700 rounded font-bold flex items-center gap-0.5">
+                        <ShieldAlert className="w-3 h-3" /> FATAL
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-sm font-medium text-slate-800 mt-1 truncate group-hover:text-amber-700 transition-colors">
+                    {t.titulo}
+                  </p>
+                  {t.caso && (
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      <span className="font-mono text-blue-600">{t.caso.numero}</span> — {t.caso.titulo?.slice(0, 40)}
+                    </p>
+                  )}
+                </div>
+                {fecha && (
+                  <span className={`text-[10px] font-bold shrink-0 mt-1 ${esHoy ? "text-orange-600" : "text-amber-600"}`}>
+                    {fecha.toLocaleDateString("es-AR", { day: "numeric", month: "short" })}
+                  </span>
+                )}
+              </div>
+            </Link>
+          )
+        })}
+
+        {/* Bloqueadas donde soy supervisor */}
+        {bloqueadas.map(t => (
+          <Link key={t.id} href="/gestion-tareas" className="block">
+            <div className="px-5 py-3.5 hover:bg-slate-50 transition-colors group flex items-start gap-3">
+              <Lock className="w-3.5 h-3.5 text-red-400 mt-1 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] px-1.5 py-0.5 bg-red-50 text-red-600 rounded font-medium border border-red-200">Bloqueada</span>
+                </div>
+                <p className="text-sm font-medium text-slate-800 mt-1 truncate group-hover:text-blue-700 transition-colors">
+                  {t.titulo}
+                </p>
+                <p className="text-[10px] text-slate-400 mt-0.5">
+                  Responsable: {t.responsable?.nombre} {t.responsable?.apellido}
+                  {t.motivoBloqueo && <span className="text-red-500"> — {t.motivoBloqueo.slice(0, 60)}{t.motivoBloqueo.length > 60 ? "..." : ""}</span>}
                 </p>
               </div>
-              <ArrowRight className="h-3.5 w-3.5 text-slate-300 group-hover:text-blue-500 transition-colors" />
             </div>
           </Link>
         ))}
       </div>
+    </div>
+  )
+}
+
+// ============================================================================
+// PANEL DE EXPEDIENTES INCOMPLETOS
+// ============================================================================
+
+function ExpedientesIncompletos({ casosIncompletos }: { casosIncompletos: any[] }) {
+  return (
+    <div className="rounded-xl border-2 border-amber-300 bg-amber-50 shadow-md overflow-hidden">
+      <div className="bg-amber-400 px-4 py-3 flex items-center gap-2">
+        <AlertCircle className="w-5 h-5 text-amber-900" />
+        <div>
+          <p className="font-bold text-amber-900 text-sm">Expedientes Incompletos</p>
+          <p className="text-amber-800 text-xs">
+            {casosIncompletos.length === 0
+              ? 'Todo al día'
+              : `${casosIncompletos.length} caso${casosIncompletos.length !== 1 ? 's' : ''} requieren atención`
+            }
+          </p>
+        </div>
+      </div>
+
+      {casosIncompletos.length === 0 ? (
+        <div className="px-4 py-8 text-center">
+          <p className="text-sm text-amber-700 font-medium">✅ Todos los expedientes están completos</p>
+        </div>
+      ) : (
+        <div className="divide-y divide-amber-200">
+          {casosIncompletos.map((caso) => (
+            <Link key={caso.id} href={`/casos/${caso.id}`} className="block">
+              <div className="px-4 py-3 hover:bg-amber-100 transition-colors group">
+                <p className="text-sm font-semibold text-slate-800 truncate group-hover:text-amber-900">
+                  {caso.titulo}
+                </p>
+                <p className="text-xs text-slate-500 font-mono mt-0.5">#{caso.numero}</p>
+                <div className="flex gap-2 mt-1.5 flex-wrap">
+                  {!caso.juzgado && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-200 text-amber-800 font-medium">
+                      Sin juzgado
+                    </span>
+                  )}
+                  {!caso.ubicacionFisica && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-200 text-amber-800 font-medium">
+                      Sin ubicación
+                    </span>
+                  )}
+                </div>
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
+
+      {casosIncompletos.length > 0 && (
+        <div className="border-t border-amber-300 px-4 py-2.5 bg-amber-100">
+          <Link href="/casos" className="text-xs text-amber-800 hover:text-amber-900 font-medium flex items-center gap-1">
+            Ver todos los casos <ArrowRight className="w-3 h-3" />
+          </Link>
+        </div>
+      )}
     </div>
   )
 }
@@ -208,17 +286,17 @@ export default async function DashboardPage() {
 
   const rol = user.rol || 'ABOGADO'
   const esAdmin = rol.toUpperCase() === 'ADMIN'
-
   const esAsistente = rol.toUpperCase() === 'ASISTENTE'
   const esAbogado = rol.toUpperCase() === 'ABOGADO'
   const mostrarAlertas = esAbogado || esAsistente
 
-  const [stats, actividad, clientesSinActivos, casosIncompletos] = await Promise.all([
+  const [stats, casosIncompletos, tareasUrgentes] = await Promise.all([
     dashboardService.getStats(user.id, rol),
-    dashboardService.getActividadReciente(user.id, rol),
-    dashboardService.getClientesSinCasosActivos(user.id, rol),
-    mostrarAlertas 
+    mostrarAlertas
       ? dashboardService.getCasosIncompletos(user.id, rol)
+      : Promise.resolve([]),
+    mostrarAlertas
+      ? dashboardService.getTareasUrgentes(user.id, rol)
       : Promise.resolve([]),
   ])
 
@@ -246,100 +324,37 @@ export default async function DashboardPage() {
               </span>
             </div>
 
-            {/* Layout con panel lateral de alertas */}
-            <div className={`flex gap-6 items-start ${mostrarAlertas ? '' : ''}`}>
-              
-                          {/* PANEL LATERAL DE ALERTAS — solo ABOGADO y ASISTENTE */}
-              {mostrarAlertas && (
-                <div className="w-72 shrink-0 sticky top-6">
-                  <div className="rounded-xl border-2 border-amber-300 bg-amber-50 shadow-md overflow-hidden">
-                    {/* Header del panel */}
-                    <div className="bg-amber-400 px-4 py-3 flex items-center gap-2">
-                      <AlertCircle className="w-5 h-5 text-amber-900" />
-                      <div>
-                        <p className="font-bold text-amber-900 text-sm">Expedientes Incompletos</p>
-                        <p className="text-amber-800 text-xs">
-                          {casosIncompletos.length === 0 
-                            ? 'Todo al día' 
-                            : `${casosIncompletos.length} caso${casosIncompletos.length !== 1 ? 's' : ''} requieren atención`
-                          }
-                        </p>
-                      </div>
-                    </div>
+            {/* KPIs — ocultos para ASISTENTE */}
+            {!esAsistente && (
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+                {stats.cards.map((card: any, i: number) => (
+                  <StatCard key={i} label={card.label} value={card.value} color={card.color} />
+                ))}
+              </div>
+            )}
 
-                    {/* Contenido */}
-                    {casosIncompletos.length === 0 ? (
-                      <div className="px-4 py-8 text-center">
-                        <p className="text-sm text-amber-700 font-medium">✅ Todos los expedientes están completos</p>
-                      </div>
-                    ) : (
-                      <div className="divide-y divide-amber-200">
-                        {casosIncompletos.map((caso) => (
-                          <Link key={caso.id} href={`/casos/${caso.id}`} className="block">
-                            <div className="px-4 py-3 hover:bg-amber-100 transition-colors group">
-                              <p className="text-sm font-semibold text-slate-800 truncate group-hover:text-amber-900">
-                                {caso.titulo}
-                              </p>
-                              <p className="text-xs text-slate-500 font-mono mt-0.5">#{caso.numero}</p>
-                              <div className="flex gap-2 mt-1.5 flex-wrap">
-                                {!caso.juzgado && (
-                                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-200 text-amber-800 font-medium">
-                                    Sin juzgado
-                                  </span>
-                                )}
-                                {!caso.ubicacionFisica && (
-                                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-200 text-amber-800 font-medium">
-                                    Sin ubicación
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </Link>
-                        ))}
-                      </div>
-                    )}
+            {/* Layout principal: Bandeja de Acción + Alertas de Casos */}
+            {mostrarAlertas && (
+              <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
+                {/* Columna izquierda (70%) — Bandeja de Acción */}
+                <BandejaAccion tareas={tareasUrgentes} />
 
-                    {/* Footer con link a todos los casos */}
-                    {casosIncompletos.length > 0 && (
-                      <div className="border-t border-amber-300 px-4 py-2.5 bg-amber-100">
-                        <Link href="/casos" className="text-xs text-amber-800 hover:text-amber-900 font-medium flex items-center gap-1">
-                          Ver todos los casos <ArrowRight className="w-3 h-3" />
-                        </Link>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Placeholder tareas — para desarrollo futuro */}
-                  {/* 
-                  <div className="mt-4 rounded-xl border border-slate-200 bg-white shadow-sm p-4">
-                    <p className="text-sm font-semibold text-slate-600">Próximos Vencimientos</p>
-                    // query: prisma.tarea.findMany({ where: { completada: false, fecha: { lte: +7días } } })
-                  </div>
-                  */}
-                </div>
-              )} 
-              
-              
-              {/* CONTENIDO PRINCIPAL */}
-              <div className="flex-1 space-y-6 min-w-0">
-
-                {/* KPIs — ocultos para ASISTENTE */}
-                {!esAsistente && (
-                  <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-                    {stats.cards.map((card: any, i: number) => (
-                      <StatCard key={i} label={card.label} value={card.value} color={card.color} />
-                    ))}
-                  </div>
-                )}
-
-                {/* Actividad + Clientes */}
-                <div className="grid gap-6 lg:grid-cols-2">
-                  <RecentActivity actividad={actividad} esAdmin={esAdmin} />
-                  <ClientesSinActivos clientes={clientesSinActivos} />
+                {/* Columna derecha (30%) — Expedientes Incompletos */}
+                <div className="space-y-6">
+                  <ExpedientesIncompletos casosIncompletos={casosIncompletos} />
                 </div>
               </div>
+            )}
 
-            </div>
+            {/* Admin solo ve KPIs por ahora */}
+            {esAdmin && (
+              <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-8 text-center">
+                <Settings className="w-10 h-10 mx-auto mb-3 text-slate-300" />
+                <p className="text-sm font-medium text-slate-600">Panel administrativo</p>
+                <p className="text-xs text-slate-400 mt-1">Gestión de usuarios y configuración del sistema</p>
+              </div>
+            )}
+
           </div>
         </main>
       </div>

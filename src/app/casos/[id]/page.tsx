@@ -1,11 +1,11 @@
 // src/app/casos/[id]/page.tsx
 
-import { notFound } from "next/navigation"
+
 import { getUserSessionServer } from "@/auth/actions/auth-actions"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import { CalendarClock, FileText, Scale, History, DollarSign, Briefcase } from 'lucide-react';
+import { CalendarClock, FileText, Scale, History, DollarSign, Briefcase, ArrowLeft } from 'lucide-react';
 import prisma from "src/lib/db/prisma"
 import { TaskManager } from "./components/TaskManager"
 import { TimelineAuditoria } from "./components/TimelineAuditoria"
@@ -22,6 +22,8 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { obtenerColaboradores, obtenerAbogadosDisponibles } from "./colaborador.actions"
 import { ColaboradoresPanel } from "./components/ColaboradoresPanel"
+import { getTareasDeCaso } from "src/lib/actions/tarea-actions"
+import { redirect, notFound } from "next/navigation"
 
 // Helper para verificar roles
 const isAdmin = (rol: string) => rol?.toUpperCase() === 'ADMIN'
@@ -36,6 +38,8 @@ export default async function CasoDetailPage({ params }: { params: { id: string 
   }
 
   const userRol = user.rol?.toUpperCase() || ''
+  // Defensa en profundidad — bloquear roles no operativos
+  if (userRol === 'CLIENTE' || userRol === 'ADMIN') notFound()
   
   const caso = await prisma.caso.findUnique({
     where: { id: params.id },
@@ -98,6 +102,8 @@ export default async function CasoDetailPage({ params }: { params: { id: string 
   const colaboradores = await obtenerColaboradores(params.id)
   const abogadosDisponibles = await obtenerAbogadosDisponibles(params.id)
 
+  const tareasDeCaso = await getTareasDeCaso(params.id)
+
   const getPriorityColor = (priority: string) => {
     if (priority === "HIGH") return "bg-red-100 text-red-700"
     if (priority === "NORMAL") return "bg-yellow-100 text-yellow-700"
@@ -135,6 +141,15 @@ const puedeVerMontoDisputa = isAbogado(userRol)
 
         <main className="flex-1 overflow-auto">
           <div className="container mx-auto py-8 px-4">
+
+            <nav className="mb-4 flex items-center gap-2 text-sm text-slate-500">
+            <Link href="/casos" className="flex items-center gap-1 hover:text-slate-800 transition-colors">
+              <ArrowLeft className="h-4 w-4" />
+              Gestión de Casos
+            </Link>
+            <span>/</span>
+            <span className="text-slate-800 font-medium">{caso.numero}</span>
+          </nav>
       
             {/* ===== Header con botones de Cierre/Reapertura ===== */}
               <CasoHeader 
@@ -175,7 +190,7 @@ const puedeVerMontoDisputa = isAbogado(userRol)
                 <div className="bg-amber-400 px-4 py-2 flex items-center gap-2">
                   <AlertTriangle className="w-5 h-5 text-amber-900" />
                   <span className="font-bold text-amber-900 text-sm uppercase tracking-wide">
-                    Expediente incompleto
+                    Caso incompleto
                   </span>
                 </div>
                 <div className="px-4 py-3 flex items-center justify-between gap-4">
@@ -210,10 +225,10 @@ const puedeVerMontoDisputa = isAbogado(userRol)
                   Resumen
                 </TabsTrigger>
                 
-                {/* <TabsTrigger value="agenda" className="h-9">
+                <TabsTrigger value="agenda" className="h-9">
                   <CalendarClock className="w-4 h-4 mr-2 shrink-0" />
-                  Agenda
-                </TabsTrigger> */}
+                  Tareas y agenda
+                </TabsTrigger>
                 
                 {/* <TabsTrigger value="expediente" className="h-9">
                   <Briefcase className="w-4 h-4 mr-2 shrink-0" />
@@ -606,7 +621,7 @@ const puedeVerMontoDisputa = isAbogado(userRol)
                   </Card>
 
                   {/* Equipo del Caso: Abogado Titular + Colaboradores */}
-                  {/* <Card>
+                  <Card>
                     <CardHeader className="border-b bg-slate-50/50">
                       <CardTitle className="flex items-center gap-2">
                         <Briefcase className="h-5 w-5 text-slate-600" />
@@ -622,7 +637,7 @@ const puedeVerMontoDisputa = isAbogado(userRol)
                         abogadoTitular={caso.abogado ? { nombre: caso.abogado.nombre, apellido: caso.abogado.apellido } : null}
                       />
                     </CardContent>
-                  </Card> */}
+                  </Card>
 
                 </div>
               </TabsContent>
@@ -637,7 +652,11 @@ const puedeVerMontoDisputa = isAbogado(userRol)
                     </div>
                   </CardHeader>
                   <CardContent className="p-6">
-                    <TaskManager casoId={caso.id} requirements={caso.requirements} />
+                    <TaskManager
+                      casoId={caso.id}
+                      tareas={tareasDeCaso}
+                      puedeCrear={puedeEditar}
+                    />
                   </CardContent>
                 </Card>
               </TabsContent>

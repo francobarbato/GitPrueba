@@ -343,31 +343,16 @@ try {
   const cambios = []
 
     // Cambio de estado
-    if (cambioEstado) {
-      cambios.push(`Estado: ${casoActual.estado} → ${nuevoEstado}`)
-
-      // REGISTRAR EN BITÁCORA CON ESTADOS
-      await prisma.bitacora.create({
-        data: {
-          casoId: casoId,
-          usuarioId: user.id,
-          accion: "ESTADO_CHANGE",
-          estadoAnterior: casoActual.estado,
-          estadoNuevo: nuevoEstado,
-          texto: `Cambio de estado: ${casoActual.estado} → ${nuevoEstado}`,
-          tipo: "sistema"
-        }
-      })
-      
-      await registrarAuditoria({
-        casoId: casoId,
-        usuarioId: user.id,
-        accion: "ESTADO_CHANGE",
-        texto: `Cambio de estado: ${casoActual.estado} → ${nuevoEstado}`,
-        estadoAnterior: casoActual.estado,
-        estadoNuevo: nuevoEstado
-      })
-    }
+if (cambioEstado) {
+  await registrarAuditoria({
+    casoId: casoId,
+    usuarioId: user.id,
+    accion: "ESTADO_CHANGE",
+    texto: `Cambio de estado: ${casoActual.estado} → ${nuevoEstado}`,
+    estadoAnterior: casoActual.estado,
+    estadoNuevo: nuevoEstado
+  })
+}
 
     // Cambio de prioridad
     if (casoActual.priority !== priorityEnum) {

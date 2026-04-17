@@ -41,6 +41,8 @@ export default async function ClienteDetallePage({
   if (!user) redirect("/api/auth/signin")
 
   const userRol = user.rol?.toUpperCase() || ''
+  // Defensa en profundidad — bloquear roles no operativos
+  if (userRol === 'CLIENTE' || userRol === 'ADMIN') notFound()
   if (userRol === 'ADMIN') redirect('/')
 
   const cliente = await prisma.cliente.findUnique({
@@ -57,15 +59,15 @@ export default async function ClienteDetallePage({
         }
       },
       // ===== NUEVO: Incluir usuario del portal =====
-      // usuarioPortal: {
-      //   select: {
-      //     id: true,
-      //     email: true,
-      //     isActive: true,
-      //     createdAt: true,
-      //     ultimoAcceso: true
-      //   }
-      // }
+      usuarioPortal: {
+        select: {
+          id: true,
+          email: true,
+          isActive: true,
+          createdAt: true,
+          ultimoAcceso: true
+        }
+      }
       // =============================================
     }
   })
@@ -116,24 +118,30 @@ export default async function ClienteDetallePage({
         
         <main className="flex-1 overflow-auto p-6">
           <div className="max-w-7xl mx-auto">
+
+            {/* Breadcrumb */}
+            <nav className="mb-4 flex items-center gap-2 text-sm text-slate-500">
+              <Link href="/clientes" className="flex items-center gap-1 hover:text-slate-800 transition-colors">
+                <ArrowLeft className="h-4 w-4" />
+                Gestión de Clientes
+              </Link>
+              <span>/</span>
+              <span className="text-slate-800 font-medium">
+                {cliente.nombre} {cliente.apellido}
+              </span>
+            </nav>
             
-            {/* Navegación y Header */}
             <div className="mb-6 flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <Link href="/clientes">
-                  <Button variant="ghost" size="icon" className="h-10 w-10">
-                    <ArrowLeft className="w-5 h-5" />
-                  </Button>
-                </Link>
+                <div className="mb-6 flex items-center justify-between">
                 <div>
-                  <h1 className="text-3xl font-bold text-slate-800 flex items-center gap-3">
-                    {cliente.tipoPersona === 'FISICA' ? (
-                      <User className="h-8 w-8 text-blue-600" />
-                    ) : (
-                      <Building2 className="h-8 w-8 text-purple-600" />
-                    )}
-                    {cliente.nombre} {cliente.apellido}
-                  </h1>
+                    <h1 className="text-3xl font-bold text-slate-800 flex items-center gap-3">
+                      {cliente.tipoPersona === 'FISICA' ? (
+                        <User className="h-8 w-8 text-blue-600" />
+                      ) : (
+                        <Building2 className="h-8 w-8 text-purple-600" />
+                      )}
+                      {cliente.nombre} {cliente.apellido}
+                    </h1>
                   <p className="text-slate-600 mt-1 flex items-center gap-2">
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
                       cliente.activo ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
@@ -475,7 +483,7 @@ export default async function ClienteDetallePage({
               <div className="space-y-6">
                 
                 {/* ===== NUEVO: Sección de Acceso al Portal ===== */}
-                {/* <PortalAccesoSection 
+                <PortalAccesoSection 
                   cliente={{
                     id: cliente.id,
                     nombre: cliente.nombre,
@@ -485,7 +493,7 @@ export default async function ClienteDetallePage({
                     usuarioPortal: cliente.usuarioPortal
                   }}
                   userRol={userRol}
-                /> */}
+                />
                 {/* ============================================== */}
 
                 {/* Estadísticas de Casos */}

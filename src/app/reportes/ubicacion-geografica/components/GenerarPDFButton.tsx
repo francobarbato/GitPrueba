@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { FileText, Loader2, Download } from "lucide-react"
+import { Loader2, Download } from "lucide-react"
 
 interface CasoUbicacion {
   id: string
@@ -56,23 +56,16 @@ export function GenerarPDFButton({ zonas, vistaGeneral, disabled }: GenerarPDFBu
     setGenerando(true)
     
     try {
-      // Generar HTML del reporte en el cliente
       const html = generarHTMLReporte(zonas, vistaGeneral)
       
-      // Abrir en nueva ventana para imprimir
       const ventana = window.open('', '_blank')
       if (ventana) {
         ventana.document.write(html)
         ventana.document.close()
-        
-        // Esperar a que cargue y luego mostrar diálogo de impresión
         ventana.onload = () => {
-          setTimeout(() => {
-            ventana.print()
-          }, 500)
+          setTimeout(() => { ventana.print() }, 500)
         }
       } else {
-        // Si el navegador bloquea popups, descargar como HTML
         const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
         const url = URL.createObjectURL(blob)
         const a = document.createElement('a')
@@ -126,7 +119,7 @@ function generarHTMLReporte(zonas: ZonaGeografica[], vistaGeneral: boolean): str
   const totalCasos = zonas.reduce((sum, z) => sum + z.totalCasos, 0)
   const totalUrgentes = zonas.reduce((sum, z) => sum + z.casosUrgentes, 0)
 
-  // Generar tabla resumen
+  // Tabla resumen
   let tablaResumen = `
     <table class="tabla-resumen">
       <thead>
@@ -146,7 +139,7 @@ function generarHTMLReporte(zonas: ZonaGeografica[], vistaGeneral: boolean): str
     const porcentaje = totalCasos > 0 ? Math.round((zona.totalCasos / totalCasos) * 100) : 0
     tablaResumen += `
       <tr>
-      <td><strong>${zona.ciudad}</strong></td>
+        <td><strong>${zona.ciudad}</strong></td>
         <td>${zona.provincia}</td>
         <td class="center">${zona.totalCasos}</td>
         <td class="center">${porcentaje}%</td>
@@ -170,19 +163,18 @@ function generarHTMLReporte(zonas: ZonaGeografica[], vistaGeneral: boolean): str
     </table>
   `
 
-  // Generar detalle por zona
+  // Detalle por zona
   let detalleZonas = ''
   
   zonas.forEach((zona) => {
     detalleZonas += `
       <div class="zona-detalle">
-        <h2>Casos en ${zona.provincia}, ${zona.ciudad}, (${zona.totalCasos})</h2>
+        <h2>Casos en ${zona.ciudad}, ${zona.provincia} (${zona.totalCasos})</h2>
         <p class="zona-info">
-          Distancia desde Córdoba Capital: <strong>${zona.distanciaKm} km</strong> | 
+          Distancia: <strong>${zona.distanciaKm} km</strong> &nbsp;|&nbsp;
           Clasificación: <strong>${zona.clasificacionDistancia.label}</strong>
-          ${zona.casosUrgentes > 0 ? ` | <span class="urgente">${zona.casosUrgentes} urgente(s)</span>` : ''}
+          ${zona.casosUrgentes > 0 ? ` &nbsp;|&nbsp; <span class="urgente">${zona.casosUrgentes} urgente(s)</span>` : ''}
         </p>
-        
         <table class="tabla-casos">
           <thead>
             <tr>
@@ -200,11 +192,8 @@ function generarHTMLReporte(zonas: ZonaGeografica[], vistaGeneral: boolean): str
 
     zona.casos.forEach((caso) => {
       const fechaMov = new Date(caso.ultimoMovimiento).toLocaleDateString('es-AR', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric'
+        day: '2-digit', month: 'short', year: 'numeric'
       })
-      
       detalleZonas += `
         <tr class="${caso.esUrgente ? 'fila-urgente' : ''}">
           <td class="mono">${caso.numero}</td>
@@ -218,252 +207,249 @@ function generarHTMLReporte(zonas: ZonaGeografica[], vistaGeneral: boolean): str
       `
     })
 
-    detalleZonas += `
-          </tbody>
-        </table>
-      </div>
-    `
+    detalleZonas += `</tbody></table></div>`
   })
 
-  // HTML completo
   return `
 <!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Casos por Ubicación Geográfica - ${fecha}</title>
+  <title>Distribución Geográfica — ${fecha}</title>
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-    
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       font-size: 11px;
-      line-height: 1.4;
+      line-height: 1.5;
       color: #1e293b;
-      padding: 20px;
+      padding: 24px 28px;
       background: white;
     }
-    
+
+    /* ── PORTADA ── */
     .portada {
-      text-align: center;
-      padding: 60px 40px;
-      border: 2px solid #3b82f6;
-      border-radius: 8px;
-      margin-bottom: 40px;
+      padding: 36px 0 28px;
+      border-bottom: 3px solid #1e40af;
+      margin-bottom: 28px;
       page-break-after: always;
     }
-    
-    .portada-icono {
-      font-size: 48px;
+
+    .portada-estudio {
+      font-size: 11px;
+      font-weight: 600;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 12px;
+    }
+
+    .portada h1 {
+      font-size: 22px;
+      font-weight: 700;
+      color: #1e40af;
+      margin-bottom: 4px;
+    }
+
+    .portada .subtitulo {
+      font-size: 12px;
+      color: #64748b;
       margin-bottom: 20px;
     }
-    
-    .portada h1 {
-      font-size: 28px;
-      color: #1e40af;
-      margin-bottom: 10px;
+
+    .portada-meta {
+      display: flex;
+      gap: 32px;
+      margin-top: 20px;
     }
-    
-    .portada .subtitulo {
-      font-size: 14px;
-      color: #64748b;
-      margin-bottom: 30px;
+
+    .meta-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
     }
-    
-    .portada .descripcion {
-      font-size: 12px;
-      color: #475569;
-      max-width: 500px;
-      margin: 0 auto 30px;
-      text-align: left;
+
+    .meta-label {
+      font-size: 9px;
+      font-weight: 600;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
     }
-    
-    .portada .meta {
-      font-size: 11px;
-      color: #64748b;
-      margin-top: 40px;
+
+    .meta-valor {
+      font-size: 13px;
+      font-weight: 700;
+      color: #1e293b;
     }
-    
-    .portada .meta p {
-      margin: 5px 0;
+
+    .meta-valor.urgente-valor {
+      color: #dc2626;
     }
-    
-    h2 {
-      font-size: 14px;
-      color: #1e40af;
-      margin: 30px 0 15px;
-      padding-bottom: 5px;
-      border-bottom: 2px solid #e2e8f0;
-    }
-    
+
+    /* ── SECCIONES ── */
     .seccion-titulo {
-      font-size: 16px;
-      color: #0f172a;
-      margin: 20px 0 15px;
-      padding: 10px;
-      background: #f1f5f9;
-      border-left: 4px solid #3b82f6;
+      font-size: 11px;
+      font-weight: 700;
+      color: #1e40af;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin: 24px 0 10px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid #e2e8f0;
     }
-    
+
+    /* ── TABLAS ── */
     table {
       width: 100%;
       border-collapse: collapse;
-      margin: 15px 0;
+      margin: 0 0 20px;
       font-size: 10px;
     }
-    
+
     th, td {
-      padding: 8px 10px;
+      padding: 7px 10px;
       text-align: left;
       border: 1px solid #e2e8f0;
     }
-    
+
     th {
       background: #f8fafc;
       font-weight: 600;
       color: #475569;
       text-transform: uppercase;
-      font-size: 9px;
+      font-size: 8.5px;
+      letter-spacing: 0.04em;
     }
-    
-    .center {
-      text-align: center;
+
+    tr:nth-child(even) td { background: #fafafa; }
+
+    .tabla-resumen tfoot td {
+      background: #f1f5f9;
+      font-weight: 700;
+      border-top: 2px solid #cbd5e1;
     }
-    
-    .mono {
-      font-family: monospace;
-      font-size: 9px;
-    }
-    
-    .urgente {
-      color: #dc2626;
-      font-weight: 600;
-    }
-    
-    .fila-urgente {
-      background: #fef2f2;
-    }
-    
+
+    .center { text-align: center; }
+    .mono { font-family: monospace; font-size: 9px; }
+
+    .urgente { color: #dc2626; font-weight: 700; }
+    .fila-urgente td { background: #fef2f2 !important; }
+
     .badge {
       display: inline-block;
-      padding: 2px 6px;
+      padding: 1px 6px;
       background: #f1f5f9;
-      border-radius: 4px;
+      border: 1px solid #e2e8f0;
+      border-radius: 3px;
       font-size: 9px;
     }
-    
+
+    /* ── ZONAS ── */
     .zona-detalle {
+      margin-bottom: 24px;
       page-break-inside: avoid;
-      margin-bottom: 30px;
     }
-    
+
+    .zona-detalle h2 {
+      font-size: 12px;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 4px;
+    }
+
     .zona-info {
-      font-size: 10px;
+      font-size: 9.5px;
       color: #64748b;
-      margin-bottom: 10px;
-      padding: 8px;
+      margin-bottom: 8px;
+      padding: 5px 8px;
       background: #f8fafc;
-      border-radius: 4px;
+      border-left: 3px solid #cbd5e1;
+      border-radius: 0 3px 3px 0;
     }
-    
-    .tabla-resumen {
-      margin-bottom: 30px;
-    }
-    
-    .tabla-resumen tfoot {
-      background: #f1f5f9;
-      font-weight: 600;
-    }
-    
+
+    /* ── ACCIONES (no se imprime) ── */
     .no-print {
       margin-bottom: 20px;
-      padding: 15px;
+      padding: 12px 16px;
       background: #f0f9ff;
       border: 1px solid #bae6fd;
-      border-radius: 8px;
-      text-align: center;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
     }
-    
+
+    .no-print p {
+      font-size: 12px;
+      color: #475569;
+    }
+
+    .no-print .acciones { display: flex; gap: 8px; }
+
     .no-print button {
       background: #2563eb;
       color: white;
       border: none;
-      padding: 10px 24px;
-      border-radius: 6px;
-      font-size: 14px;
+      padding: 8px 18px;
+      border-radius: 5px;
+      font-size: 12px;
       cursor: pointer;
-      margin: 0 8px;
     }
-    
-    .no-print button:hover {
-      background: #1d4ed8;
-    }
-    
-    .no-print button.secondary {
-      background: #64748b;
-    }
-    
+
+    .no-print button:hover { background: #1d4ed8; }
+    .no-print button.secondary { background: #64748b; }
+
     @media print {
-      .no-print {
-        display: none !important;
-      }
-      
-      body {
-        padding: 0;
-      }
-      
-      .portada {
-        page-break-after: always;
-      }
-      
-      .zona-detalle {
-        page-break-inside: avoid;
-      }
+      .no-print { display: none !important; }
+      body { padding: 16px 20px; }
+      .portada { page-break-after: always; }
+      .zona-detalle { page-break-inside: avoid; }
     }
   </style>
 </head>
 <body>
-  <!-- Barra de acciones (no se imprime) -->
+
+  <!-- Barra de acciones -->
   <div class="no-print">
-    <p style="margin-bottom: 10px; color: #475569;">
-      Para guardar como PDF, presioná <strong>Ctrl+P</strong> (o Cmd+P en Mac) y seleccioná "Guardar como PDF"
-    </p>
-    <button onclick="window.print()">🖨️ Imprimir / Guardar PDF</button>
-    <button class="secondary" onclick="window.close()">✕ Cerrar</button>
+    <p>Para guardar como PDF: <strong>Ctrl+P</strong> → "Guardar como PDF"</p>
+    <div class="acciones">
+      <button onclick="window.print()">Imprimir / Guardar PDF</button>
+      <button class="secondary" onclick="window.close()">Cerrar</button>
+    </div>
   </div>
 
   <!-- PORTADA -->
   <div class="portada">
-    <div class="portada-icono">📍</div>
-    <h1>Casos por Ubicación Geográfica</h1>
-    <p class="subtitulo">Distribución de Expedientes por Ciudad y Juzgado</p>
-    
-    <div class="descripcion">
-      <p><strong>Descripción del Reporte:</strong> Este informe muestra la distribución de expedientes activos agrupados por ubicación geográfica (ciudad/fuero), permitiendo planificar visitas a tribunales y optimizar traslados.</p>
-      <br>
-      <p><strong>Cómo usar:</strong> Revise primero la tabla resumen para identificar las zonas con mayor concentración de casos. Luego consulte el detalle de cada zona para ver los expedientes específicos y sus juzgados.</p>
-    </div>
-    
-    <div class="meta">
-      <p><strong>Tipo de Vista:</strong> ${vistaGeneral ? 'General (Todo el Estudio)' : 'Personal (Mis Casos)'}</p>
-      <p><strong>Total de Casos:</strong> ${totalCasos}</p>
-      <p><strong>Zonas Incluidas:</strong> ${zonas.length}</p>
-      <p><strong>Fecha de Generación:</strong> ${fecha}</p>
+    <p class="portada-estudio">Estudio Jurídico — Sistema de Gestión</p>
+    <h1>Distribución Geográfica de Expedientes</h1>
+    <p class="subtitulo">${vistaGeneral ? 'Vista General — Todo el Estudio' : 'Vista Personal — Mis Casos'} &nbsp;·&nbsp; ${fecha}</p>
+
+    <div class="portada-meta">
+      <div class="meta-item">
+        <span class="meta-label">Total de casos</span>
+        <span class="meta-valor">${totalCasos}</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Zonas</span>
+        <span class="meta-valor">${zonas.length}</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Urgentes</span>
+        <span class="meta-valor ${totalUrgentes > 0 ? 'urgente-valor' : ''}">${totalUrgentes}</span>
+      </div>
     </div>
   </div>
 
-  <!-- TABLA RESUMEN -->
-  <div class="seccion-titulo"> Resumen por Ciudad</div>
+  <!-- RESUMEN -->
+  <div class="seccion-titulo">Resumen por Ciudad</div>
   ${tablaResumen}
 
-  <!-- DETALLE POR ZONA -->
-  <div class="seccion-titulo"> Detalle por Ubicación</div>
+  <!-- DETALLE -->
+  <div class="seccion-titulo">Detalle por Ubicación</div>
   ${detalleZonas}
+
 </body>
 </html>
   `

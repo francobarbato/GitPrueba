@@ -6,7 +6,6 @@ import Link from "next/link"
 import { Sidebar } from "@/app/components/sidebar"
 import { Header } from "@/app/components/header"
 import { getUserSessionServer } from "@/auth/actions/auth-actions"
-import { redirect } from "next/navigation"
 import prisma from "src/lib/db/prisma"
 import { differenceInDays, subDays } from "date-fns"
 import { ArrowLeft, Scale } from "lucide-react"
@@ -18,7 +17,7 @@ import { MatrizFueroGeneral } from "./components/MatrizFueroGeneral"
 import { PanelLitigiosidad } from "./components/Panellitigiosidad"
 import { FiltrosCartera } from "./components/FiltrosCartera"
 import { ToggleVista } from "./components/ToggleVista"
-
+import { redirect, notFound } from "next/navigation"
 // ============================================================================
 // MAPEO Y CONSTANTES
 // ============================================================================
@@ -293,6 +292,8 @@ export default async function CarteraFueroPage({ searchParams }: PageProps) {
   if (!user) redirect("/api/auth/signin")
 
   const userRol = user.rol?.toUpperCase()
+  // Defensa en profundidad — bloquear roles no operativos
+if (userRol === 'CLIENTE' || userRol === 'ADMIN') notFound()
   if (userRol === "ASISTENTE") redirect("/reportes")
 
   const params = await searchParams

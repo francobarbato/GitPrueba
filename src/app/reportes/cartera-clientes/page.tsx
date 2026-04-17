@@ -7,7 +7,6 @@ import Link from "next/link"
 import { Sidebar } from "@/app/components/sidebar"
 import { Header } from "@/app/components/header"
 import { getUserSessionServer } from "@/auth/actions/auth-actions"
-import { redirect } from "next/navigation"
 import prisma from "src/lib/db/prisma"
 import { differenceInDays } from "date-fns"
 import { ArrowLeft, Users } from "lucide-react"
@@ -20,7 +19,7 @@ import { ToggleVistaClientes } from "./components/ToggleVistaClientes"
 import { PanelClientesValiosos } from "./components/PanelClientesValiosos"
 import { PanelClientesEnRiesgo } from "./components/PanelClientesEnRiesgo"
 import { VistaGerencialClientes, type ClienteGerencial, type DistribucionAbogado } from "./components/VistaGerencialClientes"
-
+import { redirect, notFound } from "next/navigation"
 // ============================================================================
 // TIPOS
 // ============================================================================
@@ -315,6 +314,8 @@ export default async function CarteraClientesPage({ searchParams }: PageProps) {
   if (!user) redirect("/api/auth/signin")
 
   const userRol = user.rol?.toUpperCase()
+  // Defensa en profundidad — bloquear roles no operativos
+  if (userRol === 'CLIENTE' || userRol === 'ADMIN') notFound()
   if (userRol === 'ASISTENTE') redirect("/reportes")
 
   const params = await searchParams
