@@ -24,7 +24,8 @@ model User {
   creadoPor            String?
   debeResetearPassword Boolean    @default(false)
   ultimoAcceso         DateTime?
-   ultimoAccesoTareas   DateTime?
+  ultimoAccesoTareas   DateTime?
+  ultimoAccesoComentarios DateTime?
   colaboracionesAsignadas CasoColaborador[] @relation("AsignadorColaboracion")
 
 
@@ -41,6 +42,10 @@ model User {
   tareasSupervisadas Tarea[] @relation("TareasSupervisadas")
 
   colaboraciones CasoColaborador[]
+
+    // Comentarios y lecturas
+  comentariosEscritos ComentarioTarea[] @relation("ComentariosAutor")
+  lecturasTarea      TareaLectura[]
 
   @@map("usuario")
 }
@@ -194,6 +199,12 @@ model Tarea {
   creador          User           @relation("TareasCreadas", fields: [creadorId], references: [id])
   responsable      User           @relation("TareasAsignadas", fields: [responsableId], references: [id])
   supervisor       User?          @relation("TareasSupervisadas", fields: [supervisorId], references: [id])
+  
+  bitacoras        Bitacora[]
+
+  // Comentarios e historial de lectura
+  comentarios      ComentarioTarea[]
+  lecturas         TareaLectura[]
 
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
@@ -208,6 +219,51 @@ model Tarea {
   @@map("tarea")
 }
 
+// ============================================================================
+// MODELO DE COMENTARIOS DE TAREA
+// Permite conversación contextual entre responsable y supervisor.
+// Soporta cita opcional (responder a otro comentario) sin hilos anidados.
+// ============================================================================
+model ComentarioTarea {
+  id           String   @id @default(uuid())
+  texto        String   @db.Text
+  tareaId      String
+  autorId      String
+
+  // Cita opcional a otro comentario de la misma tarea
+  citaComentarioId    String?
+  citaComentario      ComentarioTarea?  @relation("CitaRelation", fields: [citaComentarioId], references: [id], onDelete: SetNull)
+  citadoEnComentarios ComentarioTarea[] @relation("CitaRelation")
+
+  createdAt    DateTime @default(now())
+
+  tarea        Tarea    @relation(fields: [tareaId], references: [id], onDelete: Cascade)
+  autor        User     @relation("ComentariosAutor", fields: [autorId], references: [id])
+
+  @@index([tareaId])
+  @@index([autorId])
+  @@index([createdAt])
+  @@map("comentario_tarea")
+}
+
+// ============================================================================
+// LECTURA DE TAREAS — granularidad usuario/tarea
+// Permite saber si un usuario tiene comentarios sin leer en una tarea.
+// Al abrir el Drawer de una tarea, se upsertea el registro con now().
+// ============================================================================
+model TareaLectura {
+  userId        String
+  tareaId       String
+  ultimaLectura DateTime @default(now())
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tarea         Tarea    @relation(fields: [tareaId], references: [id], onDelete: Cascade)
+
+  @@id([userId, tareaId])
+  @@index([tareaId])
+  @@map("tarea_lectura")
+}
+
 model Bitacora {
   id             String   @id @default(uuid())
   texto          String   @db.Text
@@ -217,12 +273,15 @@ model Bitacora {
   accion         String?
   casoId         String?
   detalle        String?  @db.Text
+   tareaId        String? 
   estadoAnterior String?
   estadoNuevo    String?
   caso           Caso?    @relation(fields: [casoId], references: [id], onDelete: Cascade)
   usuario        User     @relation(fields: [usuarioId], references: [id])
+  tarea          Tarea?   @relation(fields: [tareaId], references: [id], onDelete: Cascade)
 
   @@index([usuarioId])
+  @@index([tareaId]) 
   @@index([casoId])
   @@index([createdAt])
   @@index([accion])

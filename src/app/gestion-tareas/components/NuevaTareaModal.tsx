@@ -40,9 +40,9 @@ const TIPOS: { value: TipoTarea; label: string; desc: string }[] = [
 
 const PRIORIDADES: { value: PrioridadTarea; label: string; color: string }[] = [
   { value: "BAJA",  label: "Baja",                        color: "text-slate-600" },
-  { value: "MEDIA", label: "Media",                       color: "text-blue-600" },
-  { value: "ALTA",  label: "Alta",                        color: "text-orange-600 font-semibold" },
-  { value: "FATAL", label: "Fatal — Plazo improrrogable", color: "text-red-600 font-bold" },
+  { value: "MEDIA", label: "Media",                       color: "text-slate-700" },
+  { value: "ALTA",  label: "Alta",                        color: "text-orange-700 font-semibold" },
+  { value: "FATAL", label: "Fatal — Plazo improrrogable", color: "text-red-700 font-bold" },
 ]
 
 const MODALIDADES_LUGAR = [
@@ -51,6 +51,14 @@ const MODALIDADES_LUGAR = [
   { value: "VIRTUAL",   label: "Virtual (Zoom/Meet)" },
   { value: "EXTERNO",   label: "Otro lugar físico" },
 ]
+
+// Etiquetas legibles de roles (capitalizadas, no en MAYÚSCULAS gritadas)
+const ROL_LABEL: Record<string, string> = {
+  ABOGADO: "Abogado",
+  ASISTENTE: "Asistente",
+  ADMIN: "Admin",
+  CLIENTE: "Cliente",
+}
 
 const MAX_DESCRIPCION = 300
 
@@ -168,10 +176,15 @@ export function NuevaTareaModal({ usuarios, casos, clientes = [], currentUserId,
   }
 
   if (!open) {
-    return <Button onClick={() => setOpen(true)} className="gap-2 bg-slate-800 hover:bg-slate-700"><Plus className="w-4 h-4" /> Nueva Tarea</Button>
+    return <Button onClick={() => setOpen(true)} className="gap-2 bg-slate-800 hover:bg-slate-700"><Plus className="w-4 h-4" /> Nuevo Registro</Button>
   }
 
   const descripcionRestante = MAX_DESCRIPCION - descripcion.length
+
+  // Texto descriptivo contextual según el tipo elegido (reemplaza el badge confuso "Estudio/Judicial")
+  const ayudaCategoria = tipo === "PROCESAL"
+    ? "Categorías vinculadas al proceso judicial"
+    : "Categorías de gestión interna del estudio"
 
   return (
     <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center overflow-y-auto py-8 px-4">
@@ -203,11 +216,13 @@ export function NuevaTareaModal({ usuarios, casos, clientes = [], currentUserId,
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <Label className="text-xs font-semibold text-slate-600 mb-1.5 block">Categoría *<span className={`ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full font-medium ${tipo === "PROCESAL" ? "bg-red-100 text-red-600" : "bg-blue-100 text-blue-600"}`}>{tipo === "PROCESAL" ? "Judicial" : "Estudio"}</span></Label>
+                {/* Badge confuso "Judicial/Estudio" reemplazado por texto descriptivo contextual */}
+                <Label className="text-xs font-semibold text-slate-600 mb-1.5 block">Categoría *</Label>
                 <Select value={categoria} onValueChange={v => setCategoria(v as CategoriaTarea)}>
                   <SelectTrigger className={!categoria ? "text-slate-400 italic" : ""}><SelectValue placeholder="Seleccionar categoría..." /></SelectTrigger>
                   <SelectContent>{categoriasDisponibles.map(c => (<SelectItem key={c.value} value={c.value}><div><p className="font-medium">{c.label}</p><p className="text-xs text-slate-400">{c.desc}</p></div></SelectItem>))}</SelectContent>
                 </Select>
+                <p className="text-[11px] text-slate-400 mt-1.5">{ayudaCategoria}</p>
               </div>
               <div>
                 <Label className="text-xs font-semibold text-slate-600 mb-1.5 block">Nivel de Prioridad</Label>
@@ -232,9 +247,9 @@ export function NuevaTareaModal({ usuarios, casos, clientes = [], currentUserId,
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="sm:col-span-1">
                 <Label className="text-xs font-semibold text-slate-600 mb-1.5 block">Vencimiento / Plazo <span className="text-red-500">*</span></Label>
-                <Input type="date" 
-                        value={fechaVencimiento} 
-                        onChange={e => setFechaVencimiento(e.target.value)} 
+                <Input type="date"
+                        value={fechaVencimiento}
+                        onChange={e => setFechaVencimiento(e.target.value)}
                          min={new Date().toISOString().split("T")[0]}
                   />
               </div>
@@ -281,7 +296,20 @@ export function NuevaTareaModal({ usuarios, casos, clientes = [], currentUserId,
                 <Label className="text-xs font-semibold text-slate-600 mb-1.5 block flex items-center gap-1"><User className="w-3 h-3" /> Asignar a (Responsable) *</Label>
                 <Select value={responsableId} onValueChange={setResponsableId}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{usuarios.map(u => (<SelectItem key={u.id} value={u.id}>{u.nombre} {u.apellido}{u.id === currentUserId ? " (Yo)" : ""} <span className="text-xs text-slate-400">{u.rol}</span></SelectItem>))}</SelectContent>
+                  <SelectContent>
+                    {/* Rol en formato legible "· Abogado" en vez de "ABOGADO" gritado */}
+                    {usuarios.map(u => {
+                      const rolLegible = ROL_LABEL[u.rol] ?? u.rol
+                      const esYo = u.id === currentUserId
+                      return (
+                        <SelectItem key={u.id} value={u.id}>
+                          <span className="text-slate-700">{u.nombre} {u.apellido}</span>
+                          {esYo && <span className="text-xs text-slate-400 ml-1">(Yo)</span>}
+                          <span className="text-xs text-slate-400 ml-1">· {rolLegible}</span>
+                        </SelectItem>
+                      )
+                    })}
+                  </SelectContent>
                 </Select>
                 {haySupervisor && <p className="text-xs text-slate-500 mt-1.5 flex items-center gap-1"><Eye className="w-3 h-3 text-slate-400" />Vas a supervisar esta tarea porque se la estás asignando a <span className="font-medium text-slate-700">{responsableObj?.nombre} {responsableObj?.apellido}</span></p>}
               </div>

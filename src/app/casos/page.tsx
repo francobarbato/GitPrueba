@@ -88,7 +88,7 @@ if (terminoEtapa) {
   const getTitulo = () => {
     if (isAdmin(userRol)) return 'Gestión Global de Casos'
     if (isAsistente(userRol)) return 'Panel de Casos'
-    return 'Mis Casos Activos'
+    return 'Mis Expedientes Activos'
   }
 
   const getSubtitulo = () => {
@@ -117,7 +117,7 @@ if (terminoEtapa) {
               href="/casos/nuevo" 
               className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition flex items-center gap-2 shadow-sm font-medium"
             >
-              <Plus className="w-4 h-4" /> Nuevo Caso
+              <Plus className="w-4 h-4" /> Nuevo Expediente
             </Link>
           )}
           </div>
@@ -242,7 +242,7 @@ if (terminoEtapa) {
                           href={`/casos/${caso.id}`} 
                           className="text-blue-600 hover:text-blue-800 text-sm font-medium hover:underline"
                         >
-                          Ver Caso
+                          Ver Expediente
                         </Link>
                       </td>
                     </tr>

@@ -375,7 +375,7 @@ export function TaskManager({ casoId, tareas, puedeCrear }: Props) {
             <Link href={`/gestion-tareas?caso=${casoId}`}>
               <Button variant="outline" className="w-full gap-2 text-sm">
                 <ExternalLink className="w-4 h-4" />
-                Gestionar tareas
+                Gestionar agenda
               </Button>
             </Link>
           )}
@@ -403,12 +403,12 @@ export function TaskManager({ casoId, tareas, puedeCrear }: Props) {
             <div className="text-center py-12 bg-white border border-slate-200 rounded-xl">
               <CalendarClock className="w-10 h-10 mx-auto text-slate-300 mb-3" />
               <p className="text-slate-500 font-medium">
-                {filtro === "activas" ? "No hay tareas activas en este caso" : "No hay tareas finalizadas"}
+                {filtro === "activas" ? "No hay actividad en este expediente" : "No hay actividades finalizadas"}
               </p>
               {filtro === "activas" && puedeCrear && (
                 <Link href={`/gestion-tareas?caso=${casoId}`}>
                   <Button variant="ghost" size="sm" className="mt-2 gap-1 text-blue-600">
-                    <ExternalLink className="w-3 h-3" /> Crear tarea para este caso
+                    <ExternalLink className="w-3 h-3" /> Gestionar agenda para este expediente
                   </Button>
                 </Link>
               )}

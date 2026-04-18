@@ -69,7 +69,7 @@ function SubmitButton({ disabled }: { disabled?: boolean }) {
       className="bg-blue-600 hover:bg-blue-700 text-white w-full sm:w-auto"
     >
       <Save className="h-4 w-4 mr-2" />
-      {pending ? "Guardando..." : "Crear Caso"}
+      {pending ? "Guardando..." : "Crear Expediente"}
     </Button>
   )
 }
@@ -173,7 +173,7 @@ export function NuevoCasoForm({ clientes: clientesIniciales, abogados, userRol, 
           <Scale className="h-8 w-8 text-blue-600" />
           <div>
             <CardTitle>Nuevo Expediente</CardTitle>
-            <CardDescription>Complete los datos iniciales para comenzar la gestión del caso</CardDescription>
+            <CardDescription>Complete los datos iniciales para comenzar la gestión del expediente</CardDescription>
           </div>
         </div>
       </CardHeader>
@@ -220,14 +220,14 @@ export function NuevoCasoForm({ clientes: clientesIniciales, abogados, userRol, 
           <div className="space-y-4">
             <div className="flex items-center gap-2 pb-2 border-b border-slate-200">
               <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-sm">1</div>
-              <h2 className="text-lg font-semibold text-slate-800">Identificación del Caso</h2>
+              <h2 className="text-lg font-semibold text-slate-800">Identificación del Expediente</h2>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-slate-50 rounded-lg">
               <div className="space-y-2">
                 <Label htmlFor="numero">Nº Expediente / Carpeta *</Label>
                 <Input id="numero" name="numero" placeholder="Ej: 2345/2024" required />
-                <p className="text-xs text-slate-500">ID único del caso</p>
+                <p className="text-xs text-slate-500">ID único del expediente</p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="tipo">Fuero / Materia *</Label>
@@ -254,12 +254,12 @@ export function NuevoCasoForm({ clientes: clientesIniciales, abogados, userRol, 
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="titulo">Carátula / Título del Caso *</Label>
+              <Label htmlFor="titulo">Carátula / Título del Expediente *</Label>
               <Input id="titulo" name="titulo" placeholder="Ej: GÓMEZ, Juan c/ PÉREZ, María s/ DAÑOS Y PERJUICIOS" required />
             </div>
             <div className="space-y-2">
               <Label htmlFor="descripcion">Descripción / Estrategia</Label>
-              <Textarea id="descripcion" name="descripcion" rows={3} placeholder="Resumen del caso, estrategia legal, antecedentes relevantes..." />
+              <Textarea id="descripcion" name="descripcion" rows={3} placeholder="Resumen del expediente, estrategia legal, antecedentes relevantes..." />
             </div>
           </div>
 
@@ -299,7 +299,7 @@ export function NuevoCasoForm({ clientes: clientesIniciales, abogados, userRol, 
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-slate-500">
-                    El abogado seleccionado será responsable de llevar este caso
+                    El abogado seleccionado será responsable de llevar este expediente
                   </p>
                 </div>
               )}
@@ -316,7 +316,7 @@ export function NuevoCasoForm({ clientes: clientesIniciales, abogados, userRol, 
                     </div>
                     <div>
                       <p className="font-medium text-slate-900">Tú serás el responsable</p>
-                      <p className="text-xs text-slate-500">El caso se asignará automáticamente a tu cuenta</p>
+                      <p className="text-xs text-slate-500">El expediente se asignará automáticamente a tu cuenta</p>
                     </div>
                   </div>
                   <input type="hidden" name="abogadoId" value={currentUserId} />

@@ -32,7 +32,7 @@ export default async function EditarCasoPage({ params }: { params: { id: string 
           <h1 className="text-xl font-bold text-red-600 mb-2">No tienes permiso</h1>
           <p className="text-slate-600 mb-4">No puedes editar un caso que no te pertenece.</p>
           <Link href="/casos">
-            <Button variant="outline">Volver a mis casos</Button>
+            <Button variant="outline">Volver a mis expedientes</Button>
           </Link>
         </div>
       </div>
@@ -70,7 +70,7 @@ export default async function EditarCasoPage({ params }: { params: { id: string 
           </Link>
           <nav className="flex items-center gap-1 text-sm">
             <Link href="/casos" className="text-slate-500 hover:text-slate-700 transition-colors">
-              Casos
+              Exppediente
             </Link>
             <ChevronRight className="h-3 w-3 text-slate-400" />
             <Link href={`/casos/${params.id}`} className="text-slate-500 hover:text-slate-700 transition-colors max-w-[200px] truncate">

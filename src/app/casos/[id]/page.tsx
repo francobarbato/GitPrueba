@@ -145,7 +145,7 @@ const puedeVerMontoDisputa = isAbogado(userRol)
             <nav className="mb-4 flex items-center gap-2 text-sm text-slate-500">
             <Link href="/casos" className="flex items-center gap-1 hover:text-slate-800 transition-colors">
               <ArrowLeft className="h-4 w-4" />
-              Gestión de Casos
+              Gestión de Espedientes
             </Link>
             <span>/</span>
             <span className="text-slate-800 font-medium">{caso.numero}</span>
@@ -178,8 +178,8 @@ const puedeVerMontoDisputa = isAbogado(userRol)
               <div className="mb-6 p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm flex items-start gap-2">
                 <ShieldAlert className="w-5 h-5 mt-0.5 flex-shrink-0" />
                 <div>
-                  <strong>Modo Asistente:</strong> Puedes ver la información del caso y gestionar tareas. 
-                  La edición del caso y la información financiera están restringidas.
+                  <strong>Modo Asistente:</strong> Puedes ver la información del expediente y gestionar la agenda. 
+                  La edición del expediente y la información financiera están restringidas.
                 </div>
               </div>
             )}
@@ -227,7 +227,7 @@ const puedeVerMontoDisputa = isAbogado(userRol)
                 
                 <TabsTrigger value="agenda" className="h-9">
                   <CalendarClock className="w-4 h-4 mr-2 shrink-0" />
-                  Tareas y agenda
+                  Agenda y seguimientos
                 </TabsTrigger>
                 
                 {/* <TabsTrigger value="expediente" className="h-9">
@@ -647,7 +647,7 @@ const puedeVerMontoDisputa = isAbogado(userRol)
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between border-b bg-slate-50/50">
                     <div>
-                      <CardTitle>Bitácora de Tareas</CardTitle>
+                      <CardTitle>Bitácora de la agenda</CardTitle>
                       <p className="text-sm text-slate-500 mt-1">Gestión de vencimientos, audiencias y escritos.</p>
                     </div>
                   </CardHeader>

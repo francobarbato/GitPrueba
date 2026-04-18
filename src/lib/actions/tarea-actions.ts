@@ -126,6 +126,35 @@ export async function getClientesDisponibles() {
 }
 
 // ============================================================================
+// DETALLE DE TAREA — para el Drawer
+// Trae una única tarea con todas sus relaciones. Valida permisos de lectura:
+// solo el creador, responsable o supervisor pueden ver el detalle.
+// ============================================================================
+
+export async function getTareaDetalle(tareaId: string): Promise<TareaConRelaciones | null> {
+  const user = await getUserSessionServer()
+  if (!user) return null
+
+  const tarea = await prisma.tarea.findUnique({
+    where: { id: tareaId },
+    include: includeRelaciones,
+  })
+
+  if (!tarea) return null
+
+  // Validación de permisos: solo actores vinculados a la tarea pueden verla
+  const tieneAcceso =
+    tarea.creadorId === user.id ||
+    tarea.responsableId === user.id ||
+    tarea.supervisorId === user.id ||
+    user.rol === "ASISTENTE"
+
+  if (!tieneAcceso) return null
+
+  return mapearTarea(tarea)
+}
+
+// ============================================================================
 // ÚLTIMO ACCESO A TAREAS
 // ============================================================================
 
@@ -241,9 +270,20 @@ export async function crearTareaAction(data: {
         responsableId: data.responsableId, supervisorId: data.supervisorId || null,
       },
     })
-    if (data.casoId) {
-      await prisma.bitacora.create({ data: { texto: `Tarea creada: ${data.titulo}`, tipo: "auto", accion: "TAREA_CREADA", usuarioId: user.id, casoId: data.casoId, detalle: `Tipo: ${data.tipo} | Prioridad: ${data.prioridad} | Responsable: ${data.responsableId}` } })
-    }
+
+    // Bitácora: registrar creación — siempre, tenga caso o no
+    await prisma.bitacora.create({
+      data: {
+        texto: `Tarea creada: ${data.titulo}`,
+        tipo: "auto",
+        accion: "TAREA_CREADA",
+        usuarioId: user.id,
+        casoId: data.casoId || null,
+        tareaId: tarea.id,
+        detalle: `Tipo: ${data.tipo} | Prioridad: ${data.prioridad} | Responsable: ${data.responsableId}`,
+      },
+    })
+
     revalidatePath("/gestion-tareas"); revalidatePath("/")
     if (data.casoId) revalidatePath(`/casos/${data.casoId}`)
     return { success: true, tareaId: tarea.id }
@@ -276,10 +316,24 @@ export async function cambiarEstadoTareaAction(tareaId: string, nuevoEstado: Est
 
     await prisma.tarea.update({ where: { id: tareaId }, data: dataUpdate })
 
-    if (tarea.casoId) {
-      const esDesbloqueo = tarea.estado === "BLOQUEADA" && nuevoEstado === "PENDIENTE"
-      await prisma.bitacora.create({ data: { texto: esDesbloqueo ? `Tarea "${tarea.titulo}" desbloqueada → PENDIENTE` : `Tarea "${tarea.titulo}" → ${nuevoEstado}`, tipo: "auto", accion: esDesbloqueo ? "TAREA_DESBLOQUEADA" : "TAREA_ESTADO_CHANGE", usuarioId: user.id, casoId: tarea.casoId, estadoAnterior: tarea.estado, estadoNuevo: nuevoEstado, detalle: motivo ? `Motivo: ${motivo}` : null } })
-    }
+    // Bitácora: registrar cambio de estado — siempre, tenga caso o no
+    const esDesbloqueo = tarea.estado === "BLOQUEADA" && nuevoEstado === "PENDIENTE"
+    await prisma.bitacora.create({
+      data: {
+        texto: esDesbloqueo
+          ? `Tarea "${tarea.titulo}" desbloqueada → PENDIENTE`
+          : `Tarea "${tarea.titulo}" → ${nuevoEstado}`,
+        tipo: "auto",
+        accion: esDesbloqueo ? "TAREA_DESBLOQUEADA" : "TAREA_ESTADO_CHANGE",
+        usuarioId: user.id,
+        casoId: tarea.casoId || null,
+        tareaId: tareaId,
+        estadoAnterior: tarea.estado,
+        estadoNuevo: nuevoEstado,
+        detalle: motivo ? `Motivo: ${motivo}` : null,
+      },
+    })
+
     revalidatePath("/gestion-tareas"); revalidatePath("/")
     if (tarea.casoId) revalidatePath(`/casos/${tarea.casoId}`)
     return { success: true }
@@ -358,14 +412,16 @@ export async function editarTareaAction(
 
     await prisma.tarea.update({ where: { id: tareaId }, data: updateData })
 
-    if (tarea.casoId && cambiosSignificativos.length > 0) {
+    // Bitácora: registrar edición si hubo cambios significativos — siempre, tenga caso o no
+    if (cambiosSignificativos.length > 0) {
       await prisma.bitacora.create({
         data: {
           texto: `Tarea "${tarea.titulo}" editada`,
           tipo: "auto",
           accion: "TAREA_EDITADA",
           usuarioId: user.id,
-          casoId: tarea.casoId,
+          casoId: tarea.casoId || null,
+          tareaId: tareaId,
           detalle: cambiosSignificativos.join(" | "),
         },
       })
@@ -388,23 +444,24 @@ export async function eliminarTareaAction(tareaId: string): Promise<{ success?: 
     const tarea = await prisma.tarea.findUnique({ where: { id: tareaId }, select: { creadorId: true, casoId: true, titulo: true } })
     if (!tarea) return { error: "Tarea no encontrada" }
     if (tarea.creadorId !== user.id && user.rol !== "ASISTENTE") return { error: "Solo el creador puede eliminar la tarea" }
-    
-    // Registrar eliminación en bitácora si tiene caso vinculado
-    if (tarea.casoId) {
-      await prisma.bitacora.create({
-        data: {
-          texto: `Tarea eliminada: "${tarea.titulo}"`,
-          tipo: "auto",
-          accion: "TAREA_ELIMINADA",
-          usuarioId: user.id,
-          casoId: tarea.casoId,
-        },
-      })
-    }
 
-await prisma.tarea.delete({ where: { id: tareaId } })
+    // Bitácora: registrar eliminación — siempre, tenga caso o no
+    // NOTA: no incluimos tareaId porque onDelete: Cascade borraría también este registro.
+    // Dejamos la entrada como auditoría histórica suelta.
+    await prisma.bitacora.create({
+      data: {
+        texto: `Tarea eliminada: "${tarea.titulo}"`,
+        tipo: "auto",
+        accion: "TAREA_ELIMINADA",
+        usuarioId: user.id,
+        casoId: tarea.casoId || null,
+        // tareaId queda null intencionalmente: no queremos que el cascade borre este registro
+      },
+    })
 
+    // Eliminar la tarea (el cascade borrará las bitácoras con tareaId relacionadas, pero NO la de eliminación porque la dejamos sin tareaId)
     await prisma.tarea.delete({ where: { id: tareaId } })
+
     revalidatePath("/gestion-tareas"); revalidatePath("/")
     if (tarea.casoId) revalidatePath(`/casos/${tarea.casoId}`)
     return { success: true }

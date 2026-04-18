@@ -28,7 +28,7 @@ const getMenuItems = (rol?: string) => {
       roles: ['ADMIN', 'ABOGADO', 'ASISTENTE'] 
     },
     { 
-      name: "Gestión de casos", 
+      name: "Gestión de Expedientes", 
       href: "/casos", 
       icon: FileText,
       roles: ['ABOGADO', 'ASISTENTE']
@@ -40,7 +40,7 @@ const getMenuItems = (rol?: string) => {
       roles: ['ABOGADO', 'ASISTENTE']
     },
     { 
-      name: "Gestión de tareas", 
+      name: "Agenda y Seguimientos", 
       href: "/gestion-tareas", 
       icon: Calendar,
       roles: ['ABOGADO', 'ASISTENTE']

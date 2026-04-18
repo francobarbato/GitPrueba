@@ -58,12 +58,12 @@ export default async function TareasPage() {
             <nav className="mb-4 flex items-center gap-1.5 text-sm text-slate-400">
               <Link href="/" className="hover:text-slate-700 transition-colors">Inicio</Link>
               <ChevronRight className="w-3.5 h-3.5" />
-              <span className="text-slate-600 font-medium">Gestión de Tareas</span>
+              <span className="text-slate-600 font-medium">Agenda y Seguimientos</span>
             </nav>
 
             <div className="flex items-start justify-between mb-6 flex-wrap gap-4">
               <div>
-                <h1 className="text-2xl font-bold text-slate-900">Gestión de Tareas</h1>
+                <h1 className="text-2xl font-bold text-slate-900">Agenda y Seguimientos</h1>
                 <p className="text-sm text-slate-500 mt-1">Panel de control procesal y operativo del estudio</p>
               </div>
               <NuevaTareaModal
