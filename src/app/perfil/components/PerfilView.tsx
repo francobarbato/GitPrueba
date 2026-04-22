@@ -1,8 +1,12 @@
 'use client'
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
-import { User, Mail, Lock, Phone, Save, AlertTriangle, Check, X, Eye, EyeOff, Loader2, Shield } from "lucide-react"
+import { signOut } from "next-auth/react"
+import {
+  User, Mail, Lock, Phone, Save, AlertTriangle, Check, X,
+  Eye, EyeOff, Loader2, Shield, AlertCircle, Camera, Trash2, Upload
+} from "lucide-react"
 
 // ===== VALIDACIÓN DE CONTRASEÑA =====
 const PASSWORD_REQUIREMENTS = {
@@ -34,7 +38,6 @@ function getPasswordStrength(validation: ReturnType<typeof validatePassword>) {
 function PasswordRequirements({ password }: { password: string }) {
   const validation = validatePassword(password)
   const strength = getPasswordStrength(validation)
-
   const requirements = [
     { key: 'minLength', label: 'Mínimo 8 caracteres', met: validation.minLength },
     { key: 'hasUppercase', label: 'Al menos una mayúscula', met: validation.hasUppercase },
@@ -42,9 +45,7 @@ function PasswordRequirements({ password }: { password: string }) {
     { key: 'hasNumber', label: 'Al menos un número', met: validation.hasNumber },
     { key: 'hasSpecial', label: 'Al menos un carácter especial', met: validation.hasSpecial },
   ]
-
   if (!password) return null
-
   return (
     <div className="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
       <div className="mb-3">
@@ -54,29 +55,19 @@ function PasswordRequirements({ password }: { password: string }) {
             strength.label === 'Fuerte' ? 'text-green-600' :
             strength.label === 'Buena' ? 'text-yellow-600' :
             strength.label === 'Regular' ? 'text-orange-600' : 'text-red-600'
-          }`}>
-            {strength.label}
-          </span>
+          }`}>{strength.label}</span>
         </div>
         <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-          <div 
-            className={`h-full ${strength.color} transition-all duration-300`}
-            style={{ width: strength.width }}
-          />
+          <div className={`h-full ${strength.color} transition-all duration-300`} style={{ width: strength.width }} />
         </div>
       </div>
-
       <ul className="space-y-1">
         {requirements.map(req => (
           <li key={req.key} className="flex items-center gap-2 text-xs">
-            {req.met ? (
-              <Check className="w-3.5 h-3.5 text-green-600" />
-            ) : (
-              <X className="w-3.5 h-3.5 text-gray-400" />
-            )}
-            <span className={req.met ? 'text-green-700' : 'text-gray-500'}>
-              {req.label}
-            </span>
+            {req.met
+              ? <Check className="w-3.5 h-3.5 text-green-600" />
+              : <X className="w-3.5 h-3.5 text-gray-400" />}
+            <span className={req.met ? 'text-green-700' : 'text-gray-500'}>{req.label}</span>
           </li>
         ))}
       </ul>
@@ -84,6 +75,169 @@ function PasswordRequirements({ password }: { password: string }) {
   )
 }
 
+// ===== AVATAR UPLOADER =====
+function AvatarUploader({
+  currentImage,
+  userName,
+  onUploadSuccess,
+  onRemoveSuccess,
+}: {
+  currentImage: string | null | undefined
+  userName: string
+  onUploadSuccess: (newUrl: string) => void
+  onRemoveSuccess: () => void
+}) {
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [preview, setPreview] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const [removing, setRemoving] = useState(false)
+  const [localError, setLocalError] = useState<string | null>(null)
+  const [dragOver, setDragOver] = useState(false)
+
+  const displayImage = preview || currentImage || null
+  const initial = userName?.[0]?.toUpperCase() || 'U'
+
+  const processFile = (file: File) => {
+    setLocalError(null)
+    const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+    if (!allowed.includes(file.type)) {
+      setLocalError('Formato no permitido. Usá JPG, PNG, WEBP o GIF.')
+      return
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setLocalError('La imagen no puede superar 2 MB.')
+      return
+    }
+    // Preview local inmediato
+    const reader = new FileReader()
+    reader.onload = (e) => setPreview(e.target?.result as string)
+    reader.readAsDataURL(file)
+    handleUpload(file)
+  }
+
+  const handleUpload = async (file: File) => {
+    setUploading(true)
+    try {
+      const form = new FormData()
+      form.append('avatar', file)
+      const res = await fetch('/api/usuario/avatar', { method: 'POST', body: form })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Error al subir imagen')
+      setPreview(null)
+      onUploadSuccess(data.image)
+    } catch (err: any) {
+      setLocalError(err.message)
+      setPreview(null)
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const handleRemove = async () => {
+    setRemoving(true)
+    setLocalError(null)
+    try {
+      const res = await fetch('/api/usuario/avatar', { method: 'DELETE' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Error al eliminar imagen')
+      setPreview(null)
+      onRemoveSuccess()
+    } catch (err: any) {
+      setLocalError(err.message)
+    } finally {
+      setRemoving(false)
+    }
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setDragOver(false)
+    const file = e.dataTransfer.files?.[0]
+    if (file) processFile(file)
+  }
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) processFile(file)
+    e.target.value = ''
+  }
+
+  return (
+    <div className="flex flex-col items-center gap-3">
+      {/* Avatar circular con overlay de cámara */}
+      <div
+        className={`relative w-24 h-24 rounded-full group cursor-pointer select-none ${
+          dragOver ? 'ring-2 ring-blue-400 ring-offset-2' : ''
+        }`}
+        onClick={() => !uploading && !removing && fileInputRef.current?.click()}
+        onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={handleDrop}
+        title="Hacé clic o arrastrá una imagen"
+      >
+        <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-white shadow-sm bg-gray-100 flex items-center justify-center">
+          {displayImage ? (
+            <img src={displayImage} alt="Avatar" className="w-full h-full object-cover" />
+          ) : (
+            <span className="text-3xl text-gray-400 font-bold">{initial}</span>
+          )}
+        </div>
+
+        {/* Overlay hover */}
+        <div className={`absolute inset-0 rounded-full bg-black/40 flex items-center justify-center transition-opacity duration-200 ${
+          uploading || removing ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+        }`}>
+          {uploading || removing
+            ? <Loader2 className="w-6 h-6 text-white animate-spin" />
+            : <Camera className="w-6 h-6 text-white" />}
+        </div>
+      </div>
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/gif"
+        onChange={handleFileChange}
+        className="hidden"
+      />
+
+      {/* Botones */}
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading || removing}
+          className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed px-3 py-1.5 rounded-lg hover:bg-blue-50 transition"
+        >
+          <Upload className="w-3.5 h-3.5" />
+          {uploading ? 'Subiendo...' : 'Subir foto'}
+        </button>
+
+        {displayImage && (
+          <button
+            type="button"
+            onClick={handleRemove}
+            disabled={uploading || removing}
+            className="flex items-center gap-1.5 text-xs text-red-500 hover:text-red-600 font-medium disabled:opacity-50 disabled:cursor-not-allowed px-3 py-1.5 rounded-lg hover:bg-red-50 transition"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            {removing ? 'Eliminando...' : 'Quitar'}
+          </button>
+        )}
+      </div>
+
+      {localError && (
+        <p className="text-xs text-red-600 text-center flex items-center gap-1">
+          <X className="w-3.5 h-3.5 flex-shrink-0" /> {localError}
+        </p>
+      )}
+
+      <p className="text-xs text-gray-400 text-center">JPG, PNG, WEBP o GIF · Máximo 2 MB</p>
+    </div>
+  )
+}
+
+// ===== TIPOS =====
 type UserData = {
   id: string
   name?: string | null
@@ -96,66 +250,63 @@ type UserData = {
   debeResetearPassword?: boolean
 }
 
+// ===== COMPONENTE PRINCIPAL =====
 export function PerfilView({ user }: { user: UserData }) {
   const searchParams = useSearchParams()
   const router = useRouter()
   const resetPasswordRequired = searchParams.get('resetPassword') === 'true' || user.debeResetearPassword
 
-  // Estado del formulario de datos personales
+  // Imagen local — se actualiza sin recargar la página
+  const [currentImage, setCurrentImage] = useState<string | null | undefined>(user.image)
+
   const [formData, setFormData] = useState({
     nombre: user.nombre || user.name?.split(' ')[0] || '',
     apellido: user.apellido || user.name?.split(' ').slice(1).join(' ') || '',
     telefono: user.telefono || ''
   })
 
-  // Estado del formulario de contraseña
-  const [passwordData, setPasswordData] = useState({
-    currentPassword: '',
-    newPassword: '',
-    confirmPassword: ''
-  })
+  const [emailData, setEmailData] = useState({ newEmail: '', confirmEmail: '', currentPassword: '' })
+  const [editingEmail, setEditingEmail] = useState(false)
+  const [savingEmail, setSavingEmail] = useState(false)
+  const [showEmailPassword, setShowEmailPassword] = useState(false)
 
+  const [passwordData, setPasswordData] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' })
   const [showCurrentPassword, setShowCurrentPassword] = useState(false)
   const [showNewPassword, setShowNewPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  
+
   const [savingProfile, setSavingProfile] = useState(false)
   const [savingPassword, setSavingPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
-  // Validaciones de contraseña
   const passwordValidation = useMemo(() => validatePassword(passwordData.newPassword), [passwordData.newPassword])
   const isPasswordValid = useMemo(() => Object.values(passwordValidation).every(Boolean), [passwordValidation])
   const passwordsMatch = passwordData.newPassword === passwordData.confirmPassword && passwordData.confirmPassword !== ''
 
-  // Auto-limpiar mensajes
+  const emailChanged = emailData.newEmail.trim() !== '' && emailData.newEmail.trim().toLowerCase() !== user.email.toLowerCase()
+  const emailsMatch = emailData.newEmail.trim().toLowerCase() === emailData.confirmEmail.trim().toLowerCase() && emailData.confirmEmail !== ''
+  const emailIsValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailData.newEmail.trim())
+
   useEffect(() => {
     if (success) {
-      const timer = setTimeout(() => setSuccess(null), 5000)
-      return () => clearTimeout(timer)
+      const t = setTimeout(() => setSuccess(null), 6000)
+      return () => clearTimeout(t)
     }
   }, [success])
 
-  // Guardar datos personales
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault()
     setSavingProfile(true)
     setError(null)
-
     try {
-      const response = await fetch('/api/usuario/perfil', {
+      const res = await fetch('/api/usuario/perfil', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
       })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Error al guardar')
-      }
-
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Error al guardar')
       setSuccess('Datos actualizados correctamente')
     } catch (err: any) {
       setError(err.message)
@@ -164,48 +315,50 @@ export function PerfilView({ user }: { user: UserData }) {
     }
   }
 
-  // Cambiar contraseña
+  const handleChangeEmail = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+    if (!emailIsValid) { setError('El formato del email no es válido'); return }
+    if (!emailsMatch) { setError('Los emails no coinciden'); return }
+    if (!emailData.currentPassword) { setError('Debés ingresar tu contraseña actual para confirmar el cambio'); return }
+    setSavingEmail(true)
+    try {
+      const res = await fetch('/api/usuario/cambiar-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newEmail: emailData.newEmail.trim().toLowerCase(), currentPassword: emailData.currentPassword })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Error al cambiar el email')
+      setSuccess('Email actualizado. Vas a ser redirigido para volver a iniciar sesión con tu nuevo email.')
+      setEditingEmail(false)
+      setEmailData({ newEmail: '', confirmEmail: '', currentPassword: '' })
+      setTimeout(() => signOut({ callbackUrl: '/auth/signin' }), 2500)
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setSavingEmail(false)
+    }
+  }
+
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
-
-    if (!isPasswordValid) {
-      setError('La nueva contraseña no cumple con los requisitos de seguridad')
-      return
-    }
-
-    if (!passwordsMatch) {
-      setError('Las contraseñas no coinciden')
-      return
-    }
-
+    if (!isPasswordValid) { setError('La nueva contraseña no cumple con los requisitos de seguridad'); return }
+    if (!passwordsMatch) { setError('Las contraseñas no coinciden'); return }
     setSavingPassword(true)
-
     try {
-      const response = await fetch('/api/usuario/cambiar-password', {
+      const res = await fetch('/api/usuario/cambiar-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          currentPassword: passwordData.currentPassword,
-          newPassword: passwordData.newPassword
-        })
+        body: JSON.stringify({ currentPassword: passwordData.currentPassword, newPassword: passwordData.newPassword })
       })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Error al cambiar contraseña')
-      }
-
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Error al cambiar contraseña')
       setSuccess('Contraseña actualizada correctamente')
       setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' })
-
-      // Si era obligatorio cambiar la contraseña, redirigir al home
       if (resetPasswordRequired) {
-        setTimeout(() => {
-          router.push('/')
-          router.refresh()
-        }, 1500)
+        setTimeout(() => { router.push('/'); router.refresh() }, 1500)
       }
     } catch (err: any) {
       setError(err.message)
@@ -216,44 +369,37 @@ export function PerfilView({ user }: { user: UserData }) {
 
   const getRolLabel = (rol: string) => {
     const roles: Record<string, string> = {
-      ADMIN: 'Administrador',
-      ABOGADO: 'Abogado',
-      ASISTENTE: 'Asistente',
-      CLIENTE: 'Cliente'
+      ADMIN: 'Administrador', ABOGADO: 'Abogado', ASISTENTE: 'Asistente', CLIENTE: 'Cliente'
     }
     return roles[rol] || rol
   }
 
+  const displayName = user.nombre && user.apellido
+    ? `${user.nombre} ${user.apellido}`
+    : user.name || 'Usuario'
+
   return (
     <div className="max-w-4xl mx-auto">
-      
-      {/* Header */}
+
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-800">Mi Perfil</h1>
         <p className="text-gray-500">Administra tu información personal y credenciales de acceso.</p>
       </div>
 
-      {/* Alerta de cambio de contraseña obligatorio */}
       {resetPasswordRequired && (
         <div className="mb-6 p-4 bg-amber-50 border-l-4 border-amber-500 text-amber-800 rounded-lg flex items-start gap-3">
           <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" />
           <div>
             <p className="font-semibold">Acción requerida</p>
-            <p className="text-sm">
-              Por seguridad, debes cambiar tu contraseña temporal antes de continuar usando el sistema.
-            </p>
+            <p className="text-sm">Por seguridad, debés cambiar tu contraseña temporal antes de continuar usando el sistema.</p>
           </div>
         </div>
       )}
 
-      {/* Mensajes de estado */}
       {error && (
         <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 text-red-700 rounded flex items-start gap-3">
           <X className="h-5 w-5 flex-shrink-0 mt-0.5" />
-          <div>
-            <p className="font-semibold">Error</p>
-            <p className="text-sm">{error}</p>
-          </div>
+          <div><p className="font-semibold">Error</p><p className="text-sm">{error}</p></div>
           <button onClick={() => setError(null)} className="ml-auto text-red-500 hover:text-red-700">×</button>
         </div>
       )}
@@ -261,45 +407,45 @@ export function PerfilView({ user }: { user: UserData }) {
       {success && (
         <div className="mb-6 p-4 bg-green-50 border-l-4 border-green-500 text-green-700 rounded flex items-start gap-3">
           <Check className="h-5 w-5 flex-shrink-0 mt-0.5" />
-          <div>
-            <p className="font-semibold">Éxito</p>
-            <p className="text-sm">{success}</p>
-          </div>
+          <div><p className="font-semibold">Éxito</p><p className="text-sm">{success}</p></div>
           <button onClick={() => setSuccess(null)} className="ml-auto text-green-500 hover:text-green-700">×</button>
         </div>
       )}
 
       <div className="grid gap-8 md:grid-cols-3">
-        
-        {/* Columna Izquierda: Avatar y Resumen */}
+
+        {/* ===== COLUMNA IZQUIERDA ===== */}
         <div className="md:col-span-1">
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 text-center">
-            <div className="w-24 h-24 bg-gray-100 rounded-full mx-auto mb-4 flex items-center justify-center border-4 border-white shadow-sm">
-              {user.image ? (
-                <img src={user.image} alt="Avatar" className="w-full h-full rounded-full object-cover" />
-              ) : (
-                <span className="text-3xl text-gray-400 font-bold">
-                  {(user.nombre || user.name)?.[0]?.toUpperCase() || "U"}
-                </span>
-              )}
-            </div>
-            <h2 className="font-bold text-gray-800">
-              {user.nombre && user.apellido 
-                ? `${user.nombre} ${user.apellido}` 
-                : user.name || "Usuario"}
-            </h2>
-            <p className="text-sm text-gray-500 mb-4">{user.email}</p>
-            <div className="inline-flex items-center px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-medium border border-blue-100">
-              <Shield className="w-3 h-3 mr-1" />
-              {getRolLabel(user.rol)}
+
+            <AvatarUploader
+              currentImage={currentImage}
+              userName={displayName}
+              onUploadSuccess={(url) => {
+                setCurrentImage(url)
+                setSuccess('Foto de perfil actualizada correctamente')
+              }}
+              onRemoveSuccess={() => {
+                setCurrentImage(null)
+                setSuccess('Foto de perfil eliminada')
+              }}
+            />
+
+            <div className="mt-4">
+              <h2 className="font-bold text-gray-800">{displayName}</h2>
+              <p className="text-sm text-gray-500 mb-4">{user.email}</p>
+              <div className="inline-flex items-center px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-medium border border-blue-100">
+                <Shield className="w-3 h-3 mr-1" />
+                {getRolLabel(user.rol)}
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Columna Derecha: Formularios */}
+        {/* ===== COLUMNA DERECHA ===== */}
         <div className="md:col-span-2 space-y-6">
-          
-          {/* ===== SECCIÓN: CAMBIAR CONTRASEÑA (Prioritaria si es obligatorio) ===== */}
+
+          {/* CAMBIAR CONTRASEÑA */}
           <div className={`bg-white p-6 rounded-2xl shadow-sm border ${
             resetPasswordRequired ? 'border-amber-300 ring-2 ring-amber-100' : 'border-gray-200'
           }`}>
@@ -307,15 +453,14 @@ export function PerfilView({ user }: { user: UserData }) {
               <Lock className="w-4 h-4" />
               {resetPasswordRequired ? 'Cambiar Contraseña (Obligatorio)' : 'Seguridad'}
             </h3>
-            
+
             <form onSubmit={handleChangePassword} className="grid gap-4">
-              {/* Contraseña actual (solo si no es primer login) */}
               {!resetPasswordRequired && (
                 <div>
                   <label className="text-xs font-medium text-gray-500 mb-1 block">Contraseña Actual</label>
                   <div className="relative">
                     <Lock className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
-                    <input 
+                    <input
                       type={showCurrentPassword ? "text" : "password"}
                       value={passwordData.currentPassword}
                       onChange={(e) => setPasswordData({...passwordData, currentPassword: e.target.value})}
@@ -323,85 +468,65 @@ export function PerfilView({ user }: { user: UserData }) {
                       placeholder="••••••••"
                       required={!resetPasswordRequired}
                     />
-                    <button
-                      type="button"
-                      onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                      className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
-                    >
+                    <button type="button" onClick={() => setShowCurrentPassword(!showCurrentPassword)} className="absolute right-3 top-3 text-gray-400 hover:text-gray-600">
                       {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
                 </div>
               )}
 
-              {/* Nueva contraseña */}
               <div>
                 <label className="text-xs font-medium text-gray-500 mb-1 block">Nueva Contraseña</label>
                 <div className="relative">
                   <Lock className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
-                  <input 
+                  <input
                     type={showNewPassword ? "text" : "password"}
                     value={passwordData.newPassword}
                     onChange={(e) => setPasswordData({...passwordData, newPassword: e.target.value})}
                     className={`w-full pl-9 pr-10 p-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      passwordData.newPassword && !isPasswordValid 
-                        ? 'border-orange-300 bg-orange-50' 
-                        : 'border-gray-200 bg-gray-50'
+                      passwordData.newPassword && !isPasswordValid ? 'border-orange-300 bg-orange-50' : 'border-gray-200 bg-gray-50'
                     }`}
                     placeholder="Ingrese nueva contraseña"
                     required
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowNewPassword(!showNewPassword)}
-                    className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
-                  >
+                  <button type="button" onClick={() => setShowNewPassword(!showNewPassword)} className="absolute right-3 top-3 text-gray-400 hover:text-gray-600">
                     {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
                 <PasswordRequirements password={passwordData.newPassword} />
               </div>
 
-              {/* Confirmar nueva contraseña */}
               <div>
                 <label className="text-xs font-medium text-gray-500 mb-1 block">Confirmar Nueva Contraseña</label>
                 <div className="relative">
                   <Lock className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
-                  <input 
+                  <input
                     type={showConfirmPassword ? "text" : "password"}
                     value={passwordData.confirmPassword}
                     onChange={(e) => setPasswordData({...passwordData, confirmPassword: e.target.value})}
                     className={`w-full pl-9 pr-10 p-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      passwordData.confirmPassword && !passwordsMatch 
-                        ? 'border-red-300 bg-red-50' 
-                        : passwordData.confirmPassword && passwordsMatch
-                        ? 'border-green-300 bg-green-50'
-                        : 'border-gray-200 bg-gray-50'
+                      passwordData.confirmPassword && !passwordsMatch ? 'border-red-300 bg-red-50'
+                      : passwordData.confirmPassword && passwordsMatch ? 'border-green-300 bg-green-50'
+                      : 'border-gray-200 bg-gray-50'
                     }`}
                     placeholder="Repita la nueva contraseña"
                     required
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
-                  >
+                  <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-3 top-3 text-gray-400 hover:text-gray-600">
                     {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
                 {passwordData.confirmPassword && (
                   <p className={`text-xs mt-2 flex items-center gap-1 ${passwordsMatch ? 'text-green-600' : 'text-red-600'}`}>
-                    {passwordsMatch ? (
-                      <><Check className="w-3.5 h-3.5" /> Las contraseñas coinciden</>
-                    ) : (
-                      <><X className="w-3.5 h-3.5" /> Las contraseñas no coinciden</>
-                    )}
+                    {passwordsMatch
+                      ? <><Check className="w-3.5 h-3.5" /> Las contraseñas coinciden</>
+                      : <><X className="w-3.5 h-3.5" /> Las contraseñas no coinciden</>}
                   </p>
                 )}
               </div>
 
               <div className="mt-2 text-right">
-                <button 
+                <button
                   type="submit"
                   disabled={savingPassword || !isPasswordValid || !passwordsMatch}
                   className="text-sm bg-gray-900 text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition flex items-center gap-2 ml-auto disabled:opacity-50 disabled:cursor-not-allowed"
@@ -413,81 +538,206 @@ export function PerfilView({ user }: { user: UserData }) {
             </form>
           </div>
 
-          {/* ===== SECCIÓN: DATOS PERSONALES (Solo si no es cambio obligatorio) ===== */}
+          {/* DATOS PERSONALES */}
           {!resetPasswordRequired && (
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
               <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-4 border-b pb-2 flex items-center gap-2">
                 <User className="w-4 h-4" />
                 Información Básica
               </h3>
-              
+
               <form onSubmit={handleSaveProfile} className="grid gap-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs font-medium text-gray-500 mb-1 block">Nombre</label>
                     <div className="relative">
                       <User className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         value={formData.nombre}
                         onChange={(e) => setFormData({...formData, nombre: e.target.value})}
-                        className="w-full pl-9 p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                        className="w-full pl-9 p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
                   </div>
                   <div>
                     <label className="text-xs font-medium text-gray-500 mb-1 block">Apellido</label>
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       value={formData.apellido}
                       onChange={(e) => setFormData({...formData, apellido: e.target.value})}
-                      className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                      className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
                 </div>
-                
+
+                {/* Email con toggle */}
                 <div>
-                  <label className="text-xs font-medium text-gray-500 mb-1 block">Email</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-medium text-gray-500">Email</label>
+                    {!editingEmail && (
+                      <button
+                        type="button"
+                        onClick={() => setEditingEmail(true)}
+                        className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                      >
+                        Cambiar email
+                      </button>
+                    )}
+                  </div>
                   <div className="relative">
                     <Mail className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
-                    <input 
-                      type="email" 
+                    <input
+                      type="email"
                       value={user.email}
-                      disabled 
-                      className="w-full pl-9 p-2.5 bg-gray-100 border border-gray-200 rounded-lg text-sm text-gray-500 cursor-not-allowed" 
+                      disabled
+                      className="w-full pl-9 p-2.5 bg-gray-100 border border-gray-200 rounded-lg text-sm text-gray-500 cursor-not-allowed"
                     />
                   </div>
-                  <p className="text-xs text-gray-400 mt-1">El email no se puede modificar</p>
+                  {!editingEmail && (
+                    <p className="text-xs text-gray-400 mt-1">Hacé clic en "Cambiar email" para modificarlo</p>
+                  )}
                 </div>
-                
+
                 <div>
                   <label className="text-xs font-medium text-gray-500 mb-1 block">Teléfono / Celular</label>
                   <div className="relative">
                     <Phone className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
-                    <input 
-                      type="tel" 
+                    <input
+                      type="tel"
                       value={formData.telefono}
                       onChange={(e) => setFormData({...formData, telefono: e.target.value})}
-                      placeholder="+54 9 ..." 
-                      className="w-full pl-9 p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                      placeholder="+54 9 ..."
+                      className="w-full pl-9 p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
                 </div>
 
                 <div className="mt-2 text-right">
-                  <button 
+                  <button
                     type="submit"
                     disabled={savingProfile}
                     className="text-sm bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition flex items-center gap-2 ml-auto disabled:opacity-50"
                   >
                     {savingProfile && <Loader2 className="w-4 h-4 animate-spin" />}
-                    <Save className="w-4 h-4" /> 
+                    <Save className="w-4 h-4" />
                     {savingProfile ? 'Guardando...' : 'Guardar Cambios'}
                   </button>
                 </div>
               </form>
             </div>
           )}
+
+          {/* CAMBIAR EMAIL */}
+          {!resetPasswordRequired && editingEmail && (
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-blue-200 ring-2 ring-blue-50">
+              <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-1 flex items-center gap-2">
+                <Mail className="w-4 h-4" />
+                Cambiar Email
+              </h3>
+              <p className="text-xs text-gray-500 mb-4 border-b pb-3">
+                Al confirmar el cambio vas a ser redirigido para volver a iniciar sesión con tu nuevo email.
+              </p>
+
+              <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-amber-700">
+                  Este cambio afecta tu acceso al sistema. Asegurate de tener acceso al nuevo email antes de confirmar.
+                </p>
+              </div>
+
+              <form onSubmit={handleChangeEmail} className="grid gap-4">
+                <div>
+                  <label className="text-xs font-medium text-gray-500 mb-1 block">Nuevo Email</label>
+                  <div className="relative">
+                    <Mail className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
+                    <input
+                      type="email"
+                      value={emailData.newEmail}
+                      onChange={(e) => setEmailData({...emailData, newEmail: e.target.value})}
+                      className={`w-full pl-9 p-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                        emailData.newEmail && !emailIsValid ? 'border-red-300 bg-red-50'
+                        : emailData.newEmail && emailIsValid ? 'border-green-300 bg-green-50'
+                        : 'border-gray-200 bg-gray-50'
+                      }`}
+                      placeholder="nuevo@email.com"
+                      required
+                    />
+                  </div>
+                  {emailData.newEmail && !emailIsValid && (
+                    <p className="text-xs text-red-600 mt-1 flex items-center gap-1"><X className="w-3.5 h-3.5" /> Formato de email inválido</p>
+                  )}
+                  {emailData.newEmail && emailIsValid && emailData.newEmail.toLowerCase() === user.email.toLowerCase() && (
+                    <p className="text-xs text-orange-600 mt-1 flex items-center gap-1"><AlertCircle className="w-3.5 h-3.5" /> Es el mismo email actual</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="text-xs font-medium text-gray-500 mb-1 block">Confirmar Nuevo Email</label>
+                  <div className="relative">
+                    <Mail className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
+                    <input
+                      type="email"
+                      value={emailData.confirmEmail}
+                      onChange={(e) => setEmailData({...emailData, confirmEmail: e.target.value})}
+                      className={`w-full pl-9 p-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                        emailData.confirmEmail && !emailsMatch ? 'border-red-300 bg-red-50'
+                        : emailData.confirmEmail && emailsMatch ? 'border-green-300 bg-green-50'
+                        : 'border-gray-200 bg-gray-50'
+                      }`}
+                      placeholder="Repetí el nuevo email"
+                      required
+                    />
+                  </div>
+                  {emailData.confirmEmail && (
+                    <p className={`text-xs mt-1 flex items-center gap-1 ${emailsMatch ? 'text-green-600' : 'text-red-600'}`}>
+                      {emailsMatch
+                        ? <><Check className="w-3.5 h-3.5" /> Los emails coinciden</>
+                        : <><X className="w-3.5 h-3.5" /> Los emails no coinciden</>}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="text-xs font-medium text-gray-500 mb-1 block">Contraseña Actual (para confirmar)</label>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
+                    <input
+                      type={showEmailPassword ? "text" : "password"}
+                      value={emailData.currentPassword}
+                      onChange={(e) => setEmailData({...emailData, currentPassword: e.target.value})}
+                      className="w-full pl-9 pr-10 p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="••••••••"
+                      required
+                    />
+                    <button type="button" onClick={() => setShowEmailPassword(!showEmailPassword)} className="absolute right-3 top-3 text-gray-400 hover:text-gray-600">
+                      {showEmailPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-3 mt-2">
+                  <button
+                    type="button"
+                    onClick={() => { setEditingEmail(false); setEmailData({ newEmail: '', confirmEmail: '', currentPassword: '' }); setError(null) }}
+                    className="text-sm text-gray-600 px-4 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={savingEmail || !emailIsValid || !emailsMatch || !emailChanged || !emailData.currentPassword}
+                    className="text-sm bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {savingEmail && <Loader2 className="w-4 h-4 animate-spin" />}
+                    <Mail className="w-4 h-4" />
+                    {savingEmail ? 'Guardando...' : 'Confirmar Cambio de Email'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
         </div>
       </div>
     </div>

@@ -10,6 +10,7 @@ datasource db {
 
 model User {
   id                   String     @id @default(uuid())
+  image                String? @db.LongText
   email                String     @unique(map: "Usuario_email_key")
   nombre               String?
   apellido             String?
@@ -18,7 +19,6 @@ model User {
   createdAt            DateTime   @default(now())
   updatedAt            DateTime   @updatedAt
   emailVerified        DateTime?
-  image                String?
   name                 String?
   isActive             Boolean    @default(true)
   creadoPor            String?
