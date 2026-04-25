@@ -172,11 +172,95 @@ model Tarea {
   caso       Caso?    @relation(fields: [casoId], references: [id], onDelete: Cascade)
   usuario    User     @relation(fields: [usuarioId], references: [id])
 
+<<<<<<< Updated upstream
   @@index([casoId], map: "tarea_casoId_fkey")
   @@index([usuarioId], map: "tarea_usuarioId_fkey")
   @@map("tarea")
 }
 
+=======
+  motivoCierreVencida String?   @db.Text
+  vencidaCerradaEn    DateTime?
+  vencidaCerradaPorId String? 
+
+  // Relaciones de actores
+  casoId           String?
+  cliente          Cliente?       @relation(fields: [clienteId], references: [id], onDelete: SetNull)
+  creadorId        String
+  responsableId    String
+  supervisorId     String?
+
+  caso             Caso?          @relation(fields: [casoId], references: [id], onDelete: SetNull)
+  creador          User           @relation("TareasCreadas", fields: [creadorId], references: [id])
+  responsable      User           @relation("TareasAsignadas", fields: [responsableId], references: [id])
+  supervisor       User?          @relation("TareasSupervisadas", fields: [supervisorId], references: [id])
+  
+  bitacoras        Bitacora[]
+
+  // Comentarios e historial de lectura
+  comentarios      ComentarioTarea[]
+  lecturas         TareaLectura[]
+
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@index([casoId])
+  @@index([clienteId])
+  @@index([creadorId])
+  @@index([responsableId])
+  @@index([supervisorId])
+  @@index([estado])
+  @@index([fechaVencimiento])
+  @@map("tarea")
+}
+
+// ============================================================================
+// MODELO DE COMENTARIOS DE TAREA
+// Permite conversación contextual entre responsable y supervisor.
+// Soporta cita opcional (responder a otro comentario) sin hilos anidados.
+// ============================================================================
+model ComentarioTarea {
+  id           String   @id @default(uuid())
+  texto        String   @db.Text
+  tareaId      String
+  autorId      String
+
+  // Cita opcional a otro comentario de la misma tarea
+  citaComentarioId    String?
+  citaComentario      ComentarioTarea?  @relation("CitaRelation", fields: [citaComentarioId], references: [id], onDelete: SetNull)
+  citadoEnComentarios ComentarioTarea[] @relation("CitaRelation")
+
+  createdAt    DateTime @default(now())
+
+  tarea        Tarea    @relation(fields: [tareaId], references: [id], onDelete: Cascade)
+  autor        User     @relation("ComentariosAutor", fields: [autorId], references: [id])
+
+  @@index([tareaId])
+  @@index([autorId])
+  @@index([createdAt])
+  @@map("comentario_tarea")
+}
+
+// ============================================================================
+// LECTURA DE TAREAS — granularidad usuario/tarea
+// Permite saber si un usuario tiene comentarios sin leer en una tarea.
+// Al abrir el Drawer de una tarea, se upsertea el registro con now().
+// ============================================================================
+model TareaLectura {
+  userId        String
+  tareaId       String
+  ultimaLectura DateTime @default(now())
+  ultimoUmbralVencimientoVisto Int?
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tarea Tarea @relation(fields: [tareaId], references: [id], onDelete: Cascade)
+
+  @@id([userId, tareaId])
+  @@index([tareaId])
+  @@map("tarea_lectura")
+}
+
+>>>>>>> Stashed changes
 model Bitacora {
   id             String   @id @default(uuid())
   texto          String   @db.Text

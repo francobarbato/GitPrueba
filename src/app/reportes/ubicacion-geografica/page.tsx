@@ -438,6 +438,11 @@ export default async function UbicacionGeograficaPage({
   if (!user) redirect("/api/auth/signin")
 
   const userRol = user.rol?.toUpperCase() || ''
+<<<<<<< Updated upstream
+=======
+  // Defensa en profundidad — bloquear roles no operativos
+  if (userRol === 'CLIENTE'|| userRol === 'ADMIN') notFound()
+>>>>>>> Stashed changes
   const puedeVerGeneral = isAdmin(userRol) || isAbogado(userRol)
   const vistaGeneral = puedeVerGeneral && searchParams.vista === 'general'
 

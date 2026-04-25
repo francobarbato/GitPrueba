@@ -16,7 +16,66 @@ import {
   TrendingUp, Trophy, Clock, Users,
   PieChart
 } from "lucide-react"
+<<<<<<< Updated upstream
 import { ShieldCheck } from "lucide-react"
+=======
+
+const COLOR_MAP: Record<string, { bg: string; text: string; border: string }> = {
+  blue:    { bg: "bg-blue-50",    text: "text-blue-600",    border: "border-blue-200" },
+  cyan:    { bg: "bg-cyan-50",    text: "text-cyan-600",    border: "border-cyan-200" },
+  purple:  { bg: "bg-purple-50",  text: "text-purple-600",  border: "border-purple-200" },
+  indigo:  { bg: "bg-indigo-50",  text: "text-indigo-600",  border: "border-indigo-200" },
+  emerald: { bg: "bg-emerald-50", text: "text-emerald-600", border: "border-emerald-200" },
+  amber:   { bg: "bg-amber-50",   text: "text-amber-600",   border: "border-amber-200" },
+  rose:    { bg: "bg-rose-50",    text: "text-rose-600",    border: "border-rose-200" },
+  slate:   { bg: "bg-slate-50",   text: "text-slate-600",   border: "border-slate-200" },
+}
+
+type Reporte = {
+  titulo: string
+  descripcion: string
+  href: string
+  icono: any
+  color: keyof typeof COLOR_MAP
+}
+
+const BLOQUES: { titulo: string; descripcion: string; reportes: Reporte[] }[] = [
+  {
+    titulo: "Personal",
+    descripcion: "Auditoría de actividad propia",
+    reportes: [
+      { titulo: "Auditoría personal", descripcion: "Registro de cambios en mis expedientes", href: "/reportes/auditoria", icono: FileText, color: "slate" },
+    ],
+  },
+  {
+    titulo: "Gestión operativa",
+    descripcion: "Herramientas para el día a día del estudio",
+    reportes: [
+      { titulo: "Cumplimiento de Plazos", descripcion: "Cómo se trabajó: eventos cumplidos en plazo, con demora y vencidas", href: "/reportes/cumplimiento-tareas", icono: ClipboardCheck, color: "blue" },
+      { titulo: "Carga de trabajo", descripcion: "Qué tenés encima hoy: expedientes, agenda, eventos activos y próximos a vencer", href: "/reportes/matriz-carga", icono: Briefcase, color: "cyan" },
+      { titulo: "Composición de la Agenda", descripcion: "Qué tipo de trabajo hace el estudio: procesal vs interna, categorías, contexto", href: "/reportes/composicion-tareas", icono: BarChart3, color: "purple" },
+      { titulo: "Distribución geográfica", descripcion: "Organización logística de visitas a tribunales", href: "/reportes/ubicacion-geografica", icono: MapPinned, color: "emerald" },
+    ],
+  },
+  {
+    titulo: "Rendimiento y procesos",
+    descripcion: "Evaluación del desempeño del estudio",
+    reportes: [
+      { titulo: "Estado de casos por etapa", descripcion: "Dónde están trabados los expedientes y cuáles requieren atención", href: "/reportes/tiempo-por-etapa", icono: Timer, color: "amber" },
+      { titulo: "Análisis de resultados", descripcion: "Tasa de éxito, recupero y resultados por motivo de cierre", href: "/reportes/analisis-resultados", icono: Target, color: "rose" },
+    ],
+  },
+  {
+    titulo: "Estrategia de negocio",
+    descripcion: "Análisis para decisiones estratégicas",
+    reportes: [
+      { titulo: "Composición de cartera por fuero", descripcion: "Dónde está el volumen y el valor económico del estudio", href: "/reportes/cartera-fuero", icono: PieChart, color: "indigo" },
+      { titulo: "Análisis de cartera de clientes", descripcion: "Perfil de la base de clientes: activos, recurrentes, antigüedad", href: "/reportes/cartera-clientes", icono: TrendingUp, color: "emerald" },
+      { titulo: "Evolución y tendencia de cartera", descripcion: "Flujo de entrada y salida de expedientes a lo largo del tiempo", href: "/reportes/evolucion-cartera", icono: LineChart, color: "blue" },
+    ],
+  },
+]
+>>>>>>> Stashed changes
 
 export default async function ReportesPage() {
   const user = await getUserSessionServer()

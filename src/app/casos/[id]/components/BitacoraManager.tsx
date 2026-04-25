@@ -43,7 +43,7 @@ export function TaskManager({ casoId, tareas }: { casoId: string, tareas: any[] 
             <p className="text-sm text-slate-500">Gestión de vencimientos y escritos.</p>
         </div>
         <Button size="sm" onClick={() => setIsOpen(!isOpen)} variant={isOpen ? "secondary" : "default"}>
-            {isOpen ? <><X className="w-4 h-4 mr-2"/> Cancelar</> : <><Plus className="w-4 h-4 mr-2"/> Nueva Tarea</>}
+            {isOpen ? <><X className="w-4 h-4 mr-2"/> Cancelar</> : <><Plus className="w-4 h-4 mr-2"/> Nuevo Evento</>}
         </Button>
       </div>
 

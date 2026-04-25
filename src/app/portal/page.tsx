@@ -98,12 +98,17 @@ export default async function PortalDashboard() {
       
       {/* Saludo */}
       <div>
+<<<<<<< Updated upstream
         <h1 className="text-2xl font-semibold text-slate-900">
           Bienvenido, {cliente.nombre}
         </h1>
         <p className="text-slate-600 mt-1">
           Aquí puede consultar el estado de sus casos y documentación
         </p>
+=======
+        <h1 className="text-2xl font-semibold text-slate-900">Bienvenido, {cliente.nombre}</h1>
+        <p className="text-slate-600 mt-1">Aquí puede consultar el estado de sus expedientes y los eventos asignados por su estudio</p>
+>>>>>>> Stashed changes
       </div>
 
       {/* Tarjetas de resumen */}
@@ -114,13 +119,22 @@ export default async function PortalDashboard() {
           <CardContent className="pt-6">
             <div className="flex items-start justify-between">
               <div>
+<<<<<<< Updated upstream
                 <p className="text-sm font-medium text-slate-600">Casos Activos</p>
                 <p className="text-3xl font-bold text-slate-900 mt-1">{casosActivos}</p>
               </div>
               <div className="h-12 w-12 rounded-lg bg-blue-50 flex items-center justify-center">
                 <Briefcase className="h-6 w-6 text-blue-600" />
+=======
+                <CardTitle className="flex items-center gap-2">
+                  <Briefcase className="h-5 w-5 text-slate-600" />
+                  Mis Expedientes
+                </CardTitle>
+                <CardDescription>Expedientes activos en el estudio</CardDescription>
+>>>>>>> Stashed changes
               </div>
             </div>
+<<<<<<< Updated upstream
             {casosActivos > 0 && (
               <Link href="/portal/casos">
                 <Button variant="link" className="px-0 mt-2 text-blue-600">
@@ -128,17 +142,62 @@ export default async function PortalDashboard() {
                   <ArrowRight className="h-4 w-4 ml-1" />
                 </Button>
               </Link>
+=======
+          </CardHeader>
+          <CardContent className="p-0">
+            {cliente.casos.length === 0 ? (
+              <div className="py-12 text-center">
+                <Inbox className="h-10 w-10 text-slate-200 mx-auto mb-3" />
+                <p className="text-slate-500 font-medium">No tiene expedientes activos</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-slate-100">
+                {cliente.casos.map(caso => (
+                  <Link key={caso.id} href={`/portal/casos/${caso.id}`}>
+                    <div className="p-4 hover:bg-slate-50 transition cursor-pointer">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-xs font-mono text-slate-500">{caso.numero}</span>
+                            <Badge variant="outline" className="text-xs">{caso.tipo}</Badge>
+                          </div>
+                          <p className="font-medium text-slate-900 truncate">{caso.titulo}</p>
+                          <p className="text-sm text-slate-500 mt-0.5">{caso.estado}</p>
+                        </div>
+                        <ArrowRight className="h-4 w-4 text-slate-400 shrink-0 mt-1" />
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+>>>>>>> Stashed changes
             )}
           </CardContent>
         </Card>
 
         {/* Casos Finalizados */}
         <Card className="border-slate-200">
+<<<<<<< Updated upstream
           <CardContent className="pt-6">
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-sm font-medium text-slate-600">Casos Finalizados</p>
                 <p className="text-3xl font-bold text-slate-900 mt-1">{casosCerrados}</p>
+=======
+          <CardHeader className="border-b bg-slate-50/50">
+            <CardTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-slate-600" />
+              Eventos Asigandos
+            </CardTitle>
+            <CardDescription>Acciones que su estudio le ha solicitado</CardDescription>
+          </CardHeader>
+          <CardContent className="p-0">
+            {tareasCliente.length === 0 ? (
+              <div className="py-12 text-center">
+                <CheckCircle2 className="h-10 w-10 text-slate-200 mx-auto mb-3" />
+                <p className="text-slate-500 font-medium">Sin eventos pendientes</p>
+                <p className="text-sm text-slate-400 mt-1">No hay acciones requeridas en este momento</p>
+>>>>>>> Stashed changes
               </div>
               <div className="h-12 w-12 rounded-lg bg-green-50 flex items-center justify-center">
                 <CheckCircle2 className="h-6 w-6 text-green-600" />

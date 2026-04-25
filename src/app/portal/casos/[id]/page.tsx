@@ -119,6 +119,7 @@ export default async function PortalCasoDetallePage({
 
   return (
     <div className="space-y-6">
+<<<<<<< Updated upstream
       
       {/* Header con navegación */}
       <div className="flex items-start gap-4">
@@ -126,6 +127,14 @@ export default async function PortalCasoDetallePage({
           <Button variant="ghost" size="icon" className="mt-1">
             <ArrowLeft className="h-5 w-5" />
           </Button>
+=======
+
+      {/* Breadcrumb */}
+      <div className="flex items-center gap-2">
+        <Link href="/portal/casos" className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-800 transition-colors">
+          <ArrowLeft className="w-4 h-4" />
+          Mis Expedientes
+>>>>>>> Stashed changes
         </Link>
         <div className="flex-1">
           <div className="flex items-center gap-2 flex-wrap mb-1">
@@ -201,6 +210,7 @@ export default async function PortalCasoDetallePage({
                   </p>
                 </div>
 
+<<<<<<< Updated upstream
                 {caso.juzgado && (
                   <div>
                     <label className="text-sm text-slate-500">Juzgado</label>
@@ -214,6 +224,21 @@ export default async function PortalCasoDetallePage({
                     <p className="mt-1 text-slate-900">{caso.fuero}</p>
                   </div>
                 )}
+=======
+        {/* Tareas asignadas */}
+        <Card className="border-slate-200 md:col-span-2">
+          <CardHeader className="border-b bg-slate-50/50 pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-slate-600" />
+              Eventos Asignados
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            {caso.tareas.length === 0 ? (
+              <div className="py-10 text-center">
+                <CheckCircle2 className="h-8 w-8 text-slate-200 mx-auto mb-2" />
+                <p className="text-slate-500 text-sm">Sin eventos pendientes para este expediente</p>
+>>>>>>> Stashed changes
               </div>
 
               {/* Barra de progreso visual */}

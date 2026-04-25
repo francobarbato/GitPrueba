@@ -637,7 +637,16 @@ const puedeVerMontoDisputa = isAbogado(userRol)
                     </div>
                   </CardHeader>
                   <CardContent className="p-6">
+<<<<<<< Updated upstream
                     <TaskManager casoId={caso.id} requirements={caso.requirements} />
+=======
+                    <TaskManager
+                      casoId={caso.id}
+                      tareas={tareasDeCaso}
+                      puedeCrear={puedeEditar}
+                      currentUserId={user.id} 
+                    />
+>>>>>>> Stashed changes
                   </CardContent>
                 </Card>
               </TabsContent>
