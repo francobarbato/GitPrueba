@@ -1,31 +1,18 @@
-// middleware.ts (en la raíz del proyecto)
-// ACTUALIZADO: Restricciones de reportes para Asistentes
-
+// middleware.ts
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { getToken } from 'next-auth/jwt'
 
 export async function middleware(request: NextRequest) {
-  console.log('🔴 MIDDLEWARE EJECUTÁNDOSE - Pathname:', request.nextUrl.pathname)
   const { pathname } = request.nextUrl
-  
-  // Rutas públicas que no requieren autenticación
-  const publicRoutes = ['/auth/signin', '/auth/signup', '/auth/error', '/api/auth']
-  
-  // Verificar si es una ruta pública
-  const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route))
-  
-  if (isPublicRoute) {
-    return NextResponse.next()
-  }
 
-  // Obtener el token de sesión
-  const token = await getToken({ 
-    req: request, 
-    secret: process.env.NEXTAUTH_SECRET 
-  })
+  // Rutas públicas
 
-  // Si no hay sesión, redirigir al login
+  const publicRoutes = ['/auth/signin', '/auth/signup', '/auth/error', '/api/auth', '/web']
+  if (publicRoutes.some(r => pathname.startsWith(r))) return NextResponse.next()
+
+  const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET })
+
   if (!token) {
     const signInUrl = new URL('/auth/signin', request.url)
     signInUrl.searchParams.set('callbackUrl', pathname)
@@ -35,100 +22,68 @@ export async function middleware(request: NextRequest) {
   const userRol = (token.rol as string)?.toUpperCase() || ''
   const debeResetearPassword = token.debeResetearPassword as boolean
 
-  // ===== REDIRECCIÓN SEGÚN ROL =====
-
-  // =====================================================
-  // ROL CLIENTE: Lógica especial
-  // =====================================================
+  // ================================================================
+  // ROL CLIENTE — solo puede acceder a /portal y /perfil
+  // ================================================================
   if (userRol === 'CLIENTE') {
-    // Rutas permitidas para CLIENTE
-    const rutasCliente = ['/portal', '/perfil', '/api/usuario']
-    const rutaPermitida = rutasCliente.some(ruta => pathname.startsWith(ruta))
-    
-    // Si debe resetear contraseña, solo puede ir a /perfil
     if (debeResetearPassword) {
-      if (pathname !== '/perfil' && !pathname.startsWith('/api/usuario')) {
-        return NextResponse.redirect(new URL('/perfil', request.url))
-      }
+      if (pathname !== '/portal/perfil' && !pathname.startsWith('/api/usuario'))
+        return NextResponse.redirect(new URL('/portal/perfil', request.url))
       return NextResponse.next()
     }
-    
-    // Si no debe resetear, verificar que esté en rutas permitidas
-    if (!rutaPermitida) {
+    const rutasPermitidas = ['/portal', '/api/usuario']
+    if (!rutasPermitidas.some(r => pathname.startsWith(r)))
       return NextResponse.redirect(new URL('/portal', request.url))
-    }
-    
     return NextResponse.next()
   }
 
-  // =====================================================
-  // OTROS ROLES: Si debe resetear contraseña, ir a /perfil
-  // =====================================================
-  if (debeResetearPassword && pathname !== '/perfil' && !pathname.startsWith('/api/usuario')) {
+  // ================================================================
+  // TODOS LOS ROLES — forzar reset de contraseña
+  // ================================================================
+  if (debeResetearPassword && pathname !== '/perfil' && !pathname.startsWith('/api/usuario'))
     return NextResponse.redirect(new URL('/perfil', request.url))
+
+  // ================================================================
+  // ROL ADMIN — solo gestión de usuarios, sin acceso a datos jurídicos
+  // ================================================================
+  if (userRol === 'ADMIN') {
+    const rutasRestringidas = [
+      '/portal', '/casos', '/clientes', '/reportes',
+      '/gestion-tareas', '/tareas',
+    ]
+    if (rutasRestringidas.some(r => pathname.startsWith(r)))
+      return NextResponse.redirect(new URL('/', request.url))
+    return NextResponse.next()
   }
 
-  // =====================================================
-  // ROL ASISTENTE: Restringir ciertas rutas
-  // =====================================================
+  // ================================================================
+  // ROL ABOGADO — sin acceso a admin ni portal
+  // ================================================================
+  if (userRol === 'ABOGADO') {
+    const rutasRestringidas = ['/admin', '/configuracion', '/portal']
+    if (rutasRestringidas.some(r => pathname.startsWith(r)))
+      return NextResponse.redirect(new URL('/', request.url))
+    return NextResponse.next()
+  }
+
+  // ================================================================
+  // ROL ASISTENTE — sin acceso a reportes estratégicos ni admin
+  // ================================================================
   if (userRol === 'ASISTENTE') {
-    const rutasRestringidasAsistente = [
-      '/configuracion',
-      '/admin',
+    const rutasRestringidas = [
+      '/configuracion', '/admin', '/portal',
       '/calculos-indemnizacion',
-      '/portal',
-      // Reportes estratégicos: no accesibles para Asistentes
       '/reportes/cartera-fuero',
       '/reportes/analisis-resultados',
     ]
-    
-    const rutaRestringida = rutasRestringidasAsistente.some(ruta => pathname.startsWith(ruta))
-    
-    if (rutaRestringida) {
+    if (rutasRestringidas.some(r => pathname.startsWith(r)))
       return NextResponse.redirect(new URL('/', request.url))
-    }
+    return NextResponse.next()
   }
-
-  // =====================================================
-  // ROL ABOGADO: Restringir rutas de admin
-  // =====================================================
-  if (userRol === 'ABOGADO') {
-    const rutasRestringidasAbogado = [
-      '/admin',
-      '/configuracion',
-      '/portal'
-    ]
-    
-    const rutaRestringida = rutasRestringidasAbogado.some(ruta => pathname.startsWith(ruta))
-    
-    if (rutaRestringida) {
-      return NextResponse.redirect(new URL('/', request.url))
-    }
-  }
-
-  // =====================================================
-  // ROL ADMIN: Acceso total (excepto /portal)
-  // =====================================================
-  if (userRol === 'ADMIN') {
-  const rutasRestringidasAdmin = [
-    '/portal',
-    '/casos',
-    '/clientes',
-    '/reportes',
-  ]
-  
-  const rutaRestringida = rutasRestringidasAdmin.some(ruta => pathname.startsWith(ruta))
-  
-  if (rutaRestringida) {
-    return NextResponse.redirect(new URL('/', request.url))
-  }
-}
 
   return NextResponse.next()
 }
 
 export const config = {
-  matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|public).*)',
-  ],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|public).*)'],
 }

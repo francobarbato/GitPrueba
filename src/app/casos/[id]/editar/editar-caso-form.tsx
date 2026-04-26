@@ -179,7 +179,7 @@ export function EditarCasoForm({ caso, clientes }: { caso: any, clientes: any[] 
           <div className="flex items-center gap-3">
             <Ban className="h-8 w-8 text-red-600" />
             <div className="flex-1">
-              <CardTitle className="text-red-800">Caso Cerrado</CardTitle>
+              <CardTitle className="text-red-800">Expediente Cerrado</CardTitle>
               <CardDescription className="text-red-600">
                 Este expediente ha sido cerrado y no puede editarse
               </CardDescription>
@@ -205,14 +205,14 @@ export function EditarCasoForm({ caso, clientes }: { caso: any, clientes: any[] 
             </div>
             
             <p className="text-sm text-slate-600">
-              Si necesita reabrir este caso, contacte al Administrador del sistema.
+              Si necesita reabrir este expediente, contacte al Administrador del sistema.
             </p>
 
             <div className="flex justify-end gap-3 pt-4 border-t">
               <Link href={`/casos/${caso.id}`}>
                 <Button variant="outline">
                   <ArrowLeft className="h-4 w-4 mr-2" />
-                  Volver al Caso
+                  Volver al expediente
                 </Button>
               </Link>
             </div>
@@ -247,8 +247,8 @@ export function EditarCasoForm({ caso, clientes }: { caso: any, clientes: any[] 
 
           {/* AVISO: Para cerrar el caso usar el botón específico */}
           <div className="mb-6 p-3 bg-blue-50 border border-blue-200 rounded-lg text-blue-800 text-sm">
-            <strong>💡 Tip:</strong> Para cerrar o archivar este caso, use el botón 
-            <span className="font-semibold"> "Cerrar Caso"</span> en la vista del expediente. 
+            <strong>💡 Tip:</strong> Para cerrar o archivar este expediente, use el botón 
+            <span className="font-semibold"> "Cerrar Expediente"</span> en la vista del expediente. 
             El cierre requiere información adicional (motivo, monto final, etc.) para los reportes.
           </div>
 
@@ -260,7 +260,7 @@ export function EditarCasoForm({ caso, clientes }: { caso: any, clientes: any[] 
             <div className="space-y-4">
               <div className="flex items-center gap-2 pb-2 border-b border-slate-200">
                 <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-sm">1</div>
-                <h2 className="text-lg font-semibold text-slate-800">Identificación del Caso</h2>
+                <h2 className="text-lg font-semibold text-slate-800">Identificación del Expediente</h2>
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-slate-50 rounded-lg">
@@ -313,7 +313,7 @@ export function EditarCasoForm({ caso, clientes }: { caso: any, clientes: any[] 
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-slate-500">
-                    Solo estados activos. Para cerrar, use el botón "Cerrar Caso".
+                    Solo estados activos. Para cerrar, use el botón "Cerrar Expediente".
                   </p>
                 </div>
               </div>
@@ -324,14 +324,14 @@ export function EditarCasoForm({ caso, clientes }: { caso: any, clientes: any[] 
                     <AlertTriangle className="w-5 h-5 shrink-0" />
                     <div>
                         <span className="font-bold block"> Cambio de Etapa Detectado</span>
-                        Estás moviendo el caso de <strong>{etapaOriginal}</strong> a <strong>{etapaActual}</strong>. 
+                        Estás moviendo el expediente de <strong>{etapaOriginal}</strong> a <strong>{etapaActual}</strong>. 
                         Se te pedirá confirmación al guardar.
                     </div>
                 </div>
               )}
 
               <div className="space-y-2">
-                <Label htmlFor="titulo">Carátula / Título del Caso</Label>
+                <Label htmlFor="titulo">Carátula / Título del Expediente</Label>
                 <Input id="titulo" name="titulo" defaultValue={caso.titulo} required />
               </div>
 

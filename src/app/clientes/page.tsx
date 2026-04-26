@@ -1,5 +1,4 @@
 import { getUserSessionServer } from "@/auth/actions/auth-actions"
-import { redirect } from "next/navigation"
 import { ClienteService } from "@/lib/aplication/services/cliente.service"
 import Link from "next/link"
 import { Sidebar } from "@/app/components/sidebar"
@@ -9,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Plus, Edit, User, Building2, Eye } from "lucide-react"
 import { Buscador } from "../components/buscador"
+import { redirect, notFound } from "next/navigation"
 
 const clienteService = new ClienteService()
 
@@ -26,6 +26,9 @@ export default async function ClientesPage({
   if (!user) redirect("/auth/signin")
 
   const userRol = user.rol?.toUpperCase() || ''
+  // Defensa en profundidad — bloquear roles no operativos
+  if (userRol === 'CLIENTE' || userRol === 'ADMIN') notFound()
+  
   if (userRol === 'ADMIN') redirect('/')
 
   // Obtener clientes según rol

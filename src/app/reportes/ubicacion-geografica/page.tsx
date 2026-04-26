@@ -9,7 +9,6 @@ import Link from "next/link"
 import { Sidebar } from "@/app/components/sidebar"
 import { Header } from "@/app/components/header"
 import { getUserSessionServer } from "@/auth/actions/auth-actions"
-import { redirect } from "next/navigation"
 import prisma from "src/lib/db/prisma"
 import { ArrowLeft, MapPin } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -26,6 +25,7 @@ import {
   clasificarDistancia,
   PROVINCIAS_ARGENTINA
 } from "src/lib/data/argentina-ubicaciones"
+import { redirect, notFound } from "next/navigation"
 
 // ============================================================================
 // TIPOS
@@ -438,6 +438,8 @@ export default async function UbicacionGeograficaPage({
   if (!user) redirect("/api/auth/signin")
 
   const userRol = user.rol?.toUpperCase() || ''
+  // Defensa en profundidad — bloquear roles no operativos
+  if (userRol === 'CLIENTE'|| userRol === 'ADMIN') notFound()
   const puedeVerGeneral = isAdmin(userRol) || isAbogado(userRol)
   const vistaGeneral = puedeVerGeneral && searchParams.vista === 'general'
 
@@ -504,7 +506,7 @@ export default async function UbicacionGeograficaPage({
                   </p>
                 </div>
               </div>
-
+                    {/* TODOOOOOOOOOO */}
               {/* Toggle — solo ABOGADO y ADMIN */}
               {/* PENDIENTE: habilitar cuando se implemente módulo de tareas/agenda */}
               {/* {puedeVerGeneral && (

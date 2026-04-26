@@ -1,4 +1,5 @@
 // app/layout.tsx
+// @ts-ignore: CSS module type declarations for side-effect import
 import './globals.css';
 import { Inter } from 'next/font/google';
 import type { Metadata } from 'next';

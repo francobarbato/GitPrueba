@@ -45,7 +45,6 @@ export class DashboardService {
     return {
       cards: [
         { label: 'Mis casos activos', value: misActivos, color: 'blue' },
-        // { label: 'Mis Cerrados', value: misCerrados, color: 'emerald' },
         { label: 'Mis clientes', value: misClientes, color: 'purple' },
         { label: 'Casos activos en el Estudio', value: totalEstudio, color: 'slate' },
       ]
@@ -119,7 +118,6 @@ export class DashboardService {
   async getClientesSinCasosActivos(userId: string, rol: string) {
     const rolUpper = rol?.toUpperCase()
 
-    // Filtrar por abogado si no es admin
     const whereCliente = rolUpper === 'ADMIN' || rolUpper === 'ASISTENTE'
       ? {}
       : { casos: { some: { abogadoId: userId } } }
@@ -136,7 +134,6 @@ export class DashboardService {
       }
     })
 
-    // Filtrar: clientes donde TODOS los casos están cerrados o no tiene casos
     return clientes
       .filter(c => c.casos.length === 0 || c.casos.every(caso => caso.estaCerrado))
       .map(c => ({
@@ -170,37 +167,98 @@ export class DashboardService {
   }
 
   // ============================================================================
-// 5. CASOS CON CAMPOS PENDIENTES (juzgado o ubicación física vacíos)
-// ============================================================================
-async getCasosIncompletos(userId: string, rol: string) {
-  const rolUpper = rol?.toUpperCase()
-  
-  const where = {
-    estaCerrado: false,
-    OR: [
-      { juzgado: null },
-      { juzgado: '' },
-      { ubicacionFisica: null },
-      { ubicacionFisica: '' },
-    ],
-    // ABOGADO solo ve sus casos, ASISTENTE ve todos
-    ...(rolUpper === 'ABOGADO' ? { abogadoId: userId } : {}),
+  // 5. CASOS CON CAMPOS PENDIENTES (juzgado o ubicación física vacíos)
+  // ============================================================================
+  async getCasosIncompletos(userId: string, rol: string) {
+    const rolUpper = rol?.toUpperCase()
+    
+    const where = {
+      estaCerrado: false,
+      OR: [
+        { juzgado: null },
+        { juzgado: '' },
+        { ubicacionFisica: null },
+        { ubicacionFisica: '' },
+      ],
+      ...(rolUpper === 'ABOGADO' ? { abogadoId: userId } : {}),
+    }
+
+    return await prisma.caso.findMany({
+      where,
+      take: 8,
+      orderBy: { updatedAt: 'desc' },
+      select: {
+        id: true,
+        titulo: true,
+        numero: true,
+        juzgado: true,
+        ubicacionFisica: true,
+        abogado: { select: { nombre: true, apellido: true } }
+      }
+    })
   }
 
-  return await prisma.caso.findMany({
-    where,
-    take: 8,
-    orderBy: { updatedAt: 'desc' },
-    select: {
-      id: true,
-      titulo: true,
-      numero: true,
-      juzgado: true,
-      ubicacionFisica: true,
-      abogado: { select: { nombre: true, apellido: true } }
-    }
-  })
-}
+  // ============================================================================
+  // 6. TAREAS URGENTES — Bandeja de Acción del Dashboard
+  // ============================================================================
+  async getTareasUrgentes(userId: string, rol: string) {
+    const rolUpper = rol?.toUpperCase()
+    if (rolUpper === 'ADMIN') return []
 
-}
+    const ahora = new Date()
+    const manana = new Date(ahora)
+    manana.setDate(manana.getDate() + 1)
+    manana.setHours(23, 59, 59, 999)
 
+    // Tareas vencidas o que vencen hoy/mañana donde soy responsable
+    const tareasUrgentes = await prisma.tarea.findMany({
+      where: {
+        OR: [
+          // Vencidas
+          {
+            responsableId: userId,
+            estado: "VENCIDA",
+          },
+          // Vencen hoy o mañana
+          {
+            responsableId: userId,
+            estado: { in: ["PENDIENTE", "EN_PROCESO"] },
+            fechaVencimiento: { lte: manana },
+          },
+          // Bloqueadas donde soy supervisor
+          {
+            supervisorId: userId,
+            estado: "BLOQUEADA",
+          },
+        ],
+      },
+      select: {
+        id: true,
+        titulo: true,
+        tipo: true,
+        prioridad: true,
+        estado: true,
+        fechaVencimiento: true,
+        motivoBloqueo: true,
+        creador: { select: { nombre: true, apellido: true } },
+        responsable: { select: { nombre: true, apellido: true } },
+        caso: { select: { numero: true, titulo: true } },
+      },
+      orderBy: [{ fechaVencimiento: "asc" }],
+      take: 15,
+    })
+
+    return tareasUrgentes.map(t => ({
+      id: t.id,
+      titulo: t.titulo,
+      tipo: t.tipo,
+      prioridad: t.prioridad,
+      estado: t.estado,
+      fechaVencimiento: t.fechaVencimiento?.toISOString() ?? null,
+      motivoBloqueo: t.motivoBloqueo,
+      creador: t.creador,
+      responsable: t.responsable,
+      caso: t.caso,
+    }))
+  }
+}

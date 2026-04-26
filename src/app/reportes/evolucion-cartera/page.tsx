@@ -8,7 +8,6 @@ import Link from "next/link"
 import { Sidebar } from "@/app/components/sidebar"
 import { Header } from "@/app/components/header"
 import { getUserSessionServer } from "@/auth/actions/auth-actions"
-import { redirect } from "next/navigation"
 import prisma from "src/lib/db/prisma"
 import {
   subDays, startOfMonth, format, isBefore, isAfter,
@@ -25,7 +24,7 @@ import { FiltroTiempo } from "./components/FiltroTiempo"
 import { TablaFlujo } from "./components/Tablaflujo"
 import { TablaComposicion } from "./components/Tablacomposicion"
 import { ToggleVistaEvolucion } from "./components/ToggleVistaEvolucion"
-
+import { redirect, notFound } from "next/navigation"
 // ============================================================================
 // TIPOS
 // ============================================================================
@@ -340,6 +339,8 @@ export default async function EvolucionCarteraPage({
   if (!user) redirect("/api/auth/signin")
 
   const userRol = user.rol?.toUpperCase()
+  // Defensa en profundidad — bloquear roles no operativos
+if (userRol === 'CLIENTE' || userRol === 'ADMIN') notFound()
   if (userRol === 'ASISTENTE') redirect("/reportes")
 
   const params = await searchParams

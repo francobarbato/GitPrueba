@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
         data: {
           tipo: "auto",
           accion: "Tarea Creada",
-          texto: `Nueva tarea: "${description}"`,
+          texto: `Nuevo evento: "${description}"`,
           usuarioId: usuario.id,
           casoId,
         },
@@ -43,8 +43,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(tarea)
   } catch (error) {
-    console.error("[v0] Error creando tarea:", error)
-    return NextResponse.json({ error: "Error al crear tarea" }, { status: 500 })
+    console.error("[v0] Error creando evento:", error)
+    return NextResponse.json({ error: "Error al crear evento" }, { status: 500 })
   }
 }
 

@@ -13,7 +13,6 @@ import Link from "next/link"
 import { Sidebar } from "@/app/components/sidebar"
 import { Header } from "@/app/components/header"
 import { getUserSessionServer } from "@/auth/actions/auth-actions"
-import { redirect } from "next/navigation"
 import { ArrowLeft, BarChart3, AlertTriangle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -27,7 +26,7 @@ import { VistaPersonal } from "./components/VistaPersonal"
 import { FiltrosGeneral } from "./components/FiltroGeneral"
 import { FiltrosPersonal } from "./components/FiltrosPersonal"
 import { ToggleVista } from "./components/ToggleVista"
-
+import { redirect, notFound } from "next/navigation"
 const reportesService = new ReportesService()
 
 const isAdmin = (rol: string) => rol?.toUpperCase() === 'ADMIN'
@@ -57,6 +56,8 @@ export default async function RendimientoPage({
   if (!user) redirect("/api/auth/signin")
 
   const userRol = user.rol?.toUpperCase() || ''
+  // Defensa en profundidad — bloquear roles no operativos
+if (userRol === 'CLIENTE' || userRol === 'ADMIN') notFound()
   if (userRol === 'ASISTENTE') redirect("/reportes")
 
   const vistaActual = searchParams.vista || (isAbogado(userRol) ? 'personal' : 'general')

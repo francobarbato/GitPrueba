@@ -2,8 +2,14 @@
 
 import Link from "next/link"
 import { FileQuestion, ArrowLeft } from "lucide-react"
+import { useSession } from "next-auth/react"
 
 export default function NotFound() {
+  const { data: session } = useSession()
+  const rol = (session?.user as any)?.rol?.toUpperCase() || ''
+  const destino = rol === 'CLIENTE' ? '/portal' : '/'
+  const label = rol === 'CLIENTE' ? 'Volver al portal' : 'Volver al inicio'
+
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
       <div className="text-center max-w-md">
@@ -21,11 +27,11 @@ export default function NotFound() {
         </p>
 
         <Link
-          href="/"
+          href={destino}
           className="inline-flex items-center gap-2 bg-slate-900 text-white px-6 py-2.5 rounded-lg hover:bg-slate-700 transition font-medium text-sm"
         >
           <ArrowLeft className="w-4 h-4" />
-          Volver al inicio
+          {label}
         </Link>
 
       </div>

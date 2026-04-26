@@ -63,10 +63,10 @@ export default async function NuevoCasoPage() {
           </Link>
           <nav className="flex items-center gap-1 text-sm">
             <Link href="/casos" className="text-slate-500 hover:text-slate-700 transition-colors">
-              Casos
+              Expedientes
             </Link>
             <ChevronRight className="h-3 w-3 text-slate-400" />
-            <span className="text-slate-900 font-medium">Nuevo Caso</span>
+            <span className="text-slate-900 font-medium">Nuevo Expediente</span>
           </nav>
         </div>
       </div>

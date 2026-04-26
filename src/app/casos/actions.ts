@@ -343,31 +343,16 @@ try {
   const cambios = []
 
     // Cambio de estado
-    if (cambioEstado) {
-      cambios.push(`Estado: ${casoActual.estado} → ${nuevoEstado}`)
-
-      // REGISTRAR EN BITÁCORA CON ESTADOS
-      await prisma.bitacora.create({
-        data: {
-          casoId: casoId,
-          usuarioId: user.id,
-          accion: "ESTADO_CHANGE",
-          estadoAnterior: casoActual.estado,
-          estadoNuevo: nuevoEstado,
-          texto: `Cambio de estado: ${casoActual.estado} → ${nuevoEstado}`,
-          tipo: "sistema"
-        }
-      })
-      
-      await registrarAuditoria({
-        casoId: casoId,
-        usuarioId: user.id,
-        accion: "ESTADO_CHANGE",
-        texto: `Cambio de estado: ${casoActual.estado} → ${nuevoEstado}`,
-        estadoAnterior: casoActual.estado,
-        estadoNuevo: nuevoEstado
-      })
-    }
+if (cambioEstado) {
+  await registrarAuditoria({
+    casoId: casoId,
+    usuarioId: user.id,
+    accion: "ESTADO_CHANGE",
+    texto: `Cambio de estado: ${casoActual.estado} → ${nuevoEstado}`,
+    estadoAnterior: casoActual.estado,
+    estadoNuevo: nuevoEstado
+  })
+}
 
     // Cambio de prioridad
     if (casoActual.priority !== priorityEnum) {
@@ -449,67 +434,7 @@ try {
 // ============================================================================
 // 3. ACCIONES DE TAREAS
 // ============================================================================
-export async function crearTareaAction(prevState: State, formData: FormData): Promise<State> {
-  const user = await getUserSessionServer()
-  if (!user || !user.id) return { error: "No autorizado" }
 
-  const casoId = formData.get("casoId") as string
-  const titulo = formData.get("titulo") as string
-  const fecha = formData.get("fecha") as string
-  const prioridad = formData.get("prioridad") as string 
-  const fatal = formData.get("fatal") === "on"
-
-  if (!casoId || !titulo) return { error: "Faltan datos obligatorios" }
-
-  try {
-    await prisma.tarea.create({
-      data: {
-        titulo,
-        fecha: fecha ? new Date(fecha).toISOString() : null,
-        prioridad: prioridad || "Media",
-        fatal: fatal,
-        completada: false,
-        casoId: casoId,
-        usuarioId: user.id
-      }
-    })
-    
-    await prisma.bitacora.create({
-      data: {
-        texto: `Nueva tarea agendada: ${titulo}`,
-        tipo: "auto",
-        accion: "Agenda",
-        usuarioId: user.id,
-        casoId: casoId,
-        detalle: `Prioridad: ${prioridad}`
-      }
-    })
-
-  } catch (error) {
-    console.error("Error creando tarea:", error)
-    return { error: "Error al guardar la tarea" }
-  }
-
-  revalidatePath(`/casos/${casoId}`)
-  revalidatePath("/reportes/carga-trabajo")
-  return { message: "Tarea creada" }
-}
-
-export async function toggleTareaAction(tareaId: string, completada: boolean, casoId: string) {
-  const user = await getUserSessionServer()
-  if (!user) return
-  
-  try {
-    await prisma.tarea.update({
-      where: { id: tareaId },
-      data: { completada: completada }
-    })
-    revalidatePath(`/casos/${casoId}`)
-    revalidatePath("/reportes/carga-trabajo")
-  } catch (error) {
-    console.error("Error toggle tarea", error)
-  }
-}
 
 // ============================================================================
 // 4. ACCIONES DE BITÁCORA
