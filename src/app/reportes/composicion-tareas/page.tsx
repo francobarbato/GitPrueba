@@ -207,7 +207,7 @@ export default async function ComposicionTareasPage({ searchParams }: PageProps)
                 <div>
                   <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
                     <BarChart3 className="h-6 w-6 text-purple-600" />
-                    Composición de Eventos
+                    Composición de la Agenda
                   </h1>
                   <p className="text-sm text-slate-500">{subtitulo}</p>
                 </div>

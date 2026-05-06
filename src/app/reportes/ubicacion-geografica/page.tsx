@@ -496,12 +496,12 @@ export default async function UbicacionGeograficaPage({
                 <div>
                   <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
                     <MapPin className="h-6 w-6 text-orange-500" />
-                    Distribución de casos por ubicación geográfica
+                    Distribución de expedientes por ubicación geográfica
                   </h1>
                   <p className="text-sm text-slate-500">
                     {vistaGeneral
                       ? 'Distribución del estudio — coordinación y zonas que necesitan atención'
-                      : 'Casos agrupados por ciudad y juzgado para organizar traslados y recorridas'
+                      : 'Expedientes agrupados por ciudad y juzgado para organizar traslados y recorridas'
                     }
                   </p>
                 </div>
@@ -538,11 +538,11 @@ export default async function UbicacionGeograficaPage({
                 ) : (
                   <div className="mt-8 p-12 bg-white border border-slate-200 rounded-lg text-center">
                     <MapPin className="h-16 w-16 mx-auto text-slate-300 mb-4" />
-                    <p className="text-lg font-medium text-slate-600">No hay casos activos con ubicación</p>
+                    <p className="text-lg font-medium text-slate-600">No hay expedientes activos con ubicación</p>
                     <p className="text-sm text-slate-400 mt-2">
                       {filtroFuero !== 'todos' || filtroEtapa !== 'todas'
                         ? 'Probá cambiando los filtros para ver más resultados.'
-                        : 'Los casos se agruparán automáticamente por ciudad cuando tengan el campo "Fuero" completado.'
+                        : 'Los expedientes se agruparán automáticamente por ciudad cuando tengan el campo "Fuero" completado.'
                       }
                     </p>
                   </div>
@@ -561,7 +561,7 @@ export default async function UbicacionGeograficaPage({
                 <p className="text-xs text-slate-600">
                   <strong>Nota:</strong> Las distancias se calculan desde Tribunales de Córdoba Capital.
                   Clasificación: Local (0-10km), Cercano (10-100km), Media distancia (100-400km), Larga distancia (+400km).
-                  Las zonas se ordenan por prioridad logística: primero las más lejanas con casos urgentes.
+                  Las zonas se ordenan por prioridad logística: primero las más lejanas con expedientes urgentes.
                 </p>
               </div>
             )}

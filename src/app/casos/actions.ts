@@ -212,7 +212,7 @@ export async function actualizarCasoAction(prevState: State, formData: FormData)
 
   // Solo ABOGADO y ASISTENTE pueden editar
   if (!['ABOGADO', 'ASISTENTE'].includes(userRol || '')) {
-    return { error: "No tienes permiso para editar casos." }
+    return { error: "No tienes permiso para editar expedientes." }
   }
 
   const casoId = formData.get("id") as string

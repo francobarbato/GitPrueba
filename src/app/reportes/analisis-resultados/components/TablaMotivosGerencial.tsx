@@ -84,7 +84,7 @@ function DesgloseAbogados({
         <thead>
           <tr className="border-b border-slate-200">
             <th className="text-left px-3 py-2 text-slate-500 font-semibold">Abogado</th>
-            <th className="text-center px-3 py-2 text-slate-500 font-semibold">Casos</th>
+            <th className="text-center px-3 py-2 text-slate-500 font-semibold">Expedientes</th>
             <th className="text-center px-3 py-2 text-slate-500 font-semibold">% del motivo</th>
             <th className="text-right px-3 py-2 text-slate-500 font-semibold">Reclamado</th>
             <th className="text-right px-3 py-2 text-slate-500 font-semibold">Obtenido</th>
@@ -176,7 +176,7 @@ export function TablaMotivosGerencial({
           Resultados por Motivo de Cierre
         </CardTitle>
         <p className="text-xs text-slate-500">
-          Cómo terminan los casos del estudio. Click en una fila para ver el desglose por abogado.
+          Cómo terminan los expedientes del estudio. Click en una fila para ver el desglose por abogado.
         </p>
       </CardHeader>
       <CardContent className="p-0">
@@ -189,7 +189,7 @@ export function TablaMotivosGerencial({
                   Motivo de Cierre
                 </th>
                 <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                  Casos
+                  Expedientes
                 </th>
                 <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
                   % del Total
@@ -280,7 +280,7 @@ export function TablaMotivosGerencial({
                       <tr key={`${row.motivo}-detail`} className="bg-slate-50/70">
                         <td colSpan={8} className="px-8 py-4">
                           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">
-                            Desglose por abogado — {row.cantidad} casos
+                            Desglose por abogado — {row.cantidad} expedientes
                           </p>
                           <DesgloseAbogados
                             porAbogado={row.porAbogado}

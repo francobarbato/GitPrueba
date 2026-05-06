@@ -79,7 +79,7 @@ export function TablaClientes({ clientesRecurrentes, clientesInactivos, clientes
   },
   {
     key: "inactivos" as const,
-    label: "Clientes sin casos activos",
+    label: "Clientes sin expedientes activos",
     icon: <UserX className="w-4 h-4" />,
     count: clientesInactivos.length,
   },

@@ -7,8 +7,10 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { X, Plus, MapPin, Calendar, Briefcase, User, Link as LinkIcon, Search, ChevronDown, AlertTriangle, Eye } from "lucide-react"
 import { crearTareaAction } from "src/lib/actions/tarea-actions"
+import { getCargaResponsableAction } from "src/lib/actions/getCargaResponsable"
 import type { TipoTarea, CategoriaTarea, AmbitoTarea, PrioridadTarea } from "@prisma/client"
 import { useRouter } from "next/navigation"
+import { CalendarioCarga } from "./CalendarioCarga"
 
 // ============================================================================
 // MATRIZ DE CATEGORÍAS POR TIPO
@@ -52,7 +54,6 @@ const MODALIDADES_LUGAR = [
   { value: "EXTERNO",   label: "Otro lugar físico" },
 ]
 
-// Etiquetas legibles de roles (capitalizadas, no en MAYÚSCULAS gritadas)
 const ROL_LABEL: Record<string, string> = {
   ABOGADO: "Abogado",
   ASISTENTE: "Asistente",
@@ -75,8 +76,24 @@ type Props = {
   onSuccess?: () => void
 }
 
+// Helper para convertir Date <-> "YYYY-MM-DD" (formato que espera la action y el HTML date input)
+function dateToISO(d: Date | undefined): string {
+  if (!d) return ""
+  const yyyy = d.getFullYear()
+  const mm = String(d.getMonth() + 1).padStart(2, "0")
+  const dd = String(d.getDate()).padStart(2, "0")
+  return `${yyyy}-${mm}-${dd}`
+}
+
+function isoToDate(s: string): Date | undefined {
+  if (!s) return undefined
+  const [y, m, d] = s.split("-").map(Number)
+  if (!y || !m || !d) return undefined
+  return new Date(y, m - 1, d)
+}
+
 // ============================================================================
-// COMBOBOX REUTILIZABLE
+// COMBOBOX REUTILIZABLE (sin cambios)
 // ============================================================================
 
 function Combobox({ label, placeholder, value, onClear, children, open, onOpen, onClose }: {
@@ -132,6 +149,12 @@ export function NuevaTareaModal({ usuarios, casos, clientes = [], currentUserId,
   const [openCliente, setOpenCliente] = useState(false)
   const [searchCliente, setSearchCliente] = useState("")
 
+  // ═══ NUEVO: estado de la carga del responsable ═══
+  // cargaResponsable es un mapa { "YYYY-MM-DD": cantidad } que se trae del server
+  // cada vez que el usuario cambia de responsable. Se pasa al CalendarioCarga.
+  const [cargaResponsable, setCargaResponsable] = useState<Record<string, number>>({})
+  const [cargaLoading, setCargaLoading] = useState(false)
+
   const categoriasDisponibles = tipo === "PROCESAL" ? CATEGORIAS_PROCESAL : CATEGORIAS_INTERNA
   const handleTipoChange = (nuevoTipo: TipoTarea) => { setTipo(nuevoTipo); setCategoria("") }
 
@@ -146,10 +169,38 @@ export function NuevaTareaModal({ usuarios, casos, clientes = [], currentUserId,
   const haySupervisor = !creadorEsResponsable
 
   useEffect(() => {
-  if (casoObj?.estaCerrado) {
-    setTipo("INTERNA")
-  }
-}, [casoObj])
+    if (casoObj?.estaCerrado) {
+      setTipo("INTERNA")
+    }
+  }, [casoObj])
+
+  // ═══ NUEVO: cargar la carga del responsable cuando cambia ═══
+  // Solo se ejecuta si el modal está abierto, para evitar fetch innecesario.
+  // El responsable por default es currentUserId, así que la primera carga
+  // ocurre al abrir el modal.
+  useEffect(() => {
+    if (!open) return
+    if (!responsableId) {
+      setCargaResponsable({})
+      return
+    }
+    let cancelado = false
+    setCargaLoading(true)
+    getCargaResponsableAction(responsableId, 180)
+      .then(result => {
+        if (cancelado) return
+        if (result.error) {
+          console.error("Error cargando agenda del responsable:", result.error)
+          setCargaResponsable({})
+        } else {
+          setCargaResponsable(result.carga)
+        }
+      })
+      .finally(() => {
+        if (!cancelado) setCargaLoading(false)
+      })
+    return () => { cancelado = true }
+  }, [responsableId, open])
 
   function getNombreCliente(c: Cliente) {
     return c.tipoPersona === "JURIDICA" && c.tipoSociedad ? `${c.tipoSociedad} — ${c.nombre}` : `${c.nombre}${c.apellido ? ` ${c.apellido}` : ""}`
@@ -160,6 +211,7 @@ export function NuevaTareaModal({ usuarios, casos, clientes = [], currentUserId,
     setFechaVencimiento(""); setModalidadLugar("ESTUDIO"); setDetalleLugar("")
     setVisibleCliente(false); setCasoId(casoPreseleccionado ?? ""); setClienteId(""); setResponsableId(currentUserId)
     setError(null); setSearchCaso(""); setSearchCliente("")
+    setCargaResponsable({})
   }
 
   const handleSubmit = () => {
@@ -186,8 +238,6 @@ export function NuevaTareaModal({ usuarios, casos, clientes = [], currentUserId,
   }
 
   const descripcionRestante = MAX_DESCRIPCION - descripcion.length
-
-  // Texto descriptivo contextual según el tipo elegido (reemplaza el badge confuso "Estudio/Judicial")
   const ayudaCategoria = tipo === "PROCESAL"
     ? "Categorías vinculadas al proceso judicial"
     : "Categorías de gestión interna del estudio"
@@ -201,7 +251,7 @@ export function NuevaTareaModal({ usuarios, casos, clientes = [], currentUserId,
         </div>
         <div className="p-6 overflow-y-auto space-y-8 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-200 [&::-webkit-scrollbar-thumb]:rounded-full">
 
-          {/* BLOQUE 1 */}
+          {/* BLOQUE 1: Detalles */}
           <div className="space-y-4">
             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-2"><Briefcase className="w-4 h-4" /> 1. Detalles de la Tarea</h3>
             <div>
@@ -222,7 +272,6 @@ export function NuevaTareaModal({ usuarios, casos, clientes = [], currentUserId,
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                {/* Badge confuso "Judicial/Estudio" reemplazado por texto descriptivo contextual */}
                 <Label className="text-xs font-semibold text-slate-600 mb-1.5 block">Categoría *</Label>
                 <Select value={categoria} onValueChange={v => setCategoria(v as CategoriaTarea)}>
                   <SelectTrigger className={!categoria ? "text-slate-400 italic" : ""}><SelectValue placeholder="Seleccionar categoría..." /></SelectTrigger>
@@ -247,34 +296,12 @@ export function NuevaTareaModal({ usuarios, casos, clientes = [], currentUserId,
             </div>
           </div>
 
-          {/* BLOQUE 2 */}
+          {/* BLOQUE 3: Vinculaciones y Asignación
+              ═══ MOVIDO ARRIBA del bloque de fecha ═══
+              Razón: necesitamos el responsable elegido ANTES de mostrar el calendario,
+              para poder colorear los días según la carga de esa persona. */}
           <div className="space-y-4">
-            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-2"><Calendar className="w-4 h-4" /> 2. ¿Cuándo y Dónde?</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="sm:col-span-1">
-                <Label className="text-xs font-semibold text-slate-600 mb-1.5 block">Vencimiento / Plazo <span className="text-red-500">*</span></Label>
-                <Input type="date"
-                        value={fechaVencimiento}
-                        onChange={e => setFechaVencimiento(e.target.value)}
-                         min={new Date().toISOString().split("T")[0]}
-                  />
-              </div>
-              <div className="sm:col-span-2">
-                <Label className="text-xs font-semibold text-slate-600 mb-1.5 block flex items-center gap-1"><MapPin className="w-3 h-3" /> Lugar o Modalidad</Label>
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <Select value={modalidadLugar} onValueChange={setModalidadLugar}>
-                    <SelectTrigger className="w-full sm:w-[200px]"><SelectValue /></SelectTrigger>
-                    <SelectContent>{MODALIDADES_LUGAR.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}</SelectContent>
-                  </Select>
-                  {modalidadLugar !== "ESTUDIO" && <Input value={detalleLugar} onChange={e => setDetalleLugar(e.target.value)} placeholder={modalidadLugar === "VIRTUAL" ? "Pegá el link acá..." : "Ej: Juzgado N° 3, Piso 2"} className="flex-1" />}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* BLOQUE 3 */}
-          <div className="space-y-4">
-            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-2"><LinkIcon className="w-4 h-4" /> 3. Vinculaciones y Asignación</h3>
+            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-2"><LinkIcon className="w-4 h-4" /> 2. Vinculaciones y Asignación</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {!casoPreseleccionado && (
                 <Combobox label="Expediente asociado" placeholder="Sin expediente vinculado"
@@ -285,19 +312,18 @@ export function NuevaTareaModal({ usuarios, casos, clientes = [], currentUserId,
                     <div onClick={() => { setCasoId(""); setOpenCaso(false); setSearchCaso("") }} className="flex w-full cursor-pointer items-center rounded-md py-2.5 px-3 text-sm hover:bg-slate-100 transition-colors"><span className="text-slate-400 italic">Sin expediente (tarea interna)</span></div>
                     {casosFiltrados.map(c => {
                         const cerrado = c.estaCerrado
-
                         return (
                           <div
                             key={c.id}
                             onClick={() => {
-                              if (cerrado) return // 🚫 bloquea selección
+                              if (cerrado) return
                               setCasoId(c.id)
                               setOpenCaso(false)
                               setSearchCaso("")
                             }}
                             className={`flex w-full items-center rounded-md py-2.5 px-3 text-sm transition-colors
-                              ${cerrado 
-                                ? "opacity-50 cursor-not-allowed bg-slate-50" 
+                              ${cerrado
+                                ? "opacity-50 cursor-not-allowed bg-slate-50"
                                 : "cursor-pointer hover:bg-slate-100"}
                               ${casoId === c.id ? "bg-blue-50 border border-blue-200" : ""}
                             `}
@@ -306,7 +332,6 @@ export function NuevaTareaModal({ usuarios, casos, clientes = [], currentUserId,
                               {c.numero}
                             </span>
                             <span className="truncate">{c.titulo}</span>
-
                             {cerrado && (
                               <span className="ml-auto text-[10px] text-red-500 font-semibold">
                                 Cerrado
@@ -327,7 +352,7 @@ export function NuevaTareaModal({ usuarios, casos, clientes = [], currentUserId,
                         Este expediente está cerrado
                       </p>
                       <p className="text-xs text-amber-700">
-                        Ek evento se creará como interna y no se vinculará al expediente.
+                        El evento se creará como interna y no se vinculará al expediente.
                       </p>
                     </div>
                   </div>
@@ -347,7 +372,6 @@ export function NuevaTareaModal({ usuarios, casos, clientes = [], currentUserId,
                 <Select value={responsableId} onValueChange={setResponsableId}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {/* Rol en formato legible "· Abogado" en vez de "ABOGADO" gritado */}
                     {usuarios.map(u => {
                       const rolLegible = ROL_LABEL[u.rol] ?? u.rol
                       const esYo = u.id === currentUserId
@@ -377,6 +401,42 @@ export function NuevaTareaModal({ usuarios, casos, clientes = [], currentUserId,
               </div>
             )}
           </div>
+
+          {/* BLOQUE 2 (renumerado): ¿Cuándo y Dónde?
+              ═══ El calendario inline ocupa toda la fila ═══
+              Lugar va abajo en otra fila, no al lado del calendario. */}
+          <div className="space-y-4">
+            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-2"><Calendar className="w-4 h-4" /> 3. ¿Cuándo y Dónde?</h3>
+
+            <div>
+              <Label className="text-xs font-semibold text-slate-600 mb-1.5 block">
+                Vencimiento / Plazo <span className="text-red-500">*</span>
+                {responsableObj && (
+                  <span className="ml-2 text-[10px] text-slate-400 font-normal italic">
+                    Mostrando carga de {responsableObj.nombre} {responsableObj.apellido}
+                  </span>
+                )}
+              </Label>
+              <CalendarioCarga
+                selected={isoToDate(fechaVencimiento)}
+                onSelect={d => setFechaVencimiento(dateToISO(d))}
+                carga={cargaResponsable}
+                loading={cargaLoading}
+              />
+            </div>
+
+            <div>
+              <Label className="text-xs font-semibold text-slate-600 mb-1.5 block flex items-center gap-1"><MapPin className="w-3 h-3" /> Lugar o Modalidad</Label>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Select value={modalidadLugar} onValueChange={setModalidadLugar}>
+                  <SelectTrigger className="w-full sm:w-[200px]"><SelectValue /></SelectTrigger>
+                  <SelectContent>{MODALIDADES_LUGAR.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}</SelectContent>
+                </Select>
+                {modalidadLugar !== "ESTUDIO" && <Input value={detalleLugar} onChange={e => setDetalleLugar(e.target.value)} placeholder={modalidadLugar === "VIRTUAL" ? "Pegá el link acá..." : "Ej: Juzgado N° 3, Piso 2"} className="flex-1" />}
+              </div>
+            </div>
+          </div>
+
           {error && <div className="p-3 bg-red-50 border border-red-200 rounded-lg"><p className="text-sm font-medium text-red-700">{error}</p></div>}
         </div>
         <div className="flex justify-end gap-3 p-4 border-t border-slate-100 bg-slate-50 shrink-0 rounded-b-2xl">

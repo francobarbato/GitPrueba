@@ -21,7 +21,7 @@ export class DashboardService {
       console.error('Error al obtener estadísticas:', error)
       return {
         cards: [
-          { label: 'Casos Activos', value: 0, color: 'blue' },
+          { label: 'Expedientes Activos', value: 0, color: 'blue' },
           { label: 'Cerrados', value: 0, color: 'emerald' },
           { label: 'Clientes', value: 0, color: 'purple' },
           { label: 'Total Estudio', value: 0, color: 'slate' },
@@ -44,9 +44,9 @@ export class DashboardService {
 
     return {
       cards: [
-        { label: 'Mis casos activos', value: misActivos, color: 'blue' },
+        { label: 'Mis expedientes activos', value: misActivos, color: 'blue' },
         { label: 'Mis clientes', value: misClientes, color: 'purple' },
-        { label: 'Casos activos en el Estudio', value: totalEstudio, color: 'slate' },
+        { label: 'Expedientes activos en el Estudio', value: totalEstudio, color: 'slate' },
       ]
     }
   }
@@ -61,7 +61,7 @@ export class DashboardService {
 
     return {
       cards: [
-        { label: 'Casos Activos', value: activosTotales, color: 'blue' },
+        { label: 'Expedientes Activos', value: activosTotales, color: 'blue' },
         { label: 'Casos Cerrados', value: cerradosTotales, color: 'emerald' },
         { label: 'Clientes', value: clientesTotales, color: 'purple' },
         { label: 'Abogados Activos', value: abogadosActivos, color: 'indigo' },
@@ -84,7 +84,7 @@ export class DashboardService {
 
     return {
       cards: [
-        { label: 'Casos Activos', value: activosTotales, color: 'blue' },
+        { label: 'Expedientes Activos', value: activosTotales, color: 'blue' },
         { label: 'Clientes', value: clientesTotales, color: 'purple' },
         { label: 'Abogados', value: abogadosActivos, color: 'indigo' },
         { label: 'Sin Movimiento (30d)', value: casosSinMovimiento, color: 'amber' },

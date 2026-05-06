@@ -234,7 +234,7 @@ function PanelCoordinacion({ zonas }: { zonas: ZonaGeneral[] }) {
           Oportunidades de coordinación
         </CardTitle>
         <p className="text-xs text-slate-500">
-          Ciudades donde más de un abogado tiene casos activos — pueden coordinar el viaje.
+          Ciudades donde más de un abogado tiene expedientes activos — pueden coordinar el viaje.
         </p>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -346,7 +346,7 @@ export function VistaGeneralGeo({ zonas }: { zonas: ZonaGeneral[] }) {
       <div className="p-12 bg-white border border-slate-200 rounded-lg text-center">
         <Users className="h-16 w-16 mx-auto text-slate-300 mb-4" />
         <p className="text-lg font-medium text-slate-600">Sin datos para la vista general</p>
-        <p className="text-sm text-slate-400 mt-2">No hay casos activos con ubicación registrada.</p>
+        <p className="text-sm text-slate-400 mt-2">No hay expedientes activos con ubicación registrada.</p>
       </div>
     )
   }

@@ -13,6 +13,7 @@ import {
 import {
   getTareasParaNotificaciones,
   marcarTareasComoVistasAction,
+  marcarTareaComoLeidaAction,
 } from "src/lib/actions/tarea-actions";
 import {
   getBurbujasComentarios,
@@ -36,6 +37,15 @@ export const NOTIFICATIONS_REFRESH_EVENT = "notifications:refresh"
 export function dispatchNotificationsRefresh() {
   if (typeof window === "undefined") return
   window.dispatchEvent(new CustomEvent(NOTIFICATIONS_REFRESH_EVENT))
+}
+
+export const ABRIR_TAREA_DRAWER_EVENT = "tarea:abrir-drawer"
+ 
+export function dispatchAbrirTareaDrawer(tareaId: string) {
+  if (typeof window === "undefined") return
+  window.dispatchEvent(new CustomEvent(ABRIR_TAREA_DRAWER_EVENT, {
+    detail: { tareaId }
+  }))
 }
 
 // ============================================================================
@@ -138,10 +148,20 @@ export function Header() {
     })
   }
 
-  const handleClickItemTarea = (tareaId: string) => {
-    setSheetOpen(false)
+const handleClickItemTarea = (tareaId: string) => {
+  setSheetOpen(false)
+ 
+  marcarTareaComoLeidaAction(tareaId).then(() => {
+    cargarNotificaciones()  // refresca el contador en el badge
+  })
+ 
+
+  if (typeof window !== "undefined" && window.location.pathname === "/gestion-tareas") {
+    dispatchAbrirTareaDrawer(tareaId)
+  } else {
     router.push(`/gestion-tareas?tareaAbierta=${tareaId}`)
   }
+}
 
   const handleSignOut = () => {
     setShowUserMenu(false)

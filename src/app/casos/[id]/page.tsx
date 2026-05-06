@@ -190,7 +190,7 @@ const puedeVerMontoDisputa = isAbogado(userRol)
                 <div className="bg-amber-400 px-4 py-2 flex items-center gap-2">
                   <AlertTriangle className="w-5 h-5 text-amber-900" />
                   <span className="font-bold text-amber-900 text-sm uppercase tracking-wide">
-                    Caso incompleto
+                    Expediente incompleto
                   </span>
                 </div>
                 <div className="px-4 py-3 flex items-center justify-between gap-4">
@@ -261,7 +261,7 @@ const puedeVerMontoDisputa = isAbogado(userRol)
                     <CardHeader className="border-b bg-slate-50/50">
                       <CardTitle className="flex items-center gap-2">
                         <FileText className="h-5 w-5 text-blue-600" />
-                        Descripción y Estrategia del Caso
+                        Descripción y Estrategia del Expediente
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="p-6">
@@ -296,7 +296,7 @@ const puedeVerMontoDisputa = isAbogado(userRol)
                           </div>
 
                           <div>
-                            <label className="text-sm font-semibold text-slate-600">Tipo de Caso</label>
+                            <label className="text-sm font-semibold text-slate-600">Tipo de expediente</label>
                             <div className="mt-1">
                               <Badge variant="outline" className="text-sm">
                                 {caso.tipo === 'LABORAL' ? 'Laboral' :
@@ -349,7 +349,7 @@ const puedeVerMontoDisputa = isAbogado(userRol)
                               </Badge>
                               {casoCerrado && (
                                 <Badge variant="secondary" className="ml-2 bg-slate-200">
-                                  Caso Cerrado
+                                  Expediente Cerrado
                                 </Badge>
                               )}
                             </div>
@@ -625,7 +625,7 @@ const puedeVerMontoDisputa = isAbogado(userRol)
                     <CardHeader className="border-b bg-slate-50/50">
                       <CardTitle className="flex items-center gap-2">
                         <Briefcase className="h-5 w-5 text-slate-600" />
-                        Equipo del Caso
+                        Equipo del Expediente
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="p-6">
@@ -685,7 +685,7 @@ const puedeVerMontoDisputa = isAbogado(userRol)
                     <CardHeader className="border-b bg-slate-50/50">
                       <CardTitle>Gestión de Pagos y Gastos</CardTitle>
                       <p className="text-sm text-slate-500 mt-1">
-                        Honorarios, tasas, sellados y gastos del caso
+                        Honorarios, tasas, sellados y gastos del expediente
                       </p>
                     </CardHeader>
                     <CardContent className="p-6">
@@ -702,7 +702,7 @@ const puedeVerMontoDisputa = isAbogado(userRol)
                     <CardHeader className="border-b bg-slate-50/50">
                       <CardTitle>Timeline de Auditoría</CardTitle>
                       <p className="text-sm text-slate-500 mt-1">
-                        Historial automático de cambios y movimientos del caso
+                        Historial automático de cambios y movimientos del expediente
                       </p>
                     </CardHeader>
                     <CardContent className="p-6">

@@ -135,7 +135,7 @@ export async function getCasosDisponibles() {
   const user = await getUserSessionServer()
   if (!user) return []
   const where = user.rol === "ABOGADO" ? { abogadoId: user.id, estaCerrado: false } : { estaCerrado: false }
-  return prisma.caso.findMany({ where, select: { id: true, numero: true, titulo: true }, orderBy: { updatedAt: "desc" }, take: 100 })
+  return prisma.caso.findMany({ where, select: { id: true, numero: true, titulo: true, estaCerrado: true }, orderBy: { updatedAt: "desc" }, take: 100 })
 }
 
 export async function getClientesDisponibles() {
@@ -196,6 +196,24 @@ export async function marcarTareasComoVistasAction(): Promise<{ success?: boolea
   }
 }
 
+export async function marcarTareaComoLeidaAction(tareaId: string): Promise<{ success?: boolean; error?: string }> {
+  const user = await getUserSessionServer()
+  if (!user?.id) return { error: "No autorizado" }
+ 
+  try {
+    await prisma.tareaLectura.upsert({
+      where: { userId_tareaId: { userId: user.id, tareaId } },
+      create: { userId: user.id, tareaId, ultimaLectura: new Date() },
+      update: { ultimaLectura: new Date() },
+    })
+    revalidatePath("/gestion-tareas")
+    revalidatePath("/")
+    return { success: true }
+  } catch (error) {
+    console.error("Error marcando tarea como leída:", error)
+    return { error: "Error al marcar como leída" }
+  }
+}
 // ============================================================================
 // NOTIFICACIONES PARA LA CAMPANITA (Header)
 // ============================================================================
@@ -203,14 +221,13 @@ export async function marcarTareasComoVistasAction(): Promise<{ success?: boolea
 export async function getTareasParaNotificaciones(): Promise<{ nuevas: TareaNotificacion[]; totalNuevas: number }> {
   const user = await getUserSessionServer()
   if (!user) return { nuevas: [], totalNuevas: 0 }
-
-  const userData = await prisma.user.findUnique({ where: { id: user.id }, select: { ultimoAccesoTareas: true } })
+ 
+  const userData = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { ultimoAccesoTareas: true }
+  })
   const ultimoAcceso = userData?.ultimoAccesoTareas
-
-  // OJO: VENCIDA ahora es accionable, así que puede interesar notificarla.
-  // Decisión: seguimos excluyendo COMPLETADA y VENCIDA de notificaciones.
-  // Lógica: el usuario ya sabe cuáles están vencidas (es un estado derivado del tiempo, no de actividad de otro).
-  // Si queremos destacar vencidas, tiene que ser por otra vía (el KPI "Vencidas" en Supervisadas ya lo hace).
+ 
   const tareasRaw = await prisma.tarea.findMany({
     where: {
       OR: [{ responsableId: user.id }, { supervisorId: user.id }],
@@ -226,16 +243,33 @@ export async function getTareasParaNotificaciones(): Promise<{ nuevas: TareaNoti
     orderBy: { updatedAt: "desc" },
     take: 25,
   })
+ 
 
+  const lecturas = await prisma.tareaLectura.findMany({
+    where: {
+      userId: user.id,
+      tareaId: { in: tareasRaw.map(t => t.id) },
+    },
+    select: { tareaId: true, ultimaLectura: true },
+  })
+  const lecturasMap = new Map(lecturas.map(l => [l.tareaId, l.ultimaLectura]))
+ 
   const UMBRAL_MS = 5000
   const tareasFiltradas = tareasRaw.filter(t => {
-    if (t.creadorId !== user.id) return true
-    const diffMs = Math.abs(t.updatedAt.getTime() - t.createdAt.getTime())
-    return diffMs > UMBRAL_MS
+    // Filtro existente: ignorar tareas recién creadas por el propio usuario
+    if (t.creadorId === user.id) {
+      const diffMs = Math.abs(t.updatedAt.getTime() - t.createdAt.getTime())
+      if (diffMs <= UMBRAL_MS) return false
+    }
+    // ═══ NUEVO: si tengo lectura posterior al updatedAt, ya la vi ═══
+    const ultimaLectura = lecturasMap.get(t.id)
+    if (ultimaLectura && ultimaLectura >= t.updatedAt) return false
+ 
+    return true
   })
-
+ 
   const tareas = tareasFiltradas.slice(0, 20)
-
+ 
   return {
     nuevas: tareas.map(t => ({
       id: t.id,
@@ -344,7 +378,7 @@ export async function cambiarEstadoTareaAction(tareaId: string, nuevoEstado: Est
   if (!user?.id) return { error: "No autorizado" }
   if (nuevoEstado === "BLOQUEADA" && !motivo?.trim()) return { error: "El motivo de bloqueo es obligatorio" }
   if (nuevoEstado === "PENDIENTE" && !motivo?.trim()) return { error: "El motivo de desbloqueo es obligatorio" }
-
+ 
   try {
     const tarea = await prisma.tarea.findUnique({
       where: { id: tareaId },
@@ -354,28 +388,33 @@ export async function cambiarEstadoTareaAction(tareaId: string, nuevoEstado: Est
       },
     })
     if (!tarea) return { error: "Tarea no encontrada" }
-
+ 
     // Una vencida ya cerrada manualmente no se puede completar ni reabrir.
-    // Si el usuario quiere "deshacer" ese cierre, debería ser otra acción explícita
-    // (no implementada en este commit; si hace falta se agrega después).
     if (tarea.estado === "VENCIDA" && tarea.vencidaCerradaEn) {
       return { error: "Esta tarea vencida ya fue cerrada. No se puede modificar." }
     }
-
+ 
     const transicionesPermitidas = TRANSICIONES_VALIDAS[tarea.estado] ?? []
     if (!transicionesPermitidas.includes(nuevoEstado)) return { error: `No se puede pasar de ${tarea.estado} a ${nuevoEstado}` }
-
-    const puedeModificar = tarea.responsableId === user.id || tarea.creadorId === user.id || tarea.supervisorId === user.id || user.rol === "ASISTENTE"
-    if (!puedeModificar) return { error: "Sin permisos para modificar esta tarea" }
-
+ 
+    const esResponsable = tarea.responsableId === user.id
+    if (!esResponsable) return { error: "Solo el responsable puede cambiar el estado de esta tarea" } 
     const dataUpdate: any = { estado: nuevoEstado }
+
     if (nuevoEstado === "BLOQUEADA") { dataUpdate.motivoBloqueo = motivo; dataUpdate.motivoDesbloqueo = null }
     else if (nuevoEstado === "PENDIENTE" && tarea.estado === "BLOQUEADA") { dataUpdate.motivoDesbloqueo = motivo }
     else { dataUpdate.motivoBloqueo = null; dataUpdate.motivoDesbloqueo = null }
     if (nuevoEstado === "COMPLETADA") dataUpdate.fechaCompletada = new Date()
-
+ 
     await resetearUmbralVencimientoAction(tareaId)
+ 
+    // Persiste el nuevo estado (y motivos / fechaCompletada) en la base de datos.
 
+    await prisma.tarea.update({
+      where: { id: tareaId },
+      data: dataUpdate,
+    })
+ 
     // ═══ BITÁCORA ═══
     // Discriminamos tres casos para el accion en la bitácora:
     // 1. VENCIDA → COMPLETADA  → TAREA_COMPLETADA_CON_DEMORA (con días de demora en detalle)
@@ -383,11 +422,11 @@ export async function cambiarEstadoTareaAction(tareaId: string, nuevoEstado: Est
     // 3. Resto                 → TAREA_ESTADO_CHANGE
     const esCompletadaConDemora = tarea.estado === "VENCIDA" && nuevoEstado === "COMPLETADA"
     const esDesbloqueo = tarea.estado === "BLOQUEADA" && nuevoEstado === "PENDIENTE"
-
+ 
     let accionBitacora: string
     let textoBitacora: string
     let detalleBitacora: string | null
-
+ 
     if (esCompletadaConDemora) {
       accionBitacora = "TAREA_COMPLETADA_CON_DEMORA"
       const diasDemora = tarea.fechaVencimiento
@@ -404,7 +443,7 @@ export async function cambiarEstadoTareaAction(tareaId: string, nuevoEstado: Est
       textoBitacora = `Tarea "${tarea.titulo}" → ${nuevoEstado}`
       detalleBitacora = motivo ? `Motivo: ${motivo}` : null
     }
-
+ 
     await prisma.bitacora.create({
       data: {
         texto: textoBitacora,
@@ -418,7 +457,7 @@ export async function cambiarEstadoTareaAction(tareaId: string, nuevoEstado: Est
         detalle: detalleBitacora,
       },
     })
-
+ 
     revalidatePath("/gestion-tareas"); revalidatePath("/")
     if (tarea.casoId) revalidatePath(`/casos/${tarea.casoId}`)
     return { success: true }
@@ -453,8 +492,8 @@ export async function cerrarVencidaAction(tareaId: string, motivo: string): Prom
     if (tarea.estado !== "VENCIDA") return { error: "Solo se pueden cerrar tareas vencidas" }
     if (tarea.vencidaCerradaEn) return { error: "Esta tarea ya fue cerrada" }
 
-    const puedeModificar = tarea.responsableId === user.id || tarea.creadorId === user.id || tarea.supervisorId === user.id || user.rol === "ASISTENTE"
-    if (!puedeModificar) return { error: "Sin permisos para cerrar esta tarea" }
+        const esResponsable = tarea.responsableId === user.id
+    if (!esResponsable) return { error: "Solo el responsable puede cambiar el estado de esta tarea" }
 
     await prisma.tarea.update({
       where: { id: tareaId },

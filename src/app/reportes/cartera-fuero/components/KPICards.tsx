@@ -24,8 +24,8 @@ export function KPICards({ data, vista = "personal", colegaNombre }: Props) {
     new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(n)
 
   const labelCasos = vista === "general"
-    ? colegaNombre ? `Casos activos de ${colegaNombre}` : "Casos activos en el estudio"
-    : "Casos Activos"
+    ? colegaNombre ? `Expedientes activos de ${colegaNombre}` : "Expedientes activos en el estudio"
+    : "Expedientes Activos"
 
   const labelCapital = vista === "general"
     ? colegaNombre ? "Capital en litigio" : "Capital total del estudio"

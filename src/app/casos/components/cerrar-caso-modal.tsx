@@ -201,7 +201,7 @@ export function CerrarCasoModal({ isOpen, onClose, onConfirm, caso }: CerrarCaso
           {/* MONTO FINAL */}
           <div className="space-y-2">
             <Label className="text-sm font-semibold">
-              Monto Final del Caso
+              Monto final del expediente
               <span className="text-slate-400 font-normal ml-1">(opcional)</span>
             </Label>
             <div className="relative">

@@ -25,6 +25,7 @@ import { TablaFlujo } from "./components/Tablaflujo"
 import { TablaComposicion } from "./components/Tablacomposicion"
 import { ToggleVistaEvolucion } from "./components/ToggleVistaEvolucion"
 import { redirect, notFound } from "next/navigation"
+
 // ============================================================================
 // TIPOS
 // ============================================================================
@@ -63,7 +64,7 @@ const TIPO_LABELS: Record<string, string> = {
 }
 
 // ============================================================================
-// QUERY GERENCIAL — sin cambios respecto al original
+// QUERY GERENCIAL — sin cambios
 // ============================================================================
 
 async function obtenerDatosGerencial(diasFiltro: number) {
@@ -131,11 +132,10 @@ async function obtenerDatosGerencial(diasFiltro: number) {
       variacionIngresos: anterior && anterior.ingresados > 0
         ? Math.round(((ingresadosMes - anterior.ingresados) / anterior.ingresados) * 100) : null,
       variacionCierres: anterior && anterior.cerrados > 0
-        ? Math.round(((cerradosMes - anterior.cerrados) / anterior.cerrados) * 100) : null,
+        ? Math.round(((cerradosMes - anterior.cerrados) / cerradosMes) * 100) : null,
     })
   }
 
-  // Composición por tipo
   const ingresadosActualPorTipo = new Map<string, number>()
   const ingresadosAnteriorPorTipo = new Map<string, number>()
   ingresadosPeriodo.forEach(c => {
@@ -168,7 +168,6 @@ async function obtenerDatosGerencial(diasFiltro: number) {
     })
     .sort((a, b) => b.cantidadActual - a.cantidadActual)
 
-  // Observaciones
   const observaciones: Observacion[] = []
   if (balanceNeto > 3) {
     observaciones.push({ tipo: 'alerta', texto: `Se están acumulando casos: ingresaron ${ingresadosPeriodo.length} y se cerraron ${cerradosPeriodo.length} en el período. Balance neto: +${balanceNeto}.` })
@@ -195,9 +194,7 @@ async function obtenerDatosGerencial(diasFiltro: number) {
 }
 
 // ============================================================================
-// QUERY PERSONAL — filtrada por abogadoId
-// Sin composición por tipo (con pocos casos no es significativo)
-// Cartera activa = solo los casos del abogado
+// QUERY PERSONAL — sin cambios
 // ============================================================================
 
 async function obtenerDatosPersonal(abogadoId: string, diasFiltro: number) {
@@ -205,13 +202,11 @@ async function obtenerDatosPersonal(abogadoId: string, diasFiltro: number) {
   const fechaDesde = subDays(hoy, diasFiltro)
   const fechaDesdeAnterior = subDays(fechaDesde, diasFiltro)
 
-  // Todos los casos del abogado (para flujo mensual e histórico de cartera)
   const casosPropios = await prisma.caso.findMany({
     where: { abogadoId },
     select: { id: true, tipo: true, fechaInicio: true, estaCerrado: true, fechaCierre: true }
   })
 
-  // Promedio del estudio en el mismo período — para comparativo en KPIs
   const todosLosCasos = await prisma.caso.findMany({
     select: { id: true, fechaInicio: true, estaCerrado: true, fechaCierre: true }
   })
@@ -240,7 +235,6 @@ async function obtenerDatosPersonal(abogadoId: string, diasFiltro: number) {
   const variacionCierres = cerradosAnterior.length > 0
     ? Math.round(((cerradosPeriodo.length - cerradosAnterior.length) / cerradosAnterior.length) * 100) : null
 
-  // Promedio del estudio por abogado en el período
   const ingresadosEstudio = todosLosCasos.filter(c =>
     isAfter(c.fechaInicio, fechaDesde) || c.fechaInicio.getTime() === fechaDesde.getTime()
   ).length
@@ -253,7 +247,6 @@ async function obtenerDatosPersonal(abogadoId: string, diasFiltro: number) {
   const promedioCerradosEstudio = totalAbogados > 0
     ? Math.round((cerradosEstudio / totalAbogados) * 10) / 10 : 0
 
-  // Flujo mensual — todo filtrado por el abogado
   const mesesAtras = Math.max(Math.ceil(diasFiltro / 30), 2)
   const flujoMensual: PeriodoFlujo[] = []
 
@@ -273,7 +266,6 @@ async function obtenerDatosPersonal(abogadoId: string, diasFiltro: number) {
       isBefore(c.fechaCierre, mesFinReal)
     ).length
 
-    // Cartera activa del abogado al final del mes
     const carteraAlFinalMes = casosPropios.filter(c =>
       (isBefore(c.fechaInicio, mesFinReal) || c.fechaInicio.getTime() === mesFinReal.getTime()) &&
       (!c.estaCerrado || (c.fechaCierre && isAfter(c.fechaCierre, mesFinReal)))
@@ -292,7 +284,6 @@ async function obtenerDatosPersonal(abogadoId: string, diasFiltro: number) {
     })
   }
 
-  // Observaciones personales
   const observaciones: Observacion[] = []
   if (balanceNeto > 3) {
     observaciones.push({ tipo: 'alerta', texto: `Tu cartera está creciendo: ingresaron ${ingresadosPeriodo.length} casos y cerraste ${cerradosPeriodo.length} en el período.` })
@@ -307,7 +298,7 @@ async function obtenerDatosPersonal(abogadoId: string, diasFiltro: number) {
     observaciones.push({ tipo: 'info', texto: `Ingresaste ${ingresadosPeriodo.length} casos, por debajo del promedio del estudio (${promedioIngresadosEstudio} por abogado).` })
   }
   if (carteraActivaPropia > 15) {
-    observaciones.push({ tipo: 'alerta', texto: `Tenés ${carteraActivaPropia} casos activos. Revisá tu carga operativa.` })
+    observaciones.push({ tipo: 'alerta', texto: `Tenés ${carteraActivaPropia} expedientes activos. Revisá tu carga operativa.` })
   }
 
   return {
@@ -339,8 +330,7 @@ export default async function EvolucionCarteraPage({
   if (!user) redirect("/api/auth/signin")
 
   const userRol = user.rol?.toUpperCase()
-  // Defensa en profundidad — bloquear roles no operativos
-if (userRol === 'CLIENTE' || userRol === 'ADMIN') notFound()
+  if (userRol === 'CLIENTE' || userRol === 'ADMIN') notFound()
   if (userRol === 'ASISTENTE') redirect("/reportes")
 
   const params = await searchParams
@@ -348,10 +338,8 @@ if (userRol === 'CLIENTE' || userRol === 'ADMIN') notFound()
   const periodoConfig = PERIODOS_DISPONIBLES.find(p => p.key === periodoKey) || PERIODOS_DISPONIBLES[3]
   const diasFiltro = periodoConfig.dias
 
-  // Admin siempre ve gerencial, abogado puede alternar
   const esAbogado = userRol === 'ABOGADO'
   const vistaParam = params?.vista
-  // Si es abogado y no eligió vista, default personal. Admin siempre gerencial.
   const vistaPersonal = esAbogado && vistaParam !== 'gerencial'
 
   const [datosGerencial, datosPersonal] = await Promise.all([
@@ -363,6 +351,18 @@ if (userRol === 'CLIENTE' || userRol === 'ADMIN') notFound()
   const flujoMensual = vistaPersonal ? datosPersonal!.flujoMensual : datosGerencial!.flujoMensual
   const composicion = !vistaPersonal ? datosGerencial!.composicion : null
   const observaciones = vistaPersonal ? datosPersonal!.observaciones : datosGerencial!.observaciones
+
+  // Para el ícono del Balance Neto: cambia según el signo, sigue siendo informativo
+  const balanceIcon = kpis.balanceNeto > 0
+    ? <ArrowUpRight className="w-5 h-5 text-amber-600" />
+    : kpis.balanceNeto < 0
+    ? <ArrowDownRight className="w-5 h-5 text-emerald-600" />
+    : <Minus className="w-5 h-5 text-slate-500" />
+  const balanceIconBg = kpis.balanceNeto > 0
+    ? "bg-amber-100"
+    : kpis.balanceNeto < 0
+    ? "bg-emerald-100"
+    : "bg-slate-100"
 
   return (
     <div className="flex h-screen bg-slate-50">
@@ -404,21 +404,23 @@ if (userRol === 'CLIENTE' || userRol === 'ADMIN') notFound()
               </div>
             </div>
 
-            {/* Toggle — solo abogado */}
             {esAbogado && (
               <div className="mb-6">
                 <ToggleVistaEvolucion vistaActual={vistaPersonal ? 'personal' : 'gerencial'} />
               </div>
             )}
 
-            {/* KPIs */}
+            {/* ═══ KPIs ESTANDARIZADOS ═══
+                Mismo patrón que cartera-fuero: card blanca neutra, color contenido en el ícono.
+                La variación porcentual sí mantiene color (verde/rojo) porque comunica un cambio
+                positivo o negativo — pero como detalle pequeño, no como protagonista. */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
               <KpiCard
                 label="Ingresados"
                 value={kpis.ingresados}
                 variacion={kpis.variacionIngresos}
-                icon={<ArrowUpRight className="h-5 w-5 text-blue-600" />}
-                colorBg="bg-blue-50" colorBorder="border-blue-200" colorText="text-blue-600"
+                icon={<ArrowUpRight className="w-5 h-5 text-blue-600" />}
+                iconBg="bg-blue-100"
                 comparativo={vistaPersonal && 'promedioIngresadosEstudio' in kpis
                   ? `Prom. estudio: ${kpis.promedioIngresadosEstudio}`
                   : undefined}
@@ -427,8 +429,8 @@ if (userRol === 'CLIENTE' || userRol === 'ADMIN') notFound()
                 label="Cerrados"
                 value={kpis.cerrados}
                 variacion={kpis.variacionCierres}
-                icon={<Scale className="h-5 w-5 text-emerald-600" />}
-                colorBg="bg-emerald-50" colorBorder="border-emerald-200" colorText="text-emerald-600"
+                icon={<Scale className="w-5 h-5 text-emerald-600" />}
+                iconBg="bg-emerald-100"
                 comparativo={vistaPersonal && 'promedioCerradosEstudio' in kpis
                   ? `Prom. estudio: ${kpis.promedioCerradosEstudio}`
                   : undefined}
@@ -437,34 +439,25 @@ if (userRol === 'CLIENTE' || userRol === 'ADMIN') notFound()
                 label="Balance Neto"
                 value={kpis.balanceNeto}
                 variacion={null}
-                icon={kpis.balanceNeto > 0
-                  ? <ArrowUpRight className="h-5 w-5 text-amber-600" />
-                  : kpis.balanceNeto < 0
-                  ? <ArrowDownRight className="h-5 w-5 text-emerald-600" />
-                  : <Minus className="h-5 w-5 text-slate-500" />}
-                colorBg={kpis.balanceNeto > 3 ? "bg-amber-50" : kpis.balanceNeto < 0 ? "bg-emerald-50" : "bg-slate-50"}
-                colorBorder={kpis.balanceNeto > 3 ? "border-amber-200" : kpis.balanceNeto < 0 ? "border-emerald-200" : "border-slate-200"}
-                colorText={kpis.balanceNeto > 3 ? "text-amber-600" : kpis.balanceNeto < 0 ? "text-emerald-600" : "text-slate-600"}
+                icon={balanceIcon}
+                iconBg={balanceIconBg}
                 prefijo={kpis.balanceNeto > 0 ? '+' : ''}
               />
               <KpiCard
-                label={vistaPersonal ? "Mis casos activos" : "Cartera Activa"}
+                label={vistaPersonal ? "Mis expedientes activos" : "Cartera Activa"}
                 value={kpis.carteraActiva}
                 variacion={null}
-                icon={<Layers className="h-5 w-5 text-indigo-600" />}
-                colorBg="bg-indigo-50" colorBorder="border-indigo-200" colorText="text-indigo-600"
+                icon={<Layers className="w-5 h-5 text-indigo-600" />}
+                iconBg="bg-indigo-100"
               />
             </div>
 
-            {/* Tabla flujo — siempre visible */}
             <TablaFlujo datos={flujoMensual} />
 
-            {/* Composición por tipo — solo vista gerencial */}
             {composicion && (
               <TablaComposicion datos={composicion} periodoLabel={periodoConfig.label} />
             )}
 
-            {/* Observaciones */}
             {observaciones.length > 0 && (
               <Card className="mb-6 border-slate-200 shadow-sm">
                 <CardHeader className="border-b bg-slate-50/50 pb-4">
@@ -500,7 +493,6 @@ if (userRol === 'CLIENTE' || userRol === 'ADMIN') notFound()
               </Card>
             )}
 
-            {/* Metodología */}
             <div className="mt-8 p-4 bg-blue-50 border-l-4 border-blue-500 rounded-r-lg">
               <p className="text-sm text-blue-900 font-semibold mb-2">📖 Metodología del Reporte</p>
               <ul className="text-xs text-blue-800 space-y-1 ml-4 list-disc">
@@ -521,33 +513,45 @@ if (userRol === 'CLIENTE' || userRol === 'ADMIN') notFound()
 }
 
 // ============================================================================
-// KPI CARD — agrega prop comparativo opcional
+// KPI CARD — patrón unificado con cartera-fuero
+// ============================================================================
+// Card blanca neutra. Ícono dentro de un cuadradito con color tenue.
+// Número grande slate-900. Label slate-500.
+// La variación % mantiene color (verde/rojo) pero como detalle chico.
 // ============================================================================
 
 function KpiCard({
-  label, value, variacion, icon, colorBg, colorBorder, colorText, prefijo = '', comparativo
+  label, value, variacion, icon, iconBg, prefijo = '', comparativo
 }: {
-  label: string; value: number; variacion: number | null
-  icon: React.ReactNode; colorBg: string; colorBorder: string; colorText: string
-  prefijo?: string; comparativo?: string
+  label: string
+  value: number
+  variacion: number | null
+  icon: React.ReactNode
+  iconBg: string             // ej: "bg-blue-100"
+  prefijo?: string
+  comparativo?: string
 }) {
   return (
-    <div className={`flex items-center gap-3 p-4 rounded-xl border ${colorBorder} ${colorBg}`}>
-      <div className={`p-2.5 rounded-lg ${colorBg}`}>{icon}</div>
-      <div>
-        <p className={`text-2xl font-bold ${colorText}`}>{prefijo}{value}</p>
-        <p className="text-xs text-slate-500">{label}</p>
-        {variacion !== null && (
-          <p className={`text-[10px] font-medium mt-0.5 ${
-            variacion > 0 ? 'text-emerald-600' : variacion < 0 ? 'text-red-600' : 'text-slate-400'
-          }`}>
-            {variacion > 0 ? '↑' : variacion < 0 ? '↓' : '='} {Math.abs(variacion)}% vs período anterior
-          </p>
-        )}
-        {comparativo && (
-          <p className="text-[10px] text-slate-400 mt-0.5">{comparativo}</p>
-        )}
-      </div>
-    </div>
+    <Card className="bg-white border border-slate-200">
+      <CardContent className="p-4">
+        <div className="flex items-center gap-3">
+          <div className={`p-2 ${iconBg} rounded-lg shrink-0`}>{icon}</div>
+          <div className="min-w-0">
+            <p className="text-xs text-slate-500 font-medium">{label}</p>
+            <p className="text-2xl font-bold text-slate-900">{prefijo}{value}</p>
+            {variacion !== null && (
+              <p className={`text-[10px] font-medium mt-0.5 ${
+                variacion > 0 ? 'text-emerald-600' : variacion < 0 ? 'text-red-600' : 'text-slate-400'
+              }`}>
+                {variacion > 0 ? '↑' : variacion < 0 ? '↓' : '='} {Math.abs(variacion)}% vs período anterior
+              </p>
+            )}
+            {comparativo && (
+              <p className="text-[10px] text-slate-400 mt-0.5">{comparativo}</p>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   )
 }

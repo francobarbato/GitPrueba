@@ -62,7 +62,7 @@ function EtapaConDesplegable({ dist, totalCasos, index }: { dist: DistribucionTi
         <div className="flex items-center gap-3">
           <div className="text-right">
             <span className="text-lg font-bold text-slate-800">{dist.cantidad}</span>
-            <span className="text-xs text-slate-500 ml-1">casos</span>
+            <span className="text-xs text-slate-500 ml-1">expedientes</span>
             <span className="text-xs text-slate-400 ml-2">{porcentaje}%</span>
           </div>
           {abierto ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
@@ -127,7 +127,7 @@ export function AnalisisPorTipoCaso({ datos }: { datos: AnalisisTipo[] }) {
             <Scale className="h-5 w-5 text-purple-600" />
           </div>
           <div>
-            <CardTitle className="text-lg font-bold text-slate-800">Análisis por Tipo de Caso</CardTitle>
+            <CardTitle className="text-lg font-bold text-slate-800">Análisis por tipo de expediente</CardTitle>
             <CardDescription>Distribución de etapas según el tipo/fuero del expediente</CardDescription>
           </div>
         </div>
@@ -143,13 +143,13 @@ export function AnalisisPorTipoCaso({ datos }: { datos: AnalisisTipo[] }) {
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between mb-3">
                     <Badge variant="outline" className={`${config.color} ${config.borderColor}`}>{config.label}</Badge>
-                    <span className="text-xs text-slate-500">{analisis.totalCasos} casos</span>
+                    <span className="text-xs text-slate-500">{analisis.totalCasos} expedientes</span>
                   </div>
                   {etapaPrincipal && (
                     <>
-                      <div className="text-xs text-slate-600 mb-1">Etapa con más casos:</div>
+                      <div className="text-xs text-slate-600 mb-1">Etapa con más expedientes:</div>
                       <div className="font-medium text-slate-900 text-sm">{etapaPrincipal.etapa}</div>
-                      <div className="text-xs text-slate-500 mt-1">{etapaPrincipal.cantidad} casos ({etapaPrincipal.porcentaje}%)</div>
+                      <div className="text-xs text-slate-500 mt-1">{etapaPrincipal.cantidad} expedientes ({etapaPrincipal.porcentaje}%)</div>
                     </>
                   )}
                 </CardContent>
@@ -183,10 +183,10 @@ export function AnalisisPorTipoCaso({ datos }: { datos: AnalisisTipo[] }) {
               <TrendingUp className="h-4 w-4" /> Observaciones
             </p>
             <p className="text-sm text-indigo-800">
-              Los casos de <strong>{getConfig(datos[0]?.tipo).label}</strong> representan la mayor proporción
-              de expedientes activos ({datos[0]?.totalCasos} casos).
+              Los expedientes de <strong>{getConfig(datos[0]?.tipo).label}</strong> representan la mayor proporción
+              de expedientes activos ({datos[0]?.totalCasos} expedientes).
               {datos.length > 1 && (
-                <> En comparación, <strong>{getConfig(datos[datos.length - 1]?.tipo).label}</strong> tiene {datos[datos.length - 1]?.totalCasos} casos activos.</>
+                <> En comparación, <strong>{getConfig(datos[datos.length - 1]?.tipo).label}</strong> tiene {datos[datos.length - 1]?.totalCasos} expedientes activos.</>
               )}
             </p>
           </div>

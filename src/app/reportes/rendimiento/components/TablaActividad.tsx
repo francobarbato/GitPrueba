@@ -187,7 +187,7 @@ function FilaAbogado({
 
               {abogado.casosActivos === 0 && abogado.casosCerrados === 0 && (
                 <p className="text-sm text-slate-400 py-2">
-                  Sin casos activos ni cierres en este período.
+                  Sin expedientes activos ni cierres en este período.
                 </p>
               )}
             </div>

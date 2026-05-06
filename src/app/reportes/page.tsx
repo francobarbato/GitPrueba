@@ -44,15 +44,15 @@ const BLOQUES: { titulo: string; descripcion: string; reportes: Reporte[] }[] = 
       { titulo: "Cumplimiento de Plazos", descripcion: "Cómo se trabajó: eventos cumplidos en plazo, con demora y vencidas", href: "/reportes/cumplimiento-tareas", icono: ClipboardCheck, color: "blue" },
       { titulo: "Carga de trabajo", descripcion: "Qué tenés encima hoy: expedientes, agenda, eventos activos y próximos a vencer", href: "/reportes/matriz-carga", icono: Briefcase, color: "cyan" },
       { titulo: "Composición de la Agenda", descripcion: "Qué tipo de trabajo hace el estudio: procesal vs interna, categorías, contexto", href: "/reportes/composicion-tareas", icono: BarChart3, color: "purple" },
-      { titulo: "Distribución geográfica", descripcion: "Organización logística de visitas a tribunales", href: "/reportes/ubicacion-geografica", icono: MapPinned, color: "emerald" },
+      { titulo: "Distribución de expedientes por ubicación geográfica", descripcion: "Organización logística de visitas a tribunales", href: "/reportes/ubicacion-geografica", icono: MapPinned, color: "emerald" },
     ],
   },
   {
     titulo: "Rendimiento y procesos",
     descripcion: "Evaluación del desempeño del estudio",
     reportes: [
-      { titulo: "Estado de casos por etapa", descripcion: "Dónde están trabados los expedientes y cuáles requieren atención", href: "/reportes/tiempo-por-etapa", icono: Timer, color: "amber" },
-      { titulo: "Análisis de resultados", descripcion: "Tasa de éxito, recupero y resultados por motivo de cierre", href: "/reportes/analisis-resultados", icono: Target, color: "rose" },
+      { titulo: "Estado de expedientes por etapa", descripcion: "Dónde están trabados los expedientes y cuáles requieren atención", href: "/reportes/tiempo-por-etapa", icono: Timer, color: "amber" },
+      { titulo: "Resultados de expedientes cerrados", descripcion: "Tasa de éxito, recupero y resultados por motivo de cierre", href: "/reportes/analisis-resultados", icono: Target, color: "rose" },
     ],
   },
   {

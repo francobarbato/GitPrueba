@@ -75,10 +75,10 @@ export function TablaComposicion({
           </div>
           <div>
             <CardTitle className="text-lg font-bold text-slate-800">
-              Composición por Tipo de Caso
+              Composición por Tipo de Expediente
             </CardTitle>
             <CardDescription>
-              ¿Qué tipo de casos están entrando? ¿Está cambiando el perfil del estudio?
+              ¿Qué tipo de expedientes están entrando? ¿Está cambiando el perfil del estudio?
             </CardDescription>
           </div>
         </div>
@@ -89,7 +89,7 @@ export function TablaComposicion({
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50/30">
                 <th className="text-left p-4 text-xs font-semibold uppercase text-slate-500 tracking-wider">
-                  Tipo de Caso
+                  Tipo de Expediente
                 </th>
                 <th className="text-center p-4 text-xs font-semibold uppercase text-slate-500 tracking-wider">
                   Período Anterior

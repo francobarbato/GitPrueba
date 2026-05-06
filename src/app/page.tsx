@@ -22,39 +22,47 @@ const dashboardService = new DashboardService()
 // COMPONENTES REUTILIZABLES
 // ============================================================================
 
-const CARD_COLORS: Record<string, { bg: string; text: string; icon: string }> = {
-  blue:    { bg: 'bg-blue-50 border-blue-200',    text: 'text-blue-600',    icon: 'bg-blue-100' },
-  emerald: { bg: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-600', icon: 'bg-emerald-100' },
-  purple:  { bg: 'bg-purple-50 border-purple-200',  text: 'text-purple-600',  icon: 'bg-purple-100' },
-  indigo:  { bg: 'bg-indigo-50 border-indigo-200',  text: 'text-indigo-600',  icon: 'bg-indigo-100' },
-  slate:   { bg: 'bg-slate-50 border-slate-200',   text: 'text-slate-600',   icon: 'bg-slate-100' },
-  amber:   { bg: 'bg-amber-50 border-amber-200',   text: 'text-amber-600',   icon: 'bg-amber-100' },
+// ═══ KPI ESTANDARIZADO ═══
+// Mismo patrón que cartera-fuero y evolución de cartera:
+// card blanca neutra, color contenido solo en el cuadradito del ícono.
+// El número va en slate-900 neutro, el label en slate-500.
+//
+// CARD_COLORS antes pintaba todo el card (bg + text + icon). Ahora solo
+// guarda el `iconBg` y el `iconText` para el cuadradito del ícono. El resto
+// del card es siempre blanco.
+const ICON_COLORS: Record<string, { iconBg: string; iconText: string }> = {
+  blue:    { iconBg: 'bg-blue-100',    iconText: 'text-blue-600' },
+  emerald: { iconBg: 'bg-emerald-100', iconText: 'text-emerald-600' },
+  purple:  { iconBg: 'bg-purple-100',  iconText: 'text-purple-600' },
+  indigo:  { iconBg: 'bg-indigo-100',  iconText: 'text-indigo-600' },
+  slate:   { iconBg: 'bg-slate-100',   iconText: 'text-slate-600' },
+  amber:   { iconBg: 'bg-amber-100',   iconText: 'text-amber-600' },
 }
 
 const CARD_ICONS: Record<string, React.ElementType> = {
-  'Mis casos activos': Briefcase,
-  'Casos Activos': Briefcase,
+  'Mis expedientes activos': Briefcase,
+  'Expedientes Activos': Briefcase,
   'Mis Cerrados': Scale,
-  'Casos Cerrados': Scale,
+  'Expedientes Cerrados': Scale,
   'Mis clientes': Users,
   'Clientes': Users,
-  'Casos activos en el Estudio': TrendingUp,
+  'Expedientes activos en el Estudio': TrendingUp,
   'Abogados Activos': Users,
   'Abogados': Users,
   'Sin Movimiento (30d)': AlertCircle,
 }
 
 function StatCard({ label, value, color }: { label: string; value: number; color: string }) {
-  const colors = CARD_COLORS[color] || CARD_COLORS.slate
+  const colors = ICON_COLORS[color] || ICON_COLORS.slate
   const Icon = CARD_ICONS[label] || Briefcase
 
   return (
-    <div className={`flex items-center gap-4 p-5 rounded-xl border ${colors.bg} transition-all hover:shadow-md`}>
-      <div className={`p-3 rounded-lg ${colors.icon}`}>
-        <Icon className={`h-5 w-5 ${colors.text}`} />
+    <div className="flex items-center gap-4 p-5 rounded-xl border border-slate-200 bg-white">
+      <div className={`p-3 rounded-lg ${colors.iconBg} shrink-0`}>
+        <Icon className={`h-5 w-5 ${colors.iconText}`} />
       </div>
-      <div>
-        <p className={`text-3xl font-bold ${colors.text}`}>{value}</p>
+      <div className="min-w-0">
+        <p className="text-3xl font-bold text-slate-900">{value}</p>
         <p className="text-xs font-medium text-slate-500 mt-0.5">{label}</p>
       </div>
     </div>
@@ -62,7 +70,7 @@ function StatCard({ label, value, color }: { label: string; value: number; color
 }
 
 // ============================================================================
-// BANDEJA DE ACCIÓN — Tareas urgentes
+// BANDEJA DE ACCIÓN — Tareas urgentes (sin cambios)
 // ============================================================================
 
 function BandejaAccion({ tareas }: { tareas: any[] }) {
@@ -85,7 +93,6 @@ function BandejaAccion({ tareas }: { tareas: any[] }) {
     )
   }
 
-  // Agrupar por tipo de urgencia
   const vencidas = tareas.filter(t => t.estado === "VENCIDA")
   const porVencer = tareas.filter(t => t.estado !== "VENCIDA" && t.estado !== "BLOQUEADA" && t.fechaVencimiento)
   const bloqueadas = tareas.filter(t => t.estado === "BLOQUEADA")
@@ -108,7 +115,6 @@ function BandejaAccion({ tareas }: { tareas: any[] }) {
       </div>
 
       <div className="divide-y divide-slate-100">
-        {/* Vencidas primero */}
         {vencidas.map(t => (
           <Link key={t.id} href="/gestion-tareas" className="block">
             <div className="px-5 py-3.5 hover:bg-red-50/50 transition-colors group flex items-start gap-3">
@@ -138,7 +144,6 @@ function BandejaAccion({ tareas }: { tareas: any[] }) {
           </Link>
         ))}
 
-        {/* Por vencer (hoy/mañana) */}
         {porVencer.map(t => {
           const fecha = t.fechaVencimiento ? new Date(t.fechaVencimiento) : null
           const esHoy = fecha && fecha.toDateString() === new Date().toDateString()
@@ -178,7 +183,6 @@ function BandejaAccion({ tareas }: { tareas: any[] }) {
           )
         })}
 
-        {/* Bloqueadas donde soy supervisor */}
         {bloqueadas.map(t => (
           <Link key={t.id} href="/gestion-tareas" className="block">
             <div className="px-5 py-3.5 hover:bg-slate-50 transition-colors group flex items-start gap-3">
@@ -204,7 +208,7 @@ function BandejaAccion({ tareas }: { tareas: any[] }) {
 }
 
 // ============================================================================
-// PANEL DE EXPEDIENTES INCOMPLETOS
+// PANEL DE EXPEDIENTES INCOMPLETOS (sin cambios)
 // ============================================================================
 
 function ExpedientesIncompletos({ casosIncompletos }: { casosIncompletos: any[] }) {
@@ -266,7 +270,7 @@ function ExpedientesIncompletos({ casosIncompletos }: { casosIncompletos: any[] 
 }
 
 // ============================================================================
-// SALUDO POR ROL
+// SALUDO POR ROL (sin cambios)
 // ============================================================================
 
 function getSaludo(rol: string) {
@@ -277,7 +281,7 @@ function getSaludo(rol: string) {
 }
 
 // ============================================================================
-// COMPONENTE PRINCIPAL
+// COMPONENTE PRINCIPAL (sin cambios)
 // ============================================================================
 
 export default async function DashboardPage() {
@@ -311,7 +315,6 @@ export default async function DashboardPage() {
         <main className="flex-1 overflow-auto p-6">
           <div className="max-w-7xl mx-auto space-y-6">
 
-            {/* Header */}
             <div className="flex items-center justify-between">
               <div>
                 <h1 className="text-2xl font-bold text-slate-900">
@@ -324,7 +327,6 @@ export default async function DashboardPage() {
               </span>
             </div>
 
-            {/* KPIs — ocultos para ASISTENTE */}
             {!esAsistente && (
               <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
                 {stats.cards.map((card: any, i: number) => (
@@ -333,20 +335,16 @@ export default async function DashboardPage() {
               </div>
             )}
 
-            {/* Layout principal: Bandeja de Acción + Alertas de Casos */}
             {mostrarAlertas && (
               <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
-                {/* Columna izquierda (70%) — Bandeja de Acción */}
                 <BandejaAccion tareas={tareasUrgentes} />
 
-                {/* Columna derecha (30%) — Expedientes Incompletos */}
                 <div className="space-y-6">
                   <ExpedientesIncompletos casosIncompletos={casosIncompletos} />
                 </div>
               </div>
             )}
 
-            {/* Admin solo ve KPIs por ahora */}
             {esAdmin && (
               <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-8 text-center">
                 <Settings className="w-10 h-10 mx-auto mb-3 text-slate-300" />

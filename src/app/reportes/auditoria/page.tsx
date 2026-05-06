@@ -1,5 +1,9 @@
 // REPORTE: Auditoría Personal del Abogado
 // ACCESO: Solo ABOGADO — ve únicamente sus propios casos
+//
+// CAMBIO: ahora también muestra HITOS DE TAREAS vinculadas a expedientes
+// del abogado. Solo se incluyen tareas con casoId (las administrativas sin
+// caso quedan fuera de este reporte por ser de otra naturaleza).
 
 import Link from "next/link"
 import { Sidebar } from "@/app/components/sidebar"
@@ -30,6 +34,8 @@ export type EventoAuditoria = {
   createdAt: string
   usuario: { nombre: string; apellido: string; rol: string }
   caso: { id: string; numero: string; titulo: string } | null
+  // ── NUEVO: si la entrada proviene de una tarea, traemos su info ──
+  tarea: { id: string; titulo: string; tipo: string; categoria: string } | null
 }
 
 export type EventosPorDia = {
@@ -38,12 +44,47 @@ export type EventosPorDia = {
   eventos: EventoAuditoria[]
 }
 
-const ACCIONES_RELEVANTES = [
+// ════════ ACCIONES DE CASOS (existentes) ════════
+const ACCIONES_CASO = [
   "CREATE", "ESTADO_CHANGE", "PRIORIDAD_CHANGE",
   "JUZGADO_CHANGE", "UBICACION_CHANGE", "MONTO_CHANGE",
   "CIERRE", "REAPERTURA", "UPDATE",
 ]
+
+// ════════ NUEVO: HITOS DE TAREAS ════════
+// Solo los hitos significativos. Las acciones intermedias (TAREA_ESTADO_CHANGE
+// hacia EN_PROCESO, ediciones menores, comentarios) NO entran al reporte de
+// auditoría — son operativas, no auditables.
+//
+// Hitos auditables:
+//   - TAREA_CREADA: nace una tarea sobre el expediente
+//   - TAREA_COMPLETADA_CON_DEMORA: cumplimiento tardío (relevante para auditoría)
+//   - TAREA_DESBLOQUEADA: la tarea volvió a estar activa
+//   - TAREA_VENCIDA_CERRADA_MANUAL: cierre con motivo, decisión registrada
+//
+// Nota: también incluimos TAREA_ESTADO_CHANGE pero con filtrado posterior:
+// solo cuentan los cambios a estados terminales (COMPLETADA, BLOQUEADA, VENCIDA).
+// Lamentablemente Prisma no permite filtrar por estadoNuevo dentro del mismo
+// `accion`, así que traemos todos los TAREA_ESTADO_CHANGE y filtramos en JS.
+const ACCIONES_TAREA = [
+  "TAREA_CREADA",
+  "TAREA_ESTADO_CHANGE",            // se filtra por estadoNuevo en JS
+  "TAREA_COMPLETADA_CON_DEMORA",
+  "TAREA_DESBLOQUEADA",
+  "TAREA_VENCIDA_CERRADA_MANUAL",
+]
+
+// Estados terminales/significativos para filtro de TAREA_ESTADO_CHANGE
+const ESTADOS_TAREA_AUDITABLES = ["COMPLETADA", "BLOQUEADA"]
+
+const ACCIONES_RELEVANTES = [...ACCIONES_CASO, ...ACCIONES_TAREA]
+
 const ACCIONES_CRITICAS = ["MONTO_CHANGE", "JUZGADO_CHANGE", "UBICACION_CHANGE", "CIERRE", "REAPERTURA"]
+
+// Helper para saber si una acción es de tarea (lo usan los componentes)
+export function esAccionDeTarea(accion: string): boolean {
+  return ACCIONES_TAREA.includes(accion)
+}
 
 // ============================================================================
 // FUNCIONES DE DATOS
@@ -63,8 +104,24 @@ function mapearEvento(e: any): EventoAuditoria {
       apellido: e.usuario.apellido || "",
       rol: e.usuario.rol || "",
     },
-    caso: e.caso ? { id: e.caso.id, numero: e.caso.numero, titulo: e.caso.titulo } : null
+    caso: e.caso ? { id: e.caso.id, numero: e.caso.numero, titulo: e.caso.titulo } : null,
+    tarea: e.tarea ? {
+      id: e.tarea.id,
+      titulo: e.tarea.titulo,
+      tipo: e.tarea.tipo,
+      categoria: e.tarea.categoria,
+    } : null,
   }
+}
+
+// Filtra los TAREA_ESTADO_CHANGE para mantener solo los que cambian a un
+// estado terminal/auditable. Esto se hace post-query porque Prisma no permite
+// condicionar por columnas distintas dentro del mismo OR.
+function filtrarHitosTarea(eventos: any[]): any[] {
+  return eventos.filter(e => {
+    if (e.accion !== "TAREA_ESTADO_CHANGE") return true
+    return e.estadoNuevo && ESTADOS_TAREA_AUDITABLES.includes(e.estadoNuevo)
+  })
 }
 
 async function getEventosAuditoria(
@@ -79,10 +136,12 @@ async function getEventosAuditoria(
   const desde = new Date(fechaDesde + "T00:00:00")
   const hasta = new Date(fechaHasta + "T23:59:59")
 
+  // Resolver filtro de acción según selección
   const accionWhere =
-    filtroAccion === "criticos" ? { in: ACCIONES_CRITICAS } :
-    filtroAccion !== "todos"    ? filtroAccion :
-                                  { in: ACCIONES_RELEVANTES }
+    filtroAccion === "criticos"   ? { in: ACCIONES_CRITICAS } :
+    filtroAccion === "eventos"    ? { in: ACCIONES_TAREA } :          // ← NUEVO
+    filtroAccion !== "todos"      ? filtroAccion :
+                                    { in: ACCIONES_RELEVANTES }
 
   const where: any = {
     casoId: filtroCasoId && filtroCasoId !== "todos" ? filtroCasoId : { in: casoIds },
@@ -91,17 +150,32 @@ async function getEventosAuditoria(
   }
   if (filtroRol) where.usuario = { rol: filtroRol }
 
+  const include = {
+    usuario: { select: { nombre: true, apellido: true, rol: true } },
+    caso: { select: { id: true, numero: true, titulo: true } },
+    tarea: { select: { id: true, titulo: true, tipo: true, categoria: true } },  // ← NUEVO
+  }
+
+  // Para paginar correctamente con el filtrado post-query, primero
+  // traemos TODO lo que matchea el where, filtramos en JS, y después paginamos.
+  // Costo aceptable: el reporte está acotado por fecha (un día / un rango corto).
+  const todosLosEventos = await prisma.bitacora.findMany({
+    where,
+    orderBy: { createdAt: "desc" },
+    include,
+  })
+
+  const filtrados = filtrarHitosTarea(todosLosEventos)
+  const totalCount = filtrados.length
+
+  // Paginar después del filtrado
   const skip = (page - 1) * ITEMS_PER_PAGE
-  const include = { usuario: { select: { nombre: true, apellido: true, rol: true } }, caso: { select: { id: true, numero: true, titulo: true } } }
+  const eventosPaginados = filtrados.slice(skip, skip + ITEMS_PER_PAGE)
 
-  const [totalCount, eventosDb, todosLosEventos] = await prisma.$transaction([
-    prisma.bitacora.count({ where }),
-    prisma.bitacora.findMany({ where, orderBy: { createdAt: "desc" }, skip, take: ITEMS_PER_PAGE, include }),
-    prisma.bitacora.findMany({ where, select: { casoId: true } })
-  ])
+  // Casos afectados sobre el total (no solo la página)
+  const casosAfectadosTotal = new Set(filtrados.map((e: any) => e.casoId).filter(Boolean)).size
 
-  const casosAfectadosTotal = new Set(todosLosEventos.map((e: any) => e.casoId).filter(Boolean)).size
-  return { eventos: eventosDb.map(mapearEvento), totalCount, casosAfectadosTotal }
+  return { eventos: eventosPaginados.map(mapearEvento), totalCount, casosAfectadosTotal }
 }
 
 async function getEventosCasoAgrupados(
@@ -119,10 +193,16 @@ async function getEventosCasoAgrupados(
 
   const eventosDb = await prisma.bitacora.findMany({
     where, orderBy: { createdAt: "desc" },
-    include: { usuario: { select: { nombre: true, apellido: true, rol: true } }, caso: { select: { id: true, numero: true, titulo: true } } }
+    include: {
+      usuario: { select: { nombre: true, apellido: true, rol: true } },
+      caso: { select: { id: true, numero: true, titulo: true } },
+      tarea: { select: { id: true, titulo: true, tipo: true, categoria: true } },
+    }
   })
 
-  const mapeados = eventosDb.map(mapearEvento)
+  const filtrados = filtrarHitosTarea(eventosDb)
+  const mapeados = filtrados.map(mapearEvento)
+
   const mapaFechas = new Map<string, EventoAuditoria[]>()
   mapeados.forEach(e => {
     const key = format(new Date(e.createdAt), "yyyy-MM-dd")
@@ -153,9 +233,14 @@ async function getEventosPorCaso(
       createdAt: { gte: new Date(fechaDesde + "T00:00:00"), lte: new Date(fechaHasta + "T23:59:59") }
     },
     orderBy: { createdAt: "desc" },
-    include: { usuario: { select: { nombre: true, apellido: true, rol: true } }, caso: { select: { id: true, numero: true, titulo: true } } }
+    include: {
+      usuario: { select: { nombre: true, apellido: true, rol: true } },
+      caso: { select: { id: true, numero: true, titulo: true } },
+      tarea: { select: { id: true, titulo: true, tipo: true, categoria: true } },
+    }
   })
-  return eventosDb.map(mapearEvento)
+  const filtrados = filtrarHitosTarea(eventosDb)
+  return filtrados.map(mapearEvento)
 }
 
 async function getFechasConActividad(
@@ -166,9 +251,10 @@ async function getFechasConActividad(
   if (casoIds.length === 0) return []
 
   const accionWhere =
-    filtroAccion === "criticos" ? { in: ACCIONES_CRITICAS } :
-    filtroAccion !== "todos"    ? filtroAccion :
-                                  { in: ACCIONES_RELEVANTES }
+    filtroAccion === "criticos"   ? { in: ACCIONES_CRITICAS } :
+    filtroAccion === "eventos"    ? { in: ACCIONES_TAREA } :
+    filtroAccion !== "todos"      ? filtroAccion :
+                                    { in: ACCIONES_RELEVANTES }
 
   const where: any = {
     casoId: filtroCasoId && filtroCasoId !== "todos" ? filtroCasoId : { in: casoIds },
@@ -176,8 +262,14 @@ async function getFechasConActividad(
   }
   if (filtroRol) where.usuario = { rol: filtroRol }
 
-  const bitacoras = await prisma.bitacora.findMany({ where, select: { createdAt: true } })
-  const fechasUnicas = new Set(bitacoras.map((b: any) => format(new Date(b.createdAt), "yyyy-MM-dd")))
+  // Para fechas con actividad, necesitamos saber qué TAREA_ESTADO_CHANGE
+  // realmente cuentan (los terminales). Traemos esos campos también.
+  const bitacoras = await prisma.bitacora.findMany({
+    where,
+    select: { createdAt: true, accion: true, estadoNuevo: true },
+  })
+  const filtradas = filtrarHitosTarea(bitacoras)
+  const fechasUnicas = new Set(filtradas.map((b: any) => format(new Date(b.createdAt), "yyyy-MM-dd")))
   return Array.from(fechasUnicas)
 }
 
@@ -294,7 +386,7 @@ export default async function AuditoriaPage({ searchParams }: PageProps) {
                     Acceso Privado
                   </span>
                 </div>
-                <p className="text-sm text-slate-500 mt-1">Registro de actividad en tus casos — solo visible para vos</p>
+                <p className="text-sm text-slate-500 mt-1">Registro de actividad en tus expedientes — solo visible para vos</p>
               </div>
             )}
 
@@ -307,7 +399,7 @@ export default async function AuditoriaPage({ searchParams }: PageProps) {
                     <p className="text-3xl font-bold text-slate-800 mt-1">{totalCount}</p>
                   </div>
                   <div className="bg-white border border-slate-200 rounded-xl p-4">
-                    <p className="text-xs text-slate-500 font-medium">Casos afectados</p>
+                    <p className="text-xs text-slate-500 font-medium">Expedientes afectados</p>
                     <p className="text-3xl font-bold text-slate-800 mt-1">{casosAfectadosTotal}</p>
                   </div>
                 </div>

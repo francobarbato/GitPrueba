@@ -27,7 +27,7 @@ export function TopCategorias({ data }: { data: CategoriaCount[] }) {
           Categorías más frecuentes
         </CardTitle>
         <p className="text-xs text-slate-500">
-          Ranking de las categorías de eventos que más se realizan. El color indica si la categoría es procesal (indigo) o interna (azul).
+          Ranking de las categorías de eventos que más se realizan. El color indica si la categoría es procesal (indigo) o interna (gris).
         </p>
       </CardHeader>
       <CardContent>
@@ -42,7 +42,7 @@ export function TopCategorias({ data }: { data: CategoriaCount[] }) {
                     {esProcesal ? (
                       <Scale className="w-3 h-3 text-indigo-500" />
                     ) : (
-                      <Briefcase className="w-3 h-3 text-blue-500" />
+                      <Briefcase className="w-3 h-3 text-slate-500" />
                     )}
                     <span className="font-medium text-slate-700">{CATEGORIA_LABELS[c.categoria] ?? c.categoria}</span>
                   </div>
@@ -53,7 +53,7 @@ export function TopCategorias({ data }: { data: CategoriaCount[] }) {
                 </div>
                 <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
                   <div
-                    className={`h-full rounded-full ${esProcesal ? "bg-indigo-500" : "bg-blue-500"}`}
+                    className={`h-full rounded-full ${esProcesal ? "bg-indigo-500" : "bg-slate-500"}`}
                     style={{ width: `${anchoBarra}%` }}
                   />
                 </div>

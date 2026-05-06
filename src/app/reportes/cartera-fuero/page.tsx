@@ -358,7 +358,7 @@ if (userRol === 'CLIENTE' || userRol === 'ADMIN') notFound()
                 <div>
                   <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
                     <Scale className="h-6 w-6 text-indigo-600" />
-                    Cartera activa por fuero
+                    Composición de cartera por fuero
                   </h1>
                   <p className="text-sm text-slate-500">
                     {vista === "personal"
@@ -403,7 +403,7 @@ if (userRol === 'CLIENTE' || userRol === 'ADMIN') notFound()
                 : <MatrizFueroGeneral data={datosGeneral!.filas} />
             ) : (
               <div className="p-8 bg-white border border-slate-200 rounded-lg text-center">
-                <p className="text-slate-500">No hay casos activos para analizar.</p>
+                <p className="text-slate-500">No hay expedientes activos para analizar.</p>
               </div>
             )}
 
@@ -415,7 +415,7 @@ if (userRol === 'CLIENTE' || userRol === 'ADMIN') notFound()
             {/* Nota de criterios */}
             <div className="mt-8 p-4 bg-slate-100 border border-slate-200 rounded-lg">
               <p className="text-xs text-slate-600">
-                <strong>Criterios del reporte:</strong> Solo incluye casos activos (no cerrados ni archivados) |
+                <strong>Criterios del reporte:</strong> Solo incluye expedientes activos (no cerrados ni archivados) |
                 Capital en litigio = suma de montoDisputa | Tasa de actividad = casos con movimiento en últimos 30 días |
                 Promedio de cierre = calculado sobre casos históricos cerrados del mismo fuero
               </p>

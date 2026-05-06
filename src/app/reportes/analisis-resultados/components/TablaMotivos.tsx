@@ -180,7 +180,7 @@ export function TablaMotivos({ data }: { data: MotivoCierreRow[] }) {
           Resultados por Motivo de Cierre
         </CardTitle>
         <p className="text-xs text-slate-500">
-          Cómo terminan los casos del estudio. Click en una fila para ver los expedientes.
+          Cómo terminan los expedientes del estudio. Click en una fila para ver los expedientes.
         </p>
       </CardHeader>
       <CardContent className="p-0">
@@ -190,7 +190,7 @@ export function TablaMotivos({ data }: { data: MotivoCierreRow[] }) {
               <tr className="bg-slate-50 border-y border-slate-200">
                 <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider w-8"></th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Motivo de Cierre</th>
-                <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Casos</th>
+                <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Expedientes</th>
                 <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">% del Total</th>
                 <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Reclamado</th>
                 <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Obtenido</th>

@@ -33,7 +33,7 @@ export function ToggleVistaResultados({ vistaActual }: { vistaActual: 'personal'
         }`}
       >
         <User className="w-3.5 h-3.5" />
-        Mis casos
+        Mis expedientes
       </button>
       <button
         onClick={() => cambiarVista('gerencial')}

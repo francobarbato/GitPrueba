@@ -262,12 +262,12 @@ if (userRol === 'CLIENTE' || userRol === 'ADMIN') notFound()
                 <div>
                   <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
                     <BarChart3 className="h-6 w-6 text-indigo-600" />
-                    Estado de casos activos por etapa procesal
+                    Estado de expedientes activos por etapa
                   </h1>
                   <p className="text-sm text-slate-500">
                     {isAbogado(userRol)
-                      ? "En qué etapa están tus casos y cuánto tiempo llevan ahí"
-                      : "En qué etapa están los casos y cuánto tiempo llevan ahí"
+                      ? "En qué etapa están tus expedientes y cuánto tiempo llevan ahí"
+                      : "En qué etapa están los expedientes y cuánto tiempo llevan ahí"
                     }
                   </p>
                 </div>
@@ -292,7 +292,7 @@ if (userRol === 'CLIENTE' || userRol === 'ADMIN') notFound()
             {totalCasos === 0 ? (
               <Card className="p-12 text-center border-slate-200">
                 <AlertTriangle className="h-16 w-16 mx-auto text-slate-300 mb-4" />
-                <p className="text-lg font-medium text-slate-600">No hay casos activos para mostrar</p>
+                <p className="text-lg font-medium text-slate-600">No hay expedientes activos para mostrar</p>
                 <p className="text-sm text-slate-400 mt-2">
                   {filtroFuero !== 'todos' || filtroAbogado !== 'todos' || filtroEtapa !== 'todas'
                     ? 'Probá cambiando los filtros para ver más resultados.'
@@ -319,7 +319,7 @@ if (userRol === 'CLIENTE' || userRol === 'ADMIN') notFound()
               <p className="text-sm text-blue-900 font-semibold mb-2">📖 Metodología del Reporte</p>
               <ul className="text-xs text-blue-800 space-y-1 ml-4 list-disc">
                 <li><strong>Días en etapa:</strong> Desde la última transición de estado (<code>fechaUltimoCambioEstado</code>).</li>
-                <li><strong>Días totales:</strong> Desde la fecha de inicio del caso (<code>fechaInicio</code>) hasta hoy.</li>
+                <li><strong>Días totales:</strong> Desde la fecha de inicio del expediente (<code>fechaInicio</code>) hasta hoy.</li>
                 <li><strong>Cronología individual:</strong> Reconstruida desde la bitácora del expediente.</li>
                 <li><strong>Sobre los tiempos:</strong> Reflejan duración en cada etapa. No implican juicio sobre la demora — los tiempos en derecho dependen de factores externos al sistema.</li>
               </ul>

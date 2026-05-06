@@ -25,7 +25,6 @@ type Props = {
 export function KPICardsComposicion({ data }: Props) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-      {/* KPI 1: Total registrado */}
       <Card className="p-4 border-slate-200">
         <div className="flex items-center gap-2 mb-1">
           <ListChecks className="w-4 h-4 text-purple-500" />
@@ -41,10 +40,9 @@ export function KPICardsComposicion({ data }: Props) {
         </p>
       </Card>
 
-      {/* KPI 2: Categoría dominante */}
       <Card className="p-4 border-slate-200">
         <div className="flex items-center gap-2 mb-1">
-          <Layers className="w-4 h-4 text-indigo-500" />
+          <Layers className="w-4 h-4 text-slate-500" />
           <p className="text-xs text-slate-500 font-medium">Categoría dominante</p>
         </div>
         <p className="text-xl font-bold text-slate-800 truncate">

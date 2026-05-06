@@ -216,6 +216,9 @@ export function TareaDetalleDrawer({
             <SheetTitle className="text-lg font-bold text-slate-800 leading-snug">
               {tarea.titulo}
             </SheetTitle>
+            <p className="sr-only">
+              Detalle del evento
+            </p>
             <div className="flex items-center gap-2 flex-wrap">
               <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium border ${prioridadCfg.bg} ${prioridadCfg.text} ${prioridadCfg.border} flex items-center gap-1`}>
                 {tarea.prioridad === "FATAL" && <ShieldAlert className="w-3 h-3" />}
@@ -374,7 +377,9 @@ export function TareaDetalleDrawer({
 
         {!esTerminal && !soloLectura && (
           <div className="sticky bottom-0 bg-white border-t border-slate-100 px-6 py-4 flex flex-wrap items-center gap-2">
-            {tarea.estado === "PENDIENTE" && (
+ 
+            {/* ═══ Acciones de transición — SOLO el responsable ═══ */}
+            {esResponsable && tarea.estado === "PENDIENTE" && (
               <>
                 {CATEGORIAS_FLUJO_COMPLETO.has(tarea.categoria) ? (
                   <button
@@ -399,7 +404,7 @@ export function TareaDetalleDrawer({
                 </button>
               </>
             )}
-            {tarea.estado === "EN_PROCESO" && (
+            {esResponsable && tarea.estado === "EN_PROCESO" && (
               <>
                 <button
                   onClick={() => onChangeEstado(tarea.id, "COMPLETADA")}
@@ -415,7 +420,7 @@ export function TareaDetalleDrawer({
                 </button>
               </>
             )}
-            {tarea.estado === "BLOQUEADA" && (
+            {esResponsable && tarea.estado === "BLOQUEADA" && (
               <button
                 onClick={() => onChangeEstado(tarea.id, "PENDIENTE")}
                 className="text-xs px-3 py-2 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 border border-green-200 font-medium transition-colors flex items-center gap-1.5"
@@ -423,28 +428,36 @@ export function TareaDetalleDrawer({
                 <Unlock className="w-3 h-3" /> Desbloquear
               </button>
             )}
-
-            {esVencidaAbierta && (
-              <>
-                <button
-                  onClick={() => onChangeEstado(tarea.id, "COMPLETADA")}
-                  className="text-xs px-3 py-2 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 border border-green-200 font-semibold transition-colors flex items-center gap-1.5"
-                  title="La tarea se marcará como completada con demora"
-                >
-                  <CheckCheck className="w-3 h-3" /> Completar con demora
-                </button>
-                {onCerrarVencida && (
-                  <button
-                    onClick={handleCerrarVencida}
-                    className="text-xs px-3 py-2 bg-white text-slate-600 rounded-lg hover:bg-slate-50 border border-slate-200 font-medium transition-colors flex items-center gap-1.5"
-                    title="Archivar como vencida no cumplida"
-                  >
-                    <XCircle className="w-3 h-3" /> Cerrar sin cumplir
-                  </button>
-                )}
-              </>
+            {esResponsable && esVencidaAbierta && (
+              <button
+                onClick={() => onChangeEstado(tarea.id, "COMPLETADA")}
+                className="text-xs px-3 py-2 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 border border-green-200 font-semibold transition-colors flex items-center gap-1.5"
+                title="La tarea se marcará como completada con demora"
+              >
+                <CheckCheck className="w-3 h-3" /> Completar con demora
+              </button>
             )}
-
+ 
+            {/* ═══ Cerrar vencida — responsable + supervisor + creador ═══ */}
+            {esVencidaAbierta && onCerrarVencida && (esResponsable || esSupervisor || esCreador) && (
+              <button
+                onClick={handleCerrarVencida}
+                className="text-xs px-3 py-2 bg-white text-slate-600 rounded-lg hover:bg-slate-50 border border-slate-200 font-medium transition-colors flex items-center gap-1.5"
+                title="Archivar como vencida no cumplida"
+              >
+                <XCircle className="w-3 h-3" /> Cerrar sin cumplir
+              </button>
+            )}
+ 
+            {/* ═══ Pista visual cuando no sos responsable ═══ */}
+            {!esResponsable && !esVencidaAbierta && (
+              <div className="flex items-center gap-1.5 text-[11px] text-slate-400 italic">
+                <Eye className="w-3 h-3 shrink-0" />
+                Solo el responsable puede gestionar el estado
+              </div>
+            )}
+ 
+            {/* ═══ Editar / Eliminar — como estaban ═══ */}
             <div className="ml-auto flex items-center gap-2">
               {puedeEditar && !esVencidaAbierta && (
                 <button

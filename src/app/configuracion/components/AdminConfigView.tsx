@@ -670,7 +670,7 @@ export function AdminConfigView() {
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Usuario</th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Rol</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Casos Activos</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Expedientes Activos</th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Último Acceso</th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Estado</th>
                 <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Acciones</th>
@@ -782,7 +782,7 @@ export function AdminConfigView() {
             </DialogTitle>
             <DialogDescription>
               {modalReasignar?.nombre} {modalReasignar?.apellido} tiene{' '}
-              <strong>{modalReasignar?._count?.casos || 0} casos activos</strong>.
+              <strong>{modalReasignar?._count?.casos || 0} expedientes activos</strong>.
               Debés reasignarlos antes de desactivar el usuario.
             </DialogDescription>
           </DialogHeader>

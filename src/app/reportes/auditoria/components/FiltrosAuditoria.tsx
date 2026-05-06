@@ -1,10 +1,12 @@
 'use client'
 
 // app/reportes/auditoria/components/FiltrosAuditoria.tsx
+//
+// CAMBIO: agregamos opciones para filtrar hitos de tareas.
 
 import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import { useCallback, useState, useRef, useEffect } from "react"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -14,18 +16,31 @@ import { format, addDays, subDays, isToday, isYesterday } from "date-fns"
 import { es } from "date-fns/locale"
 import type { DateRange } from "react-day-picker"
 
+// ════════ ACCIONES DEL SELECT ════════
+// Agrupadas por origen: "todos" + criticos generales primero, después casos,
+// después eventos (tareas).
 const ACCIONES = [
-  { value: "todos", label: "Todos los tipos" },
-  { value: "criticos", label: "⚠ Solo críticos" },
-  { value: "ESTADO_CHANGE", label: "Cambios de etapa" },
-  { value: "MONTO_CHANGE", label: "Modificaciones de monto" },
-  { value: "JUZGADO_CHANGE", label: "Modificaciones de juzgado" },
-  { value: "UBICACION_CHANGE", label: "Modificaciones de ubicación" },
-  { value: "CIERRE", label: "Cierres de caso" },
-  { value: "REAPERTURA", label: "Reaperturas" },
-  { value: "PRIORIDAD_CHANGE", label: "Cambios de prioridad" },
-  { value: "CREATE", label: "Creaciones" },
-  { value: "UPDATE", label: "Ediciones generales" },
+  { value: "todos",     label: "Todos los tipos",                grupo: "general" },
+  { value: "criticos",  label: "⚠ Solo críticos",                grupo: "general" },
+  { value: "eventos",   label: "Solo eventos (tareas)",          grupo: "general" },
+
+  // Acciones de caso
+  { value: "ESTADO_CHANGE",     label: "Cambios de etapa",          grupo: "caso" },
+  { value: "MONTO_CHANGE",      label: "Modificaciones de monto",   grupo: "caso" },
+  { value: "JUZGADO_CHANGE",    label: "Modificaciones de juzgado", grupo: "caso" },
+  { value: "UBICACION_CHANGE",  label: "Modificaciones de ubicación", grupo: "caso" },
+  { value: "CIERRE",            label: "Cierres de expediente",     grupo: "caso" },
+  { value: "REAPERTURA",        label: "Reaperturas",               grupo: "caso" },
+  { value: "PRIORIDAD_CHANGE",  label: "Cambios de prioridad",      grupo: "caso" },
+  { value: "CREATE",            label: "Creaciones de expediente",  grupo: "caso" },
+  { value: "UPDATE",            label: "Ediciones generales",       grupo: "caso" },
+
+  // Acciones de tarea (hitos auditables)
+  { value: "TAREA_CREADA",                  label: "Eventos creados",            grupo: "tarea" },
+  { value: "TAREA_ESTADO_CHANGE",           label: "Eventos completados / bloqueados", grupo: "tarea" },
+  { value: "TAREA_COMPLETADA_CON_DEMORA",   label: "Eventos completados con demora",  grupo: "tarea" },
+  { value: "TAREA_DESBLOQUEADA",            label: "Eventos desbloqueados",      grupo: "tarea" },
+  { value: "TAREA_VENCIDA_CERRADA_MANUAL",  label: "Eventos vencidos cerrados",  grupo: "tarea" },
 ]
 
 type Caso = { id: string; numero: string; titulo: string }
@@ -37,7 +52,7 @@ type Props = {
 }
 
 // ============================================================================
-// BUSCADOR DE CASOS
+// BUSCADOR DE CASOS (sin cambios)
 // ============================================================================
 
 function BuscadorExpedientes({
@@ -101,7 +116,7 @@ function BuscadorExpedientes({
             value={query}
             onChange={(e) => { setQuery(e.target.value); setAbierto(true) }}
             onFocus={() => setAbierto(true)}
-            placeholder="Buscar caso..."
+            placeholder="Buscar expediente..."
             className="pl-8 h-8 text-sm w-[220px]"
           />
           {query && (
@@ -216,6 +231,11 @@ export function FiltrosAuditoria({ casos, fechasActivas, modoBusqueda }: Props) 
   // Modo caso: el calendario es un filtro opcional de rango
   const esModoFecha = modoBusqueda === "fecha"
   const tieneFiltroDeFechaEnModoCaso = modoBusqueda === "caso" && esRango && desdeActual
+
+  // Acciones agrupadas para el select
+  const accionesGenerales = ACCIONES.filter(a => a.grupo === "general")
+  const accionesCaso = ACCIONES.filter(a => a.grupo === "caso")
+  const accionesTarea = ACCIONES.filter(a => a.grupo === "tarea")
 
   return (
     <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
@@ -355,11 +375,30 @@ export function FiltrosAuditoria({ casos, fechasActivas, modoBusqueda }: Props) 
 
         {esModoFecha && (
           <Select value={accionActual} onValueChange={(v) => updateParams({ accion: v === "todos" ? null : v })}>
-            <SelectTrigger className="text-sm h-8 min-w-[180px] w-auto">
+            <SelectTrigger className="text-sm h-8 min-w-[200px] w-auto">
               <SelectValue placeholder="Tipo de acción" />
             </SelectTrigger>
             <SelectContent>
-              {ACCIONES.map(a => <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>)}
+              {/* Generales */}
+              <SelectGroup>
+                {accionesGenerales.map(a => (
+                  <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>
+                ))}
+              </SelectGroup>
+              {/* Caso */}
+              <SelectGroup>
+                <SelectLabel className="text-[10px] uppercase tracking-wider text-slate-400">Expediente</SelectLabel>
+                {accionesCaso.map(a => (
+                  <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>
+                ))}
+              </SelectGroup>
+              {/* Tarea */}
+              <SelectGroup>
+                <SelectLabel className="text-[10px] uppercase tracking-wider text-slate-400">Eventos</SelectLabel>
+                {accionesTarea.map(a => (
+                  <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>
+                ))}
+              </SelectGroup>
             </SelectContent>
           </Select>
         )}

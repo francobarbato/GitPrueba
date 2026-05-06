@@ -37,7 +37,7 @@ export function AlertaUrgentes({
             ⚠ {casosUrgentes.length} {casosUrgentes.length === 1 ? 'caso de prioridad alta' : 'casos de prioridad alta'} en zonas que requieren viaje
           </p>
           <p className="text-xs text-amber-700">
-            {casosUrgentes.length} de {totalCasos} casos activos fueron marcados como prioridad alta por el abogado
+            {casosUrgentes.length} de {totalCasos} expedientes activos fueron marcados como prioridad alta por el abogado
           </p>
         </div>
       </div>

@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Lock, Scale, Briefcase, Clock, AlertTriangle } from "lucide-react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import type { TareaBloqueadaDetalle } from "../page"
 
 const CATEGORIA_LABELS: Record<string, string> = {
@@ -26,11 +27,10 @@ const PRIORIDAD_CONFIG: Record<string, { label: string; color: string }> = {
 
 /**
  * Escala de color escalonada para "días bloqueado".
- * Progresión verde-ámbar-rojo:
- *   0-3 días:   verde/tranquilo — recién bloqueado, normal
- *   4-7 días:   amarillo/alerta — empieza a ser notable
- *   8-14 días:  naranja/preocupante — requiere intervención
- *   15+ días:   rojo fuerte — crítico, bloqueo prolongado
+ *   0-3 días:   verde/tranquilo
+ *   4-7 días:   amarillo/alerta
+ *   8-14 días:  naranja/preocupante
+ *   15+ días:   rojo crítico
  */
 function estiloDiasBloqueo(dias: number): { bg: string; text: string; texto: string } {
   const sufijo = dias === 0 ? "Hoy" : `${dias} ${dias === 1 ? "día" : "días"}`
@@ -41,6 +41,8 @@ function estiloDiasBloqueo(dias: number): { bg: string; text: string; texto: str
 }
 
 export function TablaBloqueadasActivas({ data }: { data: TareaBloqueadaDetalle[] }) {
+  const router = useRouter()
+
   const [filtroTipo, setFiltroTipo] = useState("todos")
   const [filtroCategoria, setFiltroCategoria] = useState("todos")
 
@@ -60,8 +62,13 @@ export function TablaBloqueadasActivas({ data }: { data: TareaBloqueadaDetalle[]
 
   const hayFiltros = filtroTipo !== "todos" || filtroCategoria !== "todos"
 
+  // Click en la fila abre el drawer del evento. El link al expediente y los selects
+  // del header usan stopPropagation para no disparar este click cuando son tocados.
+  const abrirDrawer = (tareaId: string) => {
+    router.push(`/gestion-tareas?tareaAbierta=${tareaId}`)
+  }
+
   return (
-    // border-l-4 destacado a la izquierda, borde normal en el resto — foco visual sin saturar
     <Card className="bg-white border border-slate-200 border-l-4 border-l-red-500 mb-6">
       <CardHeader className="pb-3 bg-red-50/30 border-b border-slate-100">
         <div className="flex items-center justify-between flex-wrap gap-3">
@@ -126,7 +133,11 @@ export function TablaBloqueadasActivas({ data }: { data: TareaBloqueadaDetalle[]
                   const prioCfg = PRIORIDAD_CONFIG[t.prioridad] ?? PRIORIDAD_CONFIG.MEDIA
                   const bloqCfg = estiloDiasBloqueo(t.diasBloqueada)
                   return (
-                    <tr key={t.id} className={`border-b border-slate-100 ${idx % 2 === 0 ? "bg-white" : "bg-slate-50/50"}`}>
+                    <tr
+                      key={t.id}
+                      onClick={() => abrirDrawer(t.id)}
+                      className={`border-b border-slate-100 cursor-pointer transition-colors hover:bg-blue-50/40 group ${idx % 2 === 0 ? "bg-white" : "bg-slate-50/50"}`}
+                    >
                       <td className="px-4 py-3 max-w-[220px]">
                         <div className="flex items-start gap-2">
                           {t.tipo === "PROCESAL" ? (
@@ -135,7 +146,7 @@ export function TablaBloqueadasActivas({ data }: { data: TareaBloqueadaDetalle[]
                             <Briefcase className="w-3 h-3 text-blue-500 mt-1 shrink-0" />
                           )}
                           <div className="min-w-0">
-                            <p className="font-medium text-slate-800 truncate">{t.titulo}</p>
+                            <p className="font-medium text-slate-800 truncate group-hover:text-blue-700 transition-colors">{t.titulo}</p>
                             <p className="text-[10px] text-slate-400">{CATEGORIA_LABELS[t.categoria] ?? t.categoria}</p>
                           </div>
                         </div>
@@ -155,7 +166,13 @@ export function TablaBloqueadasActivas({ data }: { data: TareaBloqueadaDetalle[]
                       </td>
                       <td className="px-3 py-3 text-center">
                         {t.caso ? (
-                          <Link href={`/casos/${t.casoId}`} className="font-mono text-xs text-blue-600 font-bold hover:underline">{t.caso}</Link>
+                          <Link
+                            href={`/casos/${t.casoId}`}
+                            onClick={e => e.stopPropagation()}
+                            className="font-mono text-xs text-blue-600 font-bold hover:underline"
+                          >
+                            {t.caso}
+                          </Link>
                         ) : (
                           <span className="text-xs text-slate-400">—</span>
                         )}

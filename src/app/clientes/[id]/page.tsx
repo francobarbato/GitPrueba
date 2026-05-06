@@ -515,7 +515,7 @@ export default async function ClienteDetallePage({
                       <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
                         <div className="flex items-center gap-2">
                           <CheckCircle2 className="h-4 w-4 text-green-600" />
-                          <span className="text-sm font-medium text-slate-700">Casos activos</span>
+                          <span className="text-sm font-medium text-slate-700">Expedientes activos</span>
                         </div>
                         <span className="text-xl font-bold text-green-600">{casosActivos}</span>
                       </div>
@@ -586,7 +586,7 @@ export default async function ClienteDetallePage({
                           <CheckCircle2 className="h-12 w-12 text-green-600 mx-auto mb-3" />
                           <h3 className="font-semibold text-green-900">Cliente Activo</h3>
                           <p className="text-sm text-green-700 mt-1">
-                            Puede tener casos activos y recibir notificaciones
+                            Puede tener expedientes activos y recibir notificaciones
                           </p>
                         </>
                       ) : (

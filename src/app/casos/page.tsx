@@ -45,7 +45,7 @@ export default async function CasosPage({
     <div className="flex h-screen bg-slate-50 items-center justify-center p-4">
       <div className="bg-white p-8 rounded-xl shadow text-center max-w-md">
         <h1 className="text-xl font-bold text-red-600 mb-2">Acceso restringido</h1>
-        <p className="text-slate-600 mb-4">El administrador no puede crear casos.</p>
+        <p className="text-slate-600 mb-4">El administrador no puede crear expedientes.</p>
         <Link href="/">
           <Button variant="outline">Volver al inicio</Button>
         </Link>
@@ -125,7 +125,7 @@ if (terminoEtapa) {
           {/* Indicador de rol para Asistente */}
           {isAsistente(userRol) && (
             <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm">
-              <strong>Modo Asistente:</strong> Puedes ver todos los casos y crear nuevos. 
+              <strong>Modo Asistente:</strong> Puedes ver todos los expedientes y crear nuevos. 
               Para modificar estados o ver información financiera, contacta al abogado responsable.
             </div>
           )}

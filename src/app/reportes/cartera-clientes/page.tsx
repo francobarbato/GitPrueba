@@ -478,7 +478,7 @@ export default async function CarteraClientesPage({ searchParams }: PageProps) {
                 <strong>Cliente activo:</strong> tiene al menos 1 caso no cerrado.{" "}
                 <strong>Cliente inactivo:</strong> todos sus casos están cerrados o archivados.{" "}
                 <strong>Recurrencia:</strong> Único (1 caso), Recurrente (2-4 casos), Frecuente (5+ casos).{" "}
-                <strong>Capital en litigio:</strong> suma de montos en disputa de los casos activos del cliente.{" "}
+                <strong>Capital en litigio:</strong> suma de montos en disputa de los expedientes activos del cliente.{" "}
                 <strong>Antigüedad:</strong> desde la fecha de alta del cliente en el sistema.
               </p>
             </div>

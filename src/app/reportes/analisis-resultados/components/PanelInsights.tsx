@@ -62,7 +62,7 @@ export function PanelInsights({ data }: { data: InsightsData }) {
   if (data.fueroPredominante) {
     insights.push({
       icon: <TrendingDown className="w-4 h-4" />,
-      texto: `El fuero con más casos cerrados es ${data.fueroPredominante.tipo} (${data.fueroPredominante.cantidad} casos). Considerar si es por volumen o por velocidad de resolución.`,
+      texto: `El fuero con más expedientes cerrados es ${data.fueroPredominante.tipo} (${data.fueroPredominante.cantidad} expedientes). Considerar si es por volumen o por velocidad de resolución.`,
       tipo: 'neutro'
     })
   }

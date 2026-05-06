@@ -34,15 +34,15 @@ export function DistribucionActual({
             </div>
             <div>
               <CardTitle className="text-lg font-bold text-slate-800">
-                Distribución de Casos Activos por Etapa
+                Distribución de Expedientes Activos por Etapa
               </CardTitle>
               <CardDescription>
-                Panorama general: ¿en qué etapas están tus casos ahora mismo?
+                Panorama general: ¿en qué etapas están tus expedientes ahora mismo?
               </CardDescription>
             </div>
           </div>
           <Badge variant="outline" className="text-sm">
-            {totalCasos} casos activos
+            {totalCasos} expedientes activos
           </Badge>
         </div>
       </CardHeader>
@@ -66,7 +66,7 @@ export function DistribucionActual({
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="text-sm text-slate-500">
-                      {etapa.cantidadCasos} casos
+                      {etapa.cantidadCasos} expedientes
                     </span>
                     <span className="text-lg font-bold text-slate-900 w-14 text-right">
                       {etapa.porcentaje}%
@@ -86,7 +86,7 @@ export function DistribucionActual({
                       style={{ width: `${Math.max(etapa.porcentaje, 8)}%` }}
                     >
                       <span className="text-xs font-medium text-white">
-                        {etapa.cantidadCasos} casos
+                        {etapa.cantidadCasos} expedientes
                       </span>
                       {etapa.porcentaje > 15 && (
                         <span className="text-xs font-medium text-white">
@@ -116,7 +116,7 @@ export function DistribucionActual({
                   Concentración Detectada
                 </p>
                 <p className="text-xs text-amber-800 mt-1">
-                  Tenés un {etapaMayorConcentracion.porcentaje}% de tus casos activos en <strong>{etapaMayorConcentracion.etapa}</strong>.
+                  Tenés un {etapaMayorConcentracion.porcentaje}% de tus expedientes activos en <strong>{etapaMayorConcentracion.etapa}</strong>.
                   {etapaMayorConcentracion.porcentaje > 40 && ' Esto puede indicar un cuello de botella en esa fase del proceso.'}
                 </p>
               </div>

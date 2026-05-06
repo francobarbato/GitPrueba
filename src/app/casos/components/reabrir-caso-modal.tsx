@@ -162,7 +162,7 @@ export function ReabrirCasoModal({ isOpen, onClose, onConfirm, caso }: ReabrirCa
                 <p className="font-semibold">El caso volverá a estar activo</p>
                 <p className="text-xs mt-1">
                   Se restaurará al estado "{caso.estadoAntesCierre || 'Inicio / Demanda'}" 
-                  y aparecerá nuevamente en los listados de casos activos.
+                  y aparecerá nuevamente en los listados de expedientes activos.
                 </p>
               </div>
             </div>

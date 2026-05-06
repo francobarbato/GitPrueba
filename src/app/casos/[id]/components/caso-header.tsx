@@ -145,7 +145,7 @@ export function CasoHeader({ caso, userRol, userId, puedeEditar }: CasoHeaderPro
             <Link href={`/casos/${caso.id}/editar`}>
               <Button variant="outline">
                 <Edit className="h-4 w-4 mr-2" />
-                Editar Caso
+                Editar Expediente
               </Button>
             </Link>
           )}
@@ -156,7 +156,7 @@ export function CasoHeader({ caso, userRol, userId, puedeEditar }: CasoHeaderPro
               className="bg-red-600 hover:bg-red-700"
             >
               <XCircle className="h-4 w-4 mr-2" />
-              Cerrar Caso
+              Cerrar Expediente
             </Button>
           )}
         </div>

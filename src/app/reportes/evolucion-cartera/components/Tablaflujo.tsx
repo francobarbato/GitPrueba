@@ -81,7 +81,7 @@ export function TablaFlujo({ datos }: { datos: PeriodoFlujo[] }) {
             </div>
             <div>
               <CardTitle className="text-lg font-bold text-slate-800">
-                Flujo de Casos por Período
+                Flujo de Expedientes por Período
               </CardTitle>
               <CardDescription>
                 Ingresos vs cierres mes a mes — ¿cerramos al ritmo que ingresamos?

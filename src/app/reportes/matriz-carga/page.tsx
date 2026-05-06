@@ -82,8 +82,8 @@ export type TareaBloqueadaDetalle = {
   caso: string | null
   casoId: string | null
   fechaVencimiento: string | null
-  diasBloqueada: number            // días reales desde que pasó a BLOQUEADA (vía bitácora)
-  fechaBloqueoISO: string | null   // timestamp del cambio a BLOQUEADA, null si no se encuentra en bitácora
+  diasBloqueada: number
+  fechaBloqueoISO: string | null
   responsable: string
 }
 
@@ -98,15 +98,10 @@ const TIPO_CASO_LABELS: Record<string, string> = {
 
 // ============================================================================
 // HELPER: días desde bloqueo real (vía bitácora)
-//
-// Busca la última entrada TAREA_ESTADO_CHANGE con estadoNuevo=BLOQUEADA para
-// cada tarea, y calcula cuántos días pasaron desde ese momento. Si no existe
-// registro en bitácora (p.ej. tareas pre-sistema de auditoría), cae a null.
 // ============================================================================
 async function obtenerFechaBloqueoMap(tareaIds: string[]): Promise<Map<string, Date>> {
   if (tareaIds.length === 0) return new Map()
 
-  // Traer todas las entradas de bitácora relevantes: cambios de estado a BLOQUEADA
   const entradas = await prisma.bitacora.findMany({
     where: {
       tareaId: { in: tareaIds },
@@ -117,7 +112,6 @@ async function obtenerFechaBloqueoMap(tareaIds: string[]): Promise<Map<string, D
     orderBy: { createdAt: "desc" },
   })
 
-  // Por cada tarea, nos quedamos con la entrada más reciente (ya ordenado desc)
   const mapa = new Map<string, Date>()
   for (const e of entradas) {
     if (!e.tareaId) continue
@@ -131,7 +125,6 @@ async function obtenerFechaBloqueoMap(tareaIds: string[]): Promise<Map<string, D
 // ============================================================================
 
 async function getMatrizCarga(abogadoId?: string) {
-  // 1. Expedientes activos con monto
   const whereCasos: any = { estaCerrado: false }
   if (abogadoId) whereCasos.abogadoId = abogadoId
 
@@ -144,7 +137,6 @@ async function getMatrizCarga(abogadoId?: string) {
     },
   })
 
-  // 2. Eventos activos (no terminales)
   const whereTareas: any = { estado: { notIn: ["COMPLETADA", "VENCIDA"] } }
   if (abogadoId) whereTareas.responsableId = abogadoId
 
@@ -159,7 +151,6 @@ async function getMatrizCarga(abogadoId?: string) {
     orderBy: { fechaVencimiento: "asc" },
   })
 
-  // 3. Eventos vencidos
   const whereTareasVencidas: any = { estado: "VENCIDA" }
   if (abogadoId) whereTareasVencidas.responsableId = abogadoId
 
@@ -171,7 +162,6 @@ async function getMatrizCarga(abogadoId?: string) {
     },
   })
 
-  // 4. Eventos próximos a vencer (7 días)
   const ahora = new Date()
   const en7dias = new Date()
   en7dias.setDate(ahora.getDate() + 7)
@@ -193,7 +183,6 @@ async function getMatrizCarga(abogadoId?: string) {
     orderBy: { fechaVencimiento: "asc" },
   })
 
-  // 5. Eventos bloqueados activos
   const whereTareasBloqueadas: any = { estado: "BLOQUEADA" }
   if (abogadoId) whereTareasBloqueadas.responsableId = abogadoId
 
@@ -208,10 +197,7 @@ async function getMatrizCarga(abogadoId?: string) {
     orderBy: { updatedAt: "desc" },
   })
 
-  // 6. Buscar en bitácora la fecha real de bloqueo de cada tarea bloqueada
   const fechaBloqueoMap = await obtenerFechaBloqueoMap(tareasBloqueadasRaw.map(t => t.id))
-
-  // ========== PANORAMA POR ABOGADO (vista general) ==========
 
   const abogadosMap = new Map<string, AbogadoPanorama>()
 
@@ -266,8 +252,6 @@ async function getMatrizCarga(abogadoId?: string) {
   const panoramaAbogados = Array.from(abogadosMap.values())
     .sort((a, b) => (b.casosActivos + b.tareasActivas) - (a.casosActivos + a.tareasActivas))
 
-  // ========== DETALLE PARA VISTA PERSONAL ==========
-
   const casosActivosDetalle: CasoActivoDetalle[] = casosActivos.map(c => ({
     id: c.id,
     numero: c.numero,
@@ -288,8 +272,6 @@ async function getMatrizCarga(abogadoId?: string) {
     fechaVencimiento: t.fechaVencimiento ? t.fechaVencimiento.toISOString() : null,
   }))
 
-  // ========== EVENTOS PRÓXIMOS A VENCER ==========
-
   const tareasProximas: TareaProximaVencer[] = tareasProximasRaw.map(t => ({
     id: t.id, titulo: t.titulo, tipo: t.tipo,
     responsable: t.responsable.nombre && t.responsable.apellido
@@ -300,11 +282,8 @@ async function getMatrizCarga(abogadoId?: string) {
     diasRestantes: Math.max(0, Math.ceil((t.fechaVencimiento!.getTime() - ahora.getTime()) / (1000 * 60 * 60 * 24))),
   }))
 
-  // ========== EVENTOS BLOQUEADOS ACTIVOS — con fecha real de bloqueo ==========
-
   const tareasBloqueadasDetalle: TareaBloqueadaDetalle[] = tareasBloqueadasRaw.map(t => {
     const fechaBloqueoReal = fechaBloqueoMap.get(t.id) ?? null
-    // Si tenemos bitácora, usamos esa fecha. Fallback a updatedAt para tareas pre-auditoría.
     const fechaReferencia = fechaBloqueoReal ?? t.updatedAt
     const diasBloqueada = Math.max(0, Math.floor((ahora.getTime() - fechaReferencia.getTime()) / (1000 * 60 * 60 * 24)))
     return {
@@ -324,14 +303,10 @@ async function getMatrizCarga(abogadoId?: string) {
     }
   })
 
-  // ========== KPIs ==========
-
   const totalCasosActivos = casosActivos.length
   const totalTareasActivas = tareasActivasRaw.length
   const totalCapital = casosActivos.reduce((s, c) => s + (c.montoDisputa ? Number(c.montoDisputa) : 0), 0)
   const totalVencidas = tareasVencidas.length
-
-  // ========== INSIGHTS ==========
 
   const abConMasCarga = panoramaAbogados.length > 0 ? panoramaAbogados[0] : null
   const abConMasCapital = panoramaAbogados.length > 0
@@ -339,9 +314,6 @@ async function getMatrizCarga(abogadoId?: string) {
   const porcentajeCapitalConcentrado = abConMasCapital && totalCapital > 0
     ? Math.round((abConMasCapital.capitalEnLitigio / totalCapital) * 100) : 0
 
-  // Umbral dinámico para "concentración anómala":
-  // si hay N personas con capital, el promedio natural es 100/N%.
-  // Solo es interesante si alguien tiene MUCHO más (al menos el doble del promedio o >= 50%).
   const personasConCapital = panoramaAbogados.filter(p => p.capitalEnLitigio > 0).length
   const umbralConcentracion = personasConCapital > 0
     ? Math.max(50, Math.round((100 / personasConCapital) * 2))
@@ -389,11 +361,13 @@ export default async function MatrizCargaPage({ searchParams }: PageProps) {
         <main className="flex-1 overflow-auto">
           <div className={`flex ${tieneProximas ? "xl:flex-row" : ""} flex-col`}>
 
-            {/* Panel "Próximas a vencer" — fijo a la izquierda en xl */}
+            {/* ═══ Panel "Próximas a vencer" — sidebar fijo a la izquierda en xl ═══
+                w-80 (320px) en línea con el ancho del Inicio.
+                sticky top-0 + max-h-screen para scroll interno cuando hay muchas tareas. */}
             {tieneProximas && (
-              <div className="hidden xl:block w-72 shrink-0 border-r border-slate-200 sticky top-0 self-start max-h-[calc(100vh-64px)] overflow-y-auto p-4">
+              <aside className="hidden xl:block w-80 shrink-0 border-r border-slate-200 bg-white/40 sticky top-0 self-start max-h-screen overflow-y-auto p-4">
                 <PanelProximasVencer data={datos.tareasProximas} />
-              </div>
+              </aside>
             )}
 
             {/* Contenido principal */}
@@ -415,21 +389,19 @@ export default async function MatrizCargaPage({ searchParams }: PageProps) {
 
                 <div className="mb-6"><ToggleVistaCarga vistaActual={vistaGeneral ? "general" : "personal"} /></div>
 
-                <KPICardsCarga data={datos.kpis} />
+                {vistaGeneral && <KPICardsCarga data={datos.kpis} />}
 
-                {/* Panel próximas — inline en pantallas chicas */}
+                {/* Panel próximas — inline en pantallas chicas (lg y abajo) */}
                 {tieneProximas && (
                   <div className="xl:hidden mb-6">
                     <PanelProximasVencer data={datos.tareasProximas} />
                   </div>
                 )}
 
-                {/* Vista general: tabla panorama con expand */}
                 {vistaGeneral && datos.panoramaAbogados.length > 0 && (
                   <TablaPanoramaAbogado data={datos.panoramaAbogados} vistaGeneral={true} />
                 )}
 
-                {/* Vista personal: desplegables a ancho completo */}
                 {!vistaGeneral && (
                   <DetalleCargaPersonal
                     casos={datos.casosActivosDetalle}
@@ -437,12 +409,10 @@ export default async function MatrizCargaPage({ searchParams }: PageProps) {
                   />
                 )}
 
-                {/* Tabla eventos bloqueados activos — solo vista personal */}
                 {!vistaGeneral && datos.tareasBloqueadasDetalle.length > 0 && (
                   <TablaBloqueadasActivas data={datos.tareasBloqueadasDetalle} />
                 )}
 
-                {/* Insights — solo vista general */}
                 {vistaGeneral && <PanelInsightsCarga data={datos.insights} />}
 
                 <div className="mt-8 p-4 bg-slate-100 border border-slate-200 rounded-lg">

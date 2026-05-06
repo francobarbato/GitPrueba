@@ -3,15 +3,17 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useSession } from "next-auth/react"
-import { 
-  FileText, PieChart, Users, Calendar, FileCheck, 
-  Calculator, UserPlus, Home, Menu, Settings, ShieldAlert 
+import {
+  FileText, PieChart, Users, Calendar, FileCheck,
+  Calculator, UserPlus, Home, Menu, Settings, ShieldAlert
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { useState } from "react"
 
-// Helpers... (mantenemos los tuyos)
+// ============================================================================
+// HELPERS DE ROL (sin cambios)
+// ============================================================================
 const isAdmin = (rol?: string) => rol?.toUpperCase() === 'ADMIN'
 const isAbogado = (rol?: string) => rol?.toUpperCase() === 'ABOGADO'
 const isAsistente = (rol?: string) => rol?.toUpperCase() === 'ASISTENTE'
@@ -31,89 +33,103 @@ const getMenuItems = (rol?: string) => {
   return items.filter(item => item.roles.includes(userRol || ''))
 }
 
+// ============================================================================
+// SIDEBAR DESKTOP — colapsable por click (patrón Claude)
+// ============================================================================
+// Estados:
+//   isCollapsed = true  → ancho 72px, solo íconos. Tooltip nativo al hover de cada ítem.
+//   isCollapsed = false → ancho 256px, íconos + texto.
+//
+// Toggle: solo por click en el botón de menú. NO se expande al hover del mouse.
+// Por defecto arranca contraído.
+// ============================================================================
+
 export function Sidebar() {
   const pathname = usePathname()
   const { data: session } = useSession()
   const userRol = session?.user?.rol ?? undefined
-  
-  // 1. CAMBIO CLAVE: Arranca contraído por defecto (true)
+
   const [isCollapsed, setIsCollapsed] = useState(true)
 
   const menuItems = getMenuItems(userRol)
 
   return (
-    <>
-      {/* 2. Se fijó el ancho a w-[72px] para dar más aire y que no se pegue al borde */}
-      <aside 
-        className={`hidden md:flex bg-card border-r min-h-screen flex-col transition-all duration-300 ease-in-out group relative z-50 ${
-          isCollapsed ? "w-[72px] hover:w-64 shadow-none hover:shadow-xl" : "w-64"
-        }`}
-      >
-        {/* Cabecera sin saltos */}
-        <div className="flex items-center h-16 px-4 border-b shrink-0 overflow-hidden">
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            className="shrink-0"
-          >
-            <Menu className="h-5 w-5" />
-          </Button>
-          <span className={`font-bold ml-3 whitespace-nowrap overflow-hidden transition-all duration-300 ${
-            isCollapsed ? "w-0 opacity-0 group-hover:w-auto group-hover:opacity-100" : "w-auto opacity-100"
-          }`}>
+    <aside
+      className={`hidden md:flex bg-card border-r min-h-screen flex-col transition-[width] duration-200 ease-in-out relative z-50 ${
+        isCollapsed ? "w-[72px]" : "w-64"
+      }`}
+    >
+      {/* Cabecera con el botón de toggle */}
+      <div className="flex items-center h-16 px-4 border-b shrink-0 overflow-hidden">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className="shrink-0"
+          title={isCollapsed ? "Expandir menú" : "Contraer menú"}
+        >
+          <Menu className="h-5 w-5" />
+        </Button>
+        {!isCollapsed && (
+          <span className="font-bold ml-3 whitespace-nowrap">
             Sistema Legal
           </span>
-        </div>
+        )}
+      </div>
 
-        <nav className="flex-1 py-4 px-2 overflow-hidden flex flex-col gap-1">
-          {/* Indicador de rol */}
-          {isAsistente(userRol) && (
-            <div className="mb-4 mx-2 flex items-center bg-amber-50 border border-amber-200 rounded-lg text-amber-700 text-xs p-2 overflow-hidden shrink-0">
-              <ShieldAlert className="w-4 h-4 shrink-0" />
-              <span className={`whitespace-nowrap overflow-hidden transition-all duration-300 ${
-                isCollapsed ? "w-0 opacity-0 group-hover:w-auto group-hover:opacity-100 group-hover:ml-2" : "w-auto opacity-100 ml-2"
-              }`}>
-                Modo Asistente
-              </span>
-            </div>
-          )}
+      <nav className="flex-1 py-4 px-2 overflow-hidden flex flex-col gap-1">
+        {/* Indicador de rol Asistente */}
+        {isAsistente(userRol) && (
+          <div
+            className="mb-4 mx-2 flex items-center bg-amber-50 border border-amber-200 rounded-lg text-amber-700 text-xs p-2 overflow-hidden shrink-0"
+            title={isCollapsed ? "Modo Asistente" : undefined}
+          >
+            <ShieldAlert className="w-4 h-4 shrink-0" />
+            {!isCollapsed && (
+              <span className="whitespace-nowrap ml-2">Modo Asistente</span>
+            )}
+          </div>
+        )}
 
-          {/* Menú de navegación */}
-          {menuItems.map((item) => {
-            const Icon = item.icon
-            const isActive = pathname === item.href || pathname.startsWith(item.href + "/")
+        {/* Menú de navegación.
+            Cuando está contraído, el atributo `title` muestra tooltip nativo
+            del navegador al pasar el mouse — sirve como hint sin animación. */}
+        {menuItems.map((item) => {
+          const Icon = item.icon
+          const isActive = pathname === item.href || pathname.startsWith(item.href + "/")
 
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                // 3. CAMBIO CLAVE: Eliminamos los justify-center/start que rompían el encuadre. 
-                // Usamos un padding consistente y mx-1.
-                className={`flex items-center mx-1 px-2 py-2.5 rounded-lg transition-all overflow-hidden ${
-                  isActive
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "hover:bg-muted text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {/* 4. Caja fija para el ícono: siempre mide lo mismo, garantizando alineación perfecta */}
-                <div className="w-8 flex items-center justify-center shrink-0">
-                  <Icon className="h-5 w-5" />
-                </div>
-                
-                <span className={`text-sm font-medium whitespace-nowrap transition-all duration-300 ${
-                  isCollapsed ? "w-0 opacity-0 group-hover:w-auto group-hover:opacity-100 group-hover:ml-2" : "w-auto opacity-100 ml-2"
-                }`}>
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              title={isCollapsed ? item.name : undefined}
+              className={`flex items-center mx-1 px-2 py-2.5 rounded-lg transition-colors overflow-hidden ${
+                isActive
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "hover:bg-muted text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {/* Caja fija de 32px para el ícono — alineación perfecta sin importar el estado */}
+              <div className="w-8 flex items-center justify-center shrink-0">
+                <Icon className="h-5 w-5" />
+              </div>
+
+              {!isCollapsed && (
+                <span className="text-sm font-medium whitespace-nowrap ml-2">
                   {item.name}
                 </span>
-              </Link>
-            )
-          })}
-        </nav>
-      </aside>
-    </>
+              )}
+            </Link>
+          )
+        })}
+      </nav>
+    </aside>
   )
 }
+
+// ============================================================================
+// MOBILE SIDEBAR (sin cambios — funcionaba bien)
+// ============================================================================
 
 export function MobileSidebar() {
   const pathname = usePathname()
@@ -137,7 +153,6 @@ export function MobileSidebar() {
           <p className="text-sm text-muted-foreground">Gestión de Casos</p>
         </div>
         <nav className="p-4">
-          {/* Indicador de rol */}
           {isAsistente(userRol) && (
             <div className="mb-4 p-2 bg-amber-50 border border-amber-200 rounded-lg text-amber-700 text-xs flex items-center gap-2">
               <ShieldAlert className="w-4 h-4" />

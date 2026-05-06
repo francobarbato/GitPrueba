@@ -401,219 +401,579 @@ async function main() {
   // ============================================================
   // 6.5. GESTIÓN DE TAREAS (Agenda y Seguimiento)
   // ============================================================
-  console.log("📅 Generando tareas para análisis de reportes...");
-  
+console.log("📅 Generando tareas v4 (dispersión temporal, bitácoras unificadas)...");
+ 
   const casosDB = await prisma.caso.findMany();
   const getCasoAzar = (abogadoId) => {
     const filtrados = casosDB.filter(c => c.abogadoId === abogadoId);
     return filtrados.length > 0 ? filtrados[Math.floor(Math.random() * filtrados.length)] : null;
   };
-
+ 
   const tareasGeneradas = [];
   let comentariosGenerados = 0;
   let lecturasGeneradas = 0;
-
+  let edicionesGeneradas = 0;
+ 
   // Helpers de fechas precisos
   const hoyMs = Date.now();
   const fecha = (diasAtras) => new Date(hoyMs - diasAtras * 24 * 60 * 60 * 1000);
   const fechaFutura = (diasAdelante) => new Date(hoyMs + diasAdelante * 24 * 60 * 60 * 1000);
-
-  // Perfiles para el generador
-  const usuariosTareas = [
-    { id: 'u-hernan', peso: 30 }, { id: 'u-agustin', peso: 15 },
-    { id: 'u-mario', peso: 15 }, { id: 'u-laura', peso: 10 },
-    { id: 'u-asistente', peso: 10 } // Valentina
-  ];
-  
-  const getResponsableAzar = () => {
-    const rand = Math.random() * 80;
-    let sum = 0;
-    for (let u of usuariosTareas) {
-      sum += u.peso;
-      if (rand <= sum) return u.id;
-    }
-    return 'u-hernan';
-  };
-
+  const random = (min, max) => min + Math.random() * (max - min);
+  const randomInt = (min, max) => Math.floor(random(min, max + 1));
+  const pickArr = (arr) => arr[randomInt(0, arr.length - 1)];
+ 
+  // ──────────────────────────────────────────────────────────────────
   // Plantillas de títulos por categoría
+  // ──────────────────────────────────────────────────────────────────
   const titulos = {
     AUDIENCIA: ['Audiencia testimonial', 'Audiencia de conciliación', 'Audiencia preliminar', 'Audiencia de vista de causa', 'Asistencia a mediación'],
     PRESENTACION_ESCRITO: ['Contestar demanda', 'Presentar alegatos', 'Presentar liquidación', 'Contestar traslado', 'Presentar documental'],
     NOTIFICACION_CEDULA: ['Diligenciar cédula', 'Notificar sentencia', 'Enviar carta documento', 'Notificar traslado'],
     CONTROL_EXPEDIENTE: ['Revisar proveídos', 'Controlar paralización', 'Verificar estado en juzgado', 'Controlar oficios'],
     PERICIA_PRUEBA: ['Acompañar perito', 'Impugnar pericia', 'Controlar puntos de pericia'],
+    APELACION_RECURSO: ['Presentar recurso de apelación', 'Fundamentar apelación', 'Contestar agravios'],
     REUNION_CLIENTE: ['Reunión de actualización', 'Reunión inicial', 'Firma de documentos', 'Reunión por estrategia'],
     REUNION_EQUIPO: ['Alineación de casos', 'Revisión semanal', 'Reunión de socios'],
     REDACCION_DOCUMENTACION: ['Redactar contrato', 'Preparar acuerdo', 'Redactar convenio', 'Armar poder'],
     REQUERIMIENTO_CLIENTE: ['Pedir DNI y CUIT', 'Solicitar comprobantes', 'Pedir testigos'],
-    TRAMITE_ADMINISTRATIVO: ['Abonar tasa de justicia', 'Legalizar firma en colegio', 'Trámite en AFIP']
+    TRAMITE_ADMINISTRATIVO: ['Abonar tasa de justicia', 'Legalizar firma en colegio', 'Trámite en AFIP'],
+    GESTION_FINANCIERA: ['Liquidación de honorarios', 'Cobro a cliente', 'Pago de gastos judiciales'],
+    VENCIMIENTO_PLAZO: ['Vence plazo de prueba', 'Vence término traslado', 'Vence cómputo procesal'],
   };
+ 
+  const motivosBloqueo = [
+    'Falta documentación del cliente',
+    'Juzgado de paro',
+    'Perito no contestó',
+    'A la espera de oficio del Banco Central',
+    'Sistema del Poder Judicial caído',
+    'Cliente no responde llamadas',
+    'Esperando respuesta de la contraparte',
+  ];
+ 
+  const motivosCierreVencida = [
+    'El socio decidió darla por perdida',
+    'El plazo ya no tiene sentido procesal',
+    'La contraparte retiró la demanda',
+    'Se renegoció con el cliente, ya no aplica',
+  ];
 
-  // Lógica de creación de 80 tareas exactas
-  for (let i = 0; i < 80; i++) {
-    const responsableId = getResponsableAzar();
-    const esAsistente = responsableId === 'u-asistente';
-    const caso = getCasoAzar(esAsistente ? 'u-hernan' : responsableId); // Valentina asiste a Hernan
-    
-    // Forzar proporciones de Tipo y Categoría (Dominio de Audiencias y Procesales)
-    let tipo = (i < 48) ? 'PROCESAL' : 'INTERNA'; // 60% procesal
-    let categoria;
-    
-    if (tipo === 'PROCESAL') {
-      const cats = ['AUDIENCIA', 'AUDIENCIA', 'AUDIENCIA', 'PRESENTACION_ESCRITO', 'PRESENTACION_ESCRITO', 'NOTIFICACION_CEDULA', 'CONTROL_EXPEDIENTE', 'PERICIA_PRUEBA'];
-      categoria = cats[Math.floor(Math.random() * cats.length)];
-    } else {
-      const cats = ['REUNION_CLIENTE', 'REDACCION_DOCUMENTACION', 'REQUERIMIENTO_CLIENTE', 'TRAMITE_ADMINISTRATIVO', 'REUNION_EQUIPO'];
-      categoria = esAsistente ? 'TRAMITE_ADMINISTRATIVO' : cats[Math.floor(Math.random() * cats.length)];
+  function generarPerfilTemporal(diasInicio, perfilEstado) {
+    const fechaInicio = fecha(diasInicio);
+    let fechaVto, fechaComp, fechaCierreVencida, motivoCierreVencida;
+ 
+    switch (perfilEstado) {
+      case 'COMPLETADA_EN_PLAZO': {
+        // Tarea con vto entre días iniciales y "ahora", completada antes del vto
+        const diasHastaVto = Math.max(7, Math.floor(diasInicio * 0.5)); // medio camino
+        fechaVto = fecha(diasInicio - diasHastaVto);
+        // completada 2-5 días antes del vencimiento
+        const diasAntes = randomInt(1, 5);
+        fechaComp = new Date(fechaVto.getTime() - diasAntes * 24 * 60 * 60 * 1000);
+        break;
+      }
+      case 'COMPLETADA_CON_DEMORA': {
+        const diasHastaVto = Math.max(7, Math.floor(diasInicio * 0.4));
+        fechaVto = fecha(diasInicio - diasHastaVto);
+        // completada 3-15 días DESPUÉS del vencimiento
+        const diasDespues = randomInt(3, 15);
+        fechaComp = new Date(fechaVto.getTime() + diasDespues * 24 * 60 * 60 * 1000);
+        // pero no en el futuro
+        if (fechaComp > new Date()) fechaComp = fecha(1);
+        break;
+      }
+      case 'VENCIDA_RECIENTE': {
+        // venció hace 1-25 días
+        const diasVencida = randomInt(1, 25);
+        fechaVto = fecha(diasVencida);
+        fechaComp = null;
+        break;
+      }
+      case 'VENCIDA_ANTIGUA': {
+        // venció hace 35-90 días → cae al histórico por time-boxing (>30d)
+        const diasVencida = randomInt(35, 90);
+        fechaVto = fecha(diasVencida);
+        fechaComp = null;
+        break;
+      }
+      case 'VENCIDA_CERRADA': {
+        // venció hace 10-50 días, se cerró 5-15 días después
+        const diasVencida = randomInt(10, 50);
+        fechaVto = fecha(diasVencida);
+        const diasDesdeQueSeCerro = Math.max(1, diasVencida - randomInt(5, 15));
+        fechaCierreVencida = fecha(diasDesdeQueSeCerro);
+        motivoCierreVencida = pickArr(motivosCierreVencida);
+        fechaComp = null;
+        break;
+      }
+      case 'PENDIENTE':
+      case 'EN_PROCESO':
+      case 'BLOQUEADA': {
+        // activa, vence en el futuro entre 1 y 21 días
+        fechaVto = fechaFutura(randomInt(1, 21));
+        fechaComp = null;
+        break;
+      }
     }
+ 
+    return { fechaInicio, fechaVto, fechaComp, fechaCierreVencida, motivoCierreVencida };
+  }
 
-    const titulo = titulos[categoria][Math.floor(Math.random() * titulos[categoria].length)];
-    const ambito = (categoria === 'AUDIENCIA' || categoria === 'TRAMITE_ADMINISTRATIVO' || categoria === 'NOTIFICACION_CEDULA') ? 'EXTERNO' : 'INTERNO';
+   const ABOGADOS = ['u-hernan', 'u-agustin', 'u-mario', 'u-laura'];
+  const ASISTENTE = 'u-asistente';
+ 
+  // Helper para crear plantillas en lote
+  const plantillas = [];
+ 
+  // === ALERTAS GARANTIZADAS — al menos 1 por abogado ===
+  // 1 FATAL vencida cada uno (4 tareas)
+  ABOGADOS.forEach(ab => {
+    plantillas.push({
+      diasInicio: randomInt(20, 40),
+      perfilEstado: 'VENCIDA_RECIENTE',
+      prioridad: 'FATAL',
+      tipo: 'PROCESAL',
+      categoria: pickArr(['AUDIENCIA', 'PRESENTACION_ESCRITO', 'APELACION_RECURSO']),
+      responsableId: ab,
+    });
+  });
+ 
+  // 2 BLOQUEADAS con motivos variados cada uno (8 tareas)
+  ABOGADOS.forEach(ab => {
+    for (let k = 0; k < 2; k++) {
+      plantillas.push({
+        diasInicio: randomInt(15, 60),
+        perfilEstado: 'BLOQUEADA',
+        prioridad: pickArr(['ALTA', 'MEDIA']),
+        tipo: pickArr(['PROCESAL', 'INTERNA']),
+        categoria: null, // se elige según tipo
+        responsableId: ab,
+      });
+    }
+  });
+ 
+  // 1 COMPLETADA_CON_DEMORA larga cada uno (4 tareas)
+  ABOGADOS.forEach(ab => {
+    plantillas.push({
+      diasInicio: randomInt(60, 120),
+      perfilEstado: 'COMPLETADA_CON_DEMORA',
+      prioridad: pickArr(['ALTA', 'MEDIA']),
+      tipo: pickArr(['PROCESAL', 'INTERNA']),
+      categoria: null,
+      responsableId: ab,
+    });
+  });
+ 
+  // 1 VENCIDA_ANTIGUA cada uno (4 tareas) — caen al histórico
+  ABOGADOS.forEach(ab => {
+    plantillas.push({
+      diasInicio: randomInt(80, 180),
+      perfilEstado: 'VENCIDA_ANTIGUA',
+      prioridad: pickArr(['ALTA', 'MEDIA', 'BAJA']),
+      tipo: pickArr(['PROCESAL', 'INTERNA']),
+      categoria: null,
+      responsableId: ab,
+    });
+  });
+ 
+  // 1 VENCIDA_CERRADA cada uno (4 tareas) — cierre manual con motivo
+  ABOGADOS.forEach(ab => {
+    plantillas.push({
+      diasInicio: randomInt(50, 150),
+      perfilEstado: 'VENCIDA_CERRADA',
+      prioridad: pickArr(['MEDIA', 'BAJA']),
+      tipo: pickArr(['PROCESAL', 'INTERNA']),
+      categoria: null,
+      responsableId: ab,
+    });
+  });
+ 
+  // === Hasta acá: 24 plantillas garantizadas ===
+  // === Faltan 66 para llegar a 90 ===
+ 
+  // Distribución del resto: respetando proporciones por abogado
+  // Hernán 23 - 6 garantizadas = 17 más
+  // Agustín 20 - 6 garantizadas = 14 más
+  // Mario 20 - 6 garantizadas = 14 más
+  // Laura 20 - 6 garantizadas = 14 más
+  // Asistente 7 - 0 garantizadas = 7 más
+  const restantesPorAbogado = {
+    'u-hernan':    17,
+    'u-agustin':   14,
+    'u-mario':     14,
+    'u-laura':     14,
+    'u-asistente':  7,
+  };
+ 
+  // Distribución temporal del resto: 31% recientes, 36% trimestre, 33% semestre
+  // De los 66 restantes: ~20 recientes (0-30d), ~24 trimestre (30-90d), ~22 semestre (90-180d)
+  const distribucionTemporal = [
+    ...Array(20).fill('reciente'),    // 0-30 días
+    ...Array(24).fill('trimestre'),   // 30-90 días
+    ...Array(22).fill('semestre'),    // 90-180 días
+  ];
+  // Mezclar para variar
+  for (let i = distribucionTemporal.length - 1; i > 0; i--) {
+    const j = randomInt(0, i);
+    [distribucionTemporal[i], distribucionTemporal[j]] = [distribucionTemporal[j], distribucionTemporal[i]];
+  }
+ 
+  // Distribución de estados para los restantes (66 tareas):
+  // Activas (PENDIENTE/EN_PROCESO): mayoría en recientes
+  // COMPLETADAS: mezcla de recientes y antiguas
+  // VENCIDAS adicionales: pocas, ya tenemos garantizadas
+  // BLOQUEADAS adicionales: pocas, ya tenemos garantizadas
+  const perfilesRestantes = [
+    ...Array(22).fill('COMPLETADA_EN_PLAZO'),
+    ...Array(8).fill('COMPLETADA_CON_DEMORA'),
+    ...Array(7).fill('VENCIDA_RECIENTE'),
+    ...Array(13).fill('PENDIENTE'),
+    ...Array(9).fill('EN_PROCESO'),
+    ...Array(7).fill('BLOQUEADA'),
+  ];
+  // Mezclar
+  for (let i = perfilesRestantes.length - 1; i > 0; i--) {
+    const j = randomInt(0, i);
+    [perfilesRestantes[i], perfilesRestantes[j]] = [perfilesRestantes[j], perfilesRestantes[i]];
+  }
+ 
+  let idxTemporal = 0;
+  let idxPerfil = 0;
+ 
+  // Construir plantillas restantes respetando cuota por abogado
+  Object.entries(restantesPorAbogado).forEach(([abogado, cantidad]) => {
+    for (let k = 0; k < cantidad; k++) {
+      const bucketTemporal = distribucionTemporal[idxTemporal++] || 'reciente';
+      const perfilEstado = perfilesRestantes[idxPerfil++] || 'PENDIENTE';
+ 
+      let diasInicio;
+      if (bucketTemporal === 'reciente') diasInicio = randomInt(1, 30);
+      else if (bucketTemporal === 'trimestre') diasInicio = randomInt(31, 90);
+      else diasInicio = randomInt(91, 180);
+ 
+      // Si el perfil es COMPLETADA o VENCIDA, asegurar que diasInicio sea
+      // suficiente para que la tarea haya tenido tiempo de cerrarse.
+      if (perfilEstado.startsWith('COMPLETADA') && diasInicio < 7) diasInicio = randomInt(7, 30);
+      if (perfilEstado.startsWith('VENCIDA') && diasInicio < 5) diasInicio = randomInt(5, 30);
+ 
+      // El asistente solo hace tareas internas administrativas
+      const esAsistente = abogado === ASISTENTE;
+      const tipo = esAsistente ? 'INTERNA' : pickArr(['PROCESAL', 'PROCESAL', 'INTERNA']); // 66% procesal
+      const prioridad = pickArr(['ALTA', 'MEDIA', 'MEDIA', 'BAJA']);
+ 
+      plantillas.push({
+        diasInicio,
+        perfilEstado,
+        prioridad,
+        tipo,
+        categoria: null,
+        responsableId: abogado,
+      });
+    }
+  });
+ 
+  console.log(`   📋 Plantillas armadas: ${plantillas.length}`);
+ 
+  // ──────────────────────────────────────────────────────────────────
+  // CREACIÓN DE TAREAS
+  // ──────────────────────────────────────────────────────────────────
+  for (const p of plantillas) {
+    // Resolver categoría si es null
+    let categoria = p.categoria;
+    if (!categoria) {
+      if (p.tipo === 'PROCESAL') {
+        const cats = ['AUDIENCIA', 'PRESENTACION_ESCRITO', 'NOTIFICACION_CEDULA',
+                      'CONTROL_EXPEDIENTE', 'PERICIA_PRUEBA', 'APELACION_RECURSO'];
+        categoria = pickArr(cats);
+      } else {
+        const cats = ['REUNION_CLIENTE', 'REDACCION_DOCUMENTACION', 'REQUERIMIENTO_CLIENTE',
+                      'TRAMITE_ADMINISTRATIVO', 'REUNION_EQUIPO', 'GESTION_FINANCIERA'];
+        categoria = p.responsableId === ASISTENTE ? 'TRAMITE_ADMINISTRATIVO' : pickArr(cats);
+      }
+    }
+ 
+    const titulo = pickArr(titulos[categoria] || ['Evento sin título']);
+    const ambito = (categoria === 'AUDIENCIA' || categoria === 'TRAMITE_ADMINISTRATIVO' ||
+                    categoria === 'NOTIFICACION_CEDULA') ? 'EXTERNO' : 'INTERNO';
     const ubicacion = ambito === 'EXTERNO' ? 'Tribunales / Calle' : 'Estudio / Virtual';
-
-    // Proporciones de Estado y Prioridad
-    let estado, prioridad, fechaInicio, fechaVto, fechaComp, motivoBloqueo;
-    
-    if (i < 20) {
-      // COMPLETADA EN PLAZO (25%) -> verde
-      estado = 'COMPLETADA'; prioridad = ['MEDIA', 'BAJA'][Math.floor(Math.random()*2)];
-      fechaInicio = fecha(20 + Math.random() * 10);
-      fechaVto = fecha(10 + Math.random() * 5); // Vencía hace 10 dias
-      fechaComp = fecha(12 + Math.random() * 3); // Se completó hace 12 (antes)
-    } else if (i < 30) {
-      // COMPLETADA CON DEMORA (12%) -> amarillo
-      estado = 'COMPLETADA'; prioridad = ['ALTA', 'MEDIA'][Math.floor(Math.random()*2)];
-      fechaInicio = fecha(30 + Math.random() * 10);
-      fechaVto = fecha(25 + Math.random() * 5); // Vencía hace 25 dias
-      fechaComp = fecha(15 + Math.random() * 5); // Se completó hace 15 (después del vto)
-    } else if (i < 45) {
-      // VENCIDA SIN COMPLETAR (18%) -> rojo urgente
-      estado = 'VENCIDA'; prioridad = ['FATAL', 'ALTA', 'ALTA'][Math.floor(Math.random()*3)];
-      fechaInicio = fecha(15 + Math.random() * 5);
-      fechaVto = fecha(Math.random() * 5 + 1); // Venció hace 1 a 6 días
-      fechaComp = null;
-    } else if (i < 60) {
-      // PENDIENTES ACTIVAS (18%) -> grises / próximos
-      estado = 'PENDIENTE'; prioridad = ['MEDIA', 'BAJA'][Math.floor(Math.random()*2)];
-      fechaInicio = fecha(Math.random() * 3);
-      fechaVto = fechaFutura(Math.random() * 7 + 1); // Vencen en 1 a 8 días
-      fechaComp = null;
-    } else if (i < 70) {
-      // EN_PROCESO (12%) -> azules
-      estado = 'EN_PROCESO'; prioridad = ['ALTA', 'MEDIA'][Math.floor(Math.random()*2)];
-      fechaInicio = fecha(Math.random() * 5 + 2);
-      fechaVto = fechaFutura(Math.random() * 5 + 2);
-      fechaComp = null;
-    } else {
-      // BLOQUEADAS (12%) -> alertas
-      estado = 'BLOQUEADA'; prioridad = ['ALTA', 'MEDIA'][Math.floor(Math.random()*2)];
-      fechaInicio = fecha(15 + Math.random() * 5);
-      fechaVto = fechaFutura(Math.random() * 10);
-      fechaComp = null;
-      const motivos = ['Falta documentación del cliente', 'Juzgado de paro', 'Perito no contestó', 'A la espera de oficio', 'Sistema del Poder Judicial caído'];
-      motivoBloqueo = motivos[Math.floor(Math.random() * motivos.length)];
-    }
-
-    // Crear la tarea en la BD
+ 
+    // Asistente trabaja sobre casos de Hernán (su jefe)
+    const esAsistente = p.responsableId === ASISTENTE;
+    const casoTarget = esAsistente ? 'u-hernan' : p.responsableId;
+    const caso = getCasoAzar(casoTarget);
+ 
+    // Generar fechas según perfil
+    const tiempo = generarPerfilTemporal(p.diasInicio, p.perfilEstado);
+ 
+    // Estado final según perfil
+    let estado;
+    if (p.perfilEstado.startsWith('COMPLETADA')) estado = 'COMPLETADA';
+    else if (p.perfilEstado.startsWith('VENCIDA')) estado = 'VENCIDA';
+    else estado = p.perfilEstado;
+ 
+    // Motivo de bloqueo si aplica
+    const motivoBloqueo = estado === 'BLOQUEADA' ? pickArr(motivosBloqueo) : null;
+ 
+    // Crear tarea
     const tarea = await prisma.tarea.create({
       data: {
-        titulo: `${titulo} ${caso ? '- ' + caso.numero : ''}`,
-        descripcion: `Descripción autogenerada para auditar dashboard. Tarea de naturaleza ${tipo}.`,
-        tipo: tipo,
+        titulo: `${titulo}${caso ? ' - ' + caso.numero : ''}`,
+        descripcion: `Evento autogenerado para análisis. Naturaleza ${p.tipo}.`,
+        tipo: p.tipo,
         categoria: categoria,
         ambito: ambito,
-        prioridad: prioridad,
+        prioridad: p.prioridad,
         estado: estado,
-        motivoBloqueo: motivoBloqueo || null,
-        fechaInicio: fechaInicio,
-        fechaVencimiento: fechaVto,
-        fechaCompletada: fechaComp,
+        motivoBloqueo: motivoBloqueo,
+        fechaInicio: tiempo.fechaInicio,
+        fechaVencimiento: tiempo.fechaVto,
+        fechaCompletada: tiempo.fechaComp,
+        vencidaCerradaEn: tiempo.fechaCierreVencida || null,
+        vencidaCerradaPorId: tiempo.fechaCierreVencida ? p.responsableId : null,
+        motivoCierreVencida: tiempo.motivoCierreVencida || null,
         lugarFisico: ubicacion,
         casoId: caso ? caso.id : null,
         clienteId: caso ? caso.clienteId : null,
-        creadorId: esAsistente ? 'u-hernan' : responsableId, // Hernán le crea a Valentina
-        responsableId: responsableId,
+        creadorId: esAsistente ? 'u-hernan' : p.responsableId,
+        responsableId: p.responsableId,
         supervisorId: esAsistente ? 'u-hernan' : null,
-        createdAt: fechaInicio,
+        createdAt: tiempo.fechaInicio, // ✅ consistente con dispersión temporal
       }
     });
     tareasGeneradas.push(tarea);
-
-    // ==========================================
-    // BITÁCORAS DE TAREA (Para el historial)
-    // ==========================================
-    // 1. Tarea Creada
+ 
+    // ════════════════════════════════════════════════════════════════
+    // BITÁCORAS — nombres unificados (sin legacy)
+    // ════════════════════════════════════════════════════════════════
+ 
+    // 1. Creación
     await prisma.bitacora.create({
       data: {
-        tareaId: tarea.id, usuarioId: tarea.creadorId, accion: 'CREATE',
+        tareaId: tarea.id, usuarioId: tarea.creadorId,
+        accion: 'TAREA_CREADA',
         estadoAnterior: null, estadoNuevo: 'PENDIENTE',
-        texto: `Tarea creada y asignada.`, tipo: 'sistema', createdAt: fechaInicio,
+        texto: `Tarea creada y asignada.`,
+        detalle: `Tipo: ${p.tipo} | Prioridad: ${p.prioridad} | Responsable: ${p.responsableId}`,
+        tipo: 'sistema',
+        createdAt: tiempo.fechaInicio,
       }
     });
-
-    // 2. Transiciones
+ 
+    // 2. Transiciones según estado final
     if (estado === 'COMPLETADA') {
+      // Una tarea completada típicamente fue PENDIENTE → EN_PROCESO → COMPLETADA
+      const fechaEnProceso = new Date(tiempo.fechaInicio.getTime() + randomInt(1, 5) * 24 * 60 * 60 * 1000);
       await prisma.bitacora.create({
         data: {
-          tareaId: tarea.id, usuarioId: tarea.responsableId, accion: 'ESTADO_CHANGE',
-          estadoAnterior: 'PENDIENTE', estadoNuevo: 'COMPLETADA',
-          texto: `Tarea marcada como completada.`, tipo: 'sistema', createdAt: fechaComp,
+          tareaId: tarea.id, usuarioId: p.responsableId,
+          accion: 'TAREA_ESTADO_CHANGE',
+          estadoAnterior: 'PENDIENTE', estadoNuevo: 'EN_PROCESO',
+          texto: 'Se comenzó a trabajar en la tarea.',
+          tipo: 'sistema',
+          createdAt: fechaEnProceso,
+        }
+      });
+ 
+      // Si fue completada con demora, usamos la acción específica
+      const accionCompletado = p.perfilEstado === 'COMPLETADA_CON_DEMORA'
+        ? 'TAREA_COMPLETADA_CON_DEMORA'
+        : 'TAREA_ESTADO_CHANGE';
+ 
+      await prisma.bitacora.create({
+        data: {
+          tareaId: tarea.id, usuarioId: p.responsableId,
+          accion: accionCompletado,
+          estadoAnterior: 'EN_PROCESO',
+          estadoNuevo: 'COMPLETADA',
+          texto: p.perfilEstado === 'COMPLETADA_CON_DEMORA'
+            ? 'Tarea completada con demora.'
+            : 'Tarea completada en plazo.',
+          tipo: 'sistema',
+          createdAt: tiempo.fechaComp,
+        }
+      });
+    } else if (estado === 'VENCIDA' && tiempo.fechaCierreVencida) {
+      // Vencida cerrada manualmente
+      await prisma.bitacora.create({
+        data: {
+          tareaId: tarea.id, usuarioId: p.responsableId,
+          accion: 'TAREA_VENCIDA_CERRADA_MANUAL',
+          estadoAnterior: 'VENCIDA', estadoNuevo: 'VENCIDA',
+          texto: `Vencida cerrada manualmente: ${tiempo.motivoCierreVencida}`,
+          detalle: tiempo.motivoCierreVencida,
+          tipo: 'manual',
+          createdAt: tiempo.fechaCierreVencida,
         }
       });
     } else if (estado === 'BLOQUEADA') {
+      // Bloqueada: PENDIENTE → EN_PROCESO → BLOQUEADA
+      const fechaEnProceso = new Date(tiempo.fechaInicio.getTime() + randomInt(1, 4) * 24 * 60 * 60 * 1000);
+      const fechaBloqueo = new Date(fechaEnProceso.getTime() + randomInt(1, 7) * 24 * 60 * 60 * 1000);
+ 
       await prisma.bitacora.create({
         data: {
-          tareaId: tarea.id, usuarioId: tarea.responsableId, accion: 'ESTADO_CHANGE',
-          estadoAnterior: 'EN_PROCESO', estadoNuevo: 'BLOQUEADA', detalle: motivoBloqueo,
-          texto: `Tarea bloqueada: ${motivoBloqueo}`, tipo: 'sistema', createdAt: fecha(5),
+          tareaId: tarea.id, usuarioId: p.responsableId,
+          accion: 'TAREA_ESTADO_CHANGE',
+          estadoAnterior: 'PENDIENTE', estadoNuevo: 'EN_PROCESO',
+          texto: 'Se comenzó a trabajar en la tarea.',
+          tipo: 'sistema',
+          createdAt: fechaEnProceso,
+        }
+      });
+      await prisma.bitacora.create({
+        data: {
+          tareaId: tarea.id, usuarioId: p.responsableId,
+          accion: 'TAREA_ESTADO_CHANGE',
+          estadoAnterior: 'EN_PROCESO', estadoNuevo: 'BLOQUEADA',
+          texto: `Tarea bloqueada: ${motivoBloqueo}`,
+          detalle: motivoBloqueo,
+          tipo: 'manual',
+          createdAt: fechaBloqueo,
         }
       });
     } else if (estado === 'EN_PROCESO') {
+      const fechaEnProceso = new Date(tiempo.fechaInicio.getTime() + randomInt(1, 3) * 24 * 60 * 60 * 1000);
       await prisma.bitacora.create({
         data: {
-          tareaId: tarea.id, usuarioId: tarea.responsableId, accion: 'ESTADO_CHANGE',
+          tareaId: tarea.id, usuarioId: p.responsableId,
+          accion: 'TAREA_ESTADO_CHANGE',
           estadoAnterior: 'PENDIENTE', estadoNuevo: 'EN_PROCESO',
-          texto: `Se comenzó a trabajar en la tarea.`, tipo: 'sistema', createdAt: fecha(2),
+          texto: 'Se comenzó a trabajar en la tarea.',
+          tipo: 'sistema',
+          createdAt: fechaEnProceso,
         }
       });
     }
-
-    // ==========================================
-    // COMENTARIOS Y LECTURAS
-    // ==========================================
-    // Vamos a agregar comentarios simulando conversaciones si tiene supervisor o es bloqueada
-    if ((tarea.supervisorId || estado === 'BLOQUEADA') && Math.random() > 0.5) {
-      const msj1 = estado === 'BLOQUEADA' ? 'Doctor, el juzgado no me recibe el escrito por el paro.' : 'Ya preparé el borrador, ¿lo revisa?';
-      const comentario = await prisma.comentarioTarea.create({
-        data: {
-          texto: msj1, tareaId: tarea.id, autorId: tarea.responsableId, createdAt: fecha(3)
-        }
-      });
-      comentariosGenerados++;
-
-      if (estado !== 'BLOQUEADA') {
-        await prisma.comentarioTarea.create({
+ 
+    // ════════════════════════════════════════════════════════════════
+    // EDICIONES SIMULADAS — bitácora de TAREA_EDITADA en algunas
+    // ════════════════════════════════════════════════════════════════
+    // ~25% de tareas reciben una edición posterior a su creación.
+    // Esto le da data al reporte de cumplimiento para la columna "ediciones".
+    if (Math.random() < 0.25) {
+      const fechaEdicion = new Date(tiempo.fechaInicio.getTime() + randomInt(2, 10) * 24 * 60 * 60 * 1000);
+      // No editar en el futuro
+      if (fechaEdicion < new Date()) {
+        const tipoEdicion = pickArr([
+          { detalle: `Prioridad cambiada a ${p.prioridad}`, texto: 'Prioridad ajustada' },
+          { detalle: 'Fecha de vencimiento extendida 5 días', texto: 'Plazo reagendado' },
+          { detalle: 'Descripción actualizada', texto: 'Descripción modificada' },
+          { detalle: 'Lugar/modalidad actualizada', texto: 'Modalidad ajustada' },
+        ]);
+        await prisma.bitacora.create({
           data: {
-            texto: 'Excelente, lo reviso y lo presento hoy mismo. Buen trabajo.',
-            tareaId: tarea.id, autorId: tarea.supervisorId || 'u-hernan', 
-            citaComentarioId: comentario.id, createdAt: fecha(2)
+            tareaId: tarea.id,
+            usuarioId: tarea.creadorId, // el creador es quien suele editar
+            accion: 'TAREA_EDITADA',
+            texto: tipoEdicion.texto,
+            detalle: tipoEdicion.detalle,
+            tipo: 'manual',
+            createdAt: fechaEdicion,
+          }
+        });
+        edicionesGeneradas++;
+      }
+    }
+ 
+    // ════════════════════════════════════════════════════════════════
+    // COMENTARIOS Y LECTURAS
+    // ════════════════════════════════════════════════════════════════
+    // Probabilidad: tareas con supervisor o bloqueadas → 70% de tener comentarios.
+    // Resto → 30%.
+    const probComentarios = (tarea.supervisorId || estado === 'BLOQUEADA') ? 0.7 : 0.3;
+    if (Math.random() < probComentarios) {
+      const fechaComentario1 = new Date(tiempo.fechaInicio.getTime() + randomInt(1, 5) * 24 * 60 * 60 * 1000);
+      if (fechaComentario1 < new Date()) {
+        const msj1 = estado === 'BLOQUEADA'
+          ? `Doctor, ${motivoBloqueo.toLowerCase()}. ¿Cómo seguimos?`
+          : pickArr([
+              'Ya preparé el borrador, ¿lo revisa?',
+              'Estoy esperando que el cliente firme.',
+              'Logré contactar al perito, espera novedades pronto.',
+              'Tengo dudas con el alegato, le mando lo redactado.',
+            ]);
+        const comentario = await prisma.comentarioTarea.create({
+          data: {
+            texto: msj1, tareaId: tarea.id, autorId: tarea.responsableId,
+            createdAt: fechaComentario1,
           }
         });
         comentariosGenerados++;
-      }
-
-      // Lectura para simular notificaciones no leídas
-      await prisma.tareaLectura.create({
-        data: {
-          userId: tarea.responsableId, tareaId: tarea.id, ultimaLectura: fecha(10) // Lectura vieja, genera notificacion
+ 
+        // Respuesta del supervisor / creador (~70% si hay primer comentario)
+        if (Math.random() < 0.7) {
+          const fechaComentario2 = new Date(fechaComentario1.getTime() + randomInt(1, 3) * 24 * 60 * 60 * 1000);
+          if (fechaComentario2 < new Date()) {
+            const msj2 = estado === 'BLOQUEADA'
+              ? 'Anotado. Insisto la semana que viene, mientras tanto seguí con otras tareas.'
+              : pickArr([
+                  'Excelente, lo reviso y te aviso.',
+                  'Buen trabajo, dale para adelante.',
+                  'Recibido. Pasame el documento por mail.',
+                  'OK, modifiquemos la prioridad.',
+                ]);
+            await prisma.comentarioTarea.create({
+              data: {
+                texto: msj2, tareaId: tarea.id,
+                autorId: tarea.supervisorId || tarea.creadorId,
+                citaComentarioId: comentario.id,
+                createdAt: fechaComentario2,
+              }
+            });
+            comentariosGenerados++;
+          }
         }
-      });
-      lecturasGeneradas++;
+ 
+        // Lectura "vieja" para que aparezca como notificación pendiente en algunas
+        if (Math.random() < 0.5) {
+          await prisma.tareaLectura.create({
+            data: {
+              userId: tarea.responsableId, tareaId: tarea.id,
+              ultimaLectura: fecha(15), // lectura vieja → genera badge
+            }
+          });
+          lecturasGeneradas++;
+        }
+      }
     }
   }
-
-  console.log(`📌 ${tareasGeneradas.length} Tareas generadas con bitácoras y tiempos perfectos.`);
+ 
+  console.log(`📌 ${tareasGeneradas.length} Tareas generadas con dispersión temporal real.`);
+  console.log(`📝 Bitácoras unificadas: TAREA_CREADA, TAREA_ESTADO_CHANGE, TAREA_COMPLETADA_CON_DEMORA, TAREA_VENCIDA_CERRADA_MANUAL, TAREA_EDITADA`);
   console.log(`💬 ${comentariosGenerados} Comentarios y ${lecturasGeneradas} lecturas simuladas.`);
+  console.log(`✏️  ${edicionesGeneradas} Ediciones simuladas (acción TAREA_EDITADA en bitácora).`);
+ 
+  // Resumen distribución temporal
+  const tareasPorMes = { '0-30d': 0, '30-90d': 0, '90-180d': 0 };
+  tareasGeneradas.forEach(t => {
+    const dias = Math.floor((Date.now() - t.createdAt.getTime()) / (1000 * 60 * 60 * 24));
+    if (dias <= 30) tareasPorMes['0-30d']++;
+    else if (dias <= 90) tareasPorMes['30-90d']++;
+    else tareasPorMes['90-180d']++;
+  });
+  console.log(`   📅 Dispersión temporal: ${tareasPorMes['0-30d']} recientes / ${tareasPorMes['30-90d']} trimestre / ${tareasPorMes['90-180d']} semestre`);
+ 
+  // Resumen por responsable
+  const tareasPorResp = {};
+  tareasGeneradas.forEach(t => {
+    tareasPorResp[t.responsableId] = (tareasPorResp[t.responsableId] || 0) + 1;
+  });
+  console.log(`   👥 Distribución por responsable:`);
+  Object.entries(tareasPorResp).forEach(([id, cant]) => {
+    const u = usuarios.find(u => u.id === id);
+    const nombre = u ? u.nombre : id;
+    console.log(`      ${nombre}: ${cant} tareas`);
+  });
+ 
+  // Resumen por estado
+  const tareasPorEstado = {};
+  tareasGeneradas.forEach(t => {
+    tareasPorEstado[t.estado] = (tareasPorEstado[t.estado] || 0) + 1;
+  });
+  console.log(`   📊 Distribución por estado:`);
+  Object.entries(tareasPorEstado).forEach(([estado, cant]) => {
+    console.log(`      ${estado}: ${cant} tareas`);
+  });
 
   // ============================================================
   // 7. RESUMEN

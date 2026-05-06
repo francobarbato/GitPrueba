@@ -20,7 +20,7 @@ export function KPICards({ data }: { data: KPIData }) {
               <Trophy className="w-5 h-5 text-blue-600" />
             </div>
             <div>
-              <p className="text-xs text-slate-500 font-medium">Casos Cerrados</p>
+              <p className="text-xs text-slate-500 font-medium">Expedientes Cerrados</p>
               <p className="text-2xl font-bold text-slate-900">{data.totalCerrados}</p>
             </div>
           </div>

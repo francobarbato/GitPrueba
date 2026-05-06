@@ -82,7 +82,7 @@ function GrupoEtapaItem({ grupo, totalCasos }: { grupo: GrupoEtapa; totalCasos: 
           <span className="text-sm font-bold text-slate-700">
             {grupo.casos.length}
             <span className="text-xs font-normal text-slate-400 ml-1">
-              caso{grupo.casos.length !== 1 ? 's' : ''} · {pct}%
+              expediente{grupo.casos.length !== 1 ? 's' : ''} · {pct}%
             </span>
           </span>
           {abierto
@@ -205,10 +205,10 @@ export function CasosAgrupadosPorEtapa({ grupos, totalCasos }: Props) {
             </div>
             <div>
               <CardTitle className="text-lg font-bold text-slate-800">
-                Casos activos por etapa
+                Expedientes activos por etapa
               </CardTitle>
               <CardDescription>
-                ¿En qué etapa están los casos y cuánto tiempo llevan ahí?
+                ¿En qué etapa están los expedientes y cuánto tiempo llevan ahí?
               </CardDescription>
             </div>
           </div>

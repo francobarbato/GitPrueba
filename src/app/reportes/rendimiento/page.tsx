@@ -196,9 +196,9 @@ if (userRol === 'CLIENTE' || userRol === 'ADMIN') notFound()
                 📖 Metodología del Reporte
               </p>
               <ul className="text-xs text-blue-800 space-y-1 ml-4 list-disc">
-                <li><strong>Tasa de éxito:</strong> Porcentaje de casos con resultado favorable (sentencias favorables + acuerdos/conciliaciones) sobre el total de cerrados en el período.</li>
+                <li><strong>Tasa de éxito:</strong> Porcentaje de expedientes con resultado favorable (sentencias favorables + acuerdos/conciliaciones) sobre el total de cerrados en el período.</li>
                 <li><strong>Valor recuperado:</strong> Suma de montos finales obtenidos. El porcentaje de recuperación compara contra los montos en disputa originales.</li>
-                <li><strong>Carga actual:</strong> Cantidad de casos activos al día de hoy, independiente del período seleccionado.</li>
+                <li><strong>Carga actual:</strong> Cantidad de expedientes activos al día de hoy, independiente del período seleccionado.</li>
                 <li><strong>Sobre los resultados:</strong> La tasa de éxito refleja los cierres registrados y no contempla factores como complejidad del caso, jurisdicción, instancia o contexto procesal que pueden incidir en el resultado.</li>
               </ul>
             </div>

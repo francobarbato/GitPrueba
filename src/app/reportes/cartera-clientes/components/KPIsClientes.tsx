@@ -68,7 +68,7 @@ export function KPIsClientes({ data, esGerencial }: { data: KPIsData; esGerencia
               <div>
                 <p className="text-xs text-slate-500 font-medium">Capital en Cartera</p>
                 <p className="text-2xl font-bold text-slate-900">{formatMoney(data.capitalEnCartera)}</p>
-                <p className="text-[10px] text-slate-400">Montos en disputa de casos activos</p>
+                <p className="text-[10px] text-slate-400">Montos en disputa de expedientes activos</p>
               </div>
             </div>
           </CardContent>
@@ -85,7 +85,7 @@ export function KPIsClientes({ data, esGerencial }: { data: KPIsData; esGerencia
             <div>
               <p className="text-xs text-slate-500 font-medium">Clientes Inactivos</p>
               <p className="text-2xl font-bold text-slate-900">{data.clientesInactivos}</p>
-              <p className="text-[10px] text-slate-400">Sin casos activos actualmente</p>
+              <p className="text-[10px] text-slate-400">Sin expedientes activos actualmente</p>
             </div>
           </div>
         </CardContent>

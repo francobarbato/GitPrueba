@@ -14,13 +14,8 @@ const CATEGORIA_LABELS: Record<string, string> = {
   VENCIMIENTO_PLAZO: "Vencimiento / Plazo",
 }
 
-// Umbral mínimo de eventos para considerar significativa una categoría dominante.
-// Con <3 eventos, "la categoría dominante" sería ruido estadístico.
 const UMBRAL_MUESTRA_MINIMA = 3
 
-/**
- * Distribuye dos porcentajes garantizando suma exacta = 100 cuando hay datos.
- */
 function porcentajesExactos2(v1: number, v2: number): [number, number] {
   const total = v1 + v2
   if (total === 0) return [0, 0]
@@ -48,7 +43,7 @@ function TablaPersonas({ titulo, icono: Icon, iconColor, data }: {
               <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Profesional</th>
               <th className="text-center px-3 py-3 text-xs font-semibold text-slate-700 uppercase tracking-wider">Total</th>
               <th className="text-center px-3 py-3 text-xs font-semibold text-indigo-600 uppercase tracking-wider">Procesales</th>
-              <th className="text-center px-3 py-3 text-xs font-semibold text-blue-600 uppercase tracking-wider">Internas</th>
+              <th className="text-center px-3 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">Internas</th>
               <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Distribución</th>
               <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Categoría dominante</th>
             </tr>
@@ -62,18 +57,17 @@ function TablaPersonas({ titulo, icono: Icon, iconColor, data }: {
                   <td className="px-4 py-3 font-semibold text-slate-800">{p.nombre}</td>
                   <td className="px-3 py-3 text-center font-bold text-slate-800">{p.total}</td>
                   <td className="px-3 py-3 text-center text-indigo-600 font-medium">{p.procesales}</td>
-                  <td className="px-3 py-3 text-center text-blue-600 font-medium">{p.internas}</td>
+                  <td className="px-3 py-3 text-center text-slate-600 font-medium">{p.internas}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       <div className="flex h-2 w-24 rounded-full overflow-hidden bg-slate-100">
                         {p.procesales > 0 && <div className="bg-indigo-500" style={{ width: `${pctProcesal}%` }} />}
-                        {p.internas > 0 && <div className="bg-blue-500" style={{ width: `${pctInterna}%` }} />}
+                        {p.internas > 0 && <div className="bg-slate-500" style={{ width: `${pctInterna}%` }} />}
                       </div>
-                      {/* Labels coloreados que matchean con la barra */}
                       <span className="text-[10px] whitespace-nowrap">
                         <span className="text-indigo-600 font-semibold">{pctProcesal}%</span>
                         <span className="text-slate-300 mx-0.5">/</span>
-                        <span className="text-blue-600 font-semibold">{pctInterna}%</span>
+                        <span className="text-slate-600 font-semibold">{pctInterna}%</span>
                       </span>
                     </div>
                   </td>

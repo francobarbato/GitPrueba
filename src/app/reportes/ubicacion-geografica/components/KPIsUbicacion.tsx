@@ -28,7 +28,7 @@ export function KPIsUbicacion({ data }: { data: KPIsData }) {
             <div className="p-1.5 bg-blue-50 rounded">
               <MapPin className="h-4 w-4 text-blue-600" />
             </div>
-            <span className="text-xs text-slate-500">Total Casos</span>
+            <span className="text-xs text-slate-500">Total Expedientes</span>
           </div>
           <p className="text-2xl font-bold text-slate-900">{data.totalCasos}</p>
           <p className="text-xs text-slate-500">activos</p>
@@ -45,7 +45,7 @@ export function KPIsUbicacion({ data }: { data: KPIsData }) {
             <span className="text-xs text-slate-500">Ciudades</span>
           </div>
           <p className="text-2xl font-bold text-slate-900">{data.ciudadesActivas}</p>
-          <p className="text-xs text-slate-500">con casos</p>
+          <p className="text-xs text-slate-500">con expedientes</p>
         </CardContent>
       </Card>
 

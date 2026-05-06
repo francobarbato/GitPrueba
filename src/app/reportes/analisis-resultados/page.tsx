@@ -433,7 +433,7 @@ export default async function AnalisisResultadosPage({ searchParams }: PageProps
       : `Cierres, resultados y montos recuperados — ${PERIODO_LABELS[periodoParam]}`
     : vistaGerencial
       ? "Resultados comparativos del estudio por abogado"
-      : "Cómo terminaron los casos: motivos de cierre, tasa de éxito y montos recuperados"
+      : "Cómo terminaron los expedientes: motivos de cierre, tasa de éxito y montos recuperados"
 
   const datos = vistaGerencial ? datosGerencial! : datosPersonal!
 
@@ -458,7 +458,7 @@ export default async function AnalisisResultadosPage({ searchParams }: PageProps
                 <div>
                   <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
                     <Trophy className="h-6 w-6 text-amber-500" />
-                    Resultados de casos cerrados
+                    Resultados de expedientes cerrados
                   </h1>
                   <p className="text-sm text-slate-500">{subtituloPeriodo}</p>
                 </div>
@@ -500,7 +500,7 @@ export default async function AnalisisResultadosPage({ searchParams }: PageProps
             ) : (
               <div className="p-8 bg-white border border-slate-200 rounded-lg text-center mb-6">
                 <Trophy className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                <p className="text-slate-500 font-medium">No hay casos cerrados en este período</p>
+                <p className="text-slate-500 font-medium">No hay expedientes cerrados en este período</p>
                 <p className="text-sm text-slate-400 mt-1">
                   Probá ampliando el rango temporal o seleccionando &quot;Todo el historial&quot;.
                 </p>
@@ -518,7 +518,7 @@ export default async function AnalisisResultadosPage({ searchParams }: PageProps
                 <strong>Tasa de éxito:</strong> (Sentencias favorables + Acuerdos/Conciliaciones) / Total de cerrados en el período.{" "}
                 <strong>Tasa de recupero:</strong> Monto obtenido / Monto reclamado original.{" "}
                 <strong>Duración promedio:</strong> Días desde fecha de inicio hasta fecha de cierre.{" "}
-                Solo incluye casos con cierre formal registrado en el sistema.
+                Solo incluye expedientes con cierre formal registrado en el sistema.
               </p>
             </div>
           </div>

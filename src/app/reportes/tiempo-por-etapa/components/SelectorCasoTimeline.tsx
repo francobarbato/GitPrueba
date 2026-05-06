@@ -68,7 +68,7 @@ export function SelectorCasoTimeline({
               Detalle de Expediente Individual
             </CardTitle>
             <CardDescription>
-              Seleccioná un caso para ver su cronología de estados
+              Seleccioná un expediente para ver su cronología de estados
             </CardDescription>
           </div>
         </div>
@@ -116,7 +116,7 @@ export function SelectorCasoTimeline({
 
         {casoActual && !timelineCaso && (
           <div className="text-center py-8 text-slate-400">
-            <p className="text-sm">No se encontró el caso seleccionado</p>
+            <p className="text-sm">No se encontró el expediente seleccionado</p>
           </div>
         )}
 

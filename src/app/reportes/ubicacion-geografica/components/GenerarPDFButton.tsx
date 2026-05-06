@@ -100,7 +100,7 @@ export function GenerarPDFButton({ zonas, vistaGeneral, disabled }: GenerarPDFBu
       ) : (
         <>
           <Download className="h-4 w-4" />
-          Generar PDF ({totalCasos} casos)
+          Generar PDF ({totalCasos} expedientes)
         </>
       )}
     </Button>
@@ -126,7 +126,7 @@ function generarHTMLReporte(zonas: ZonaGeografica[], vistaGeneral: boolean): str
         <tr>
           <th>Ciudad</th>
           <th>Provincia</th>
-          <th>Casos</th>
+          <th>Expedientes</th>
           <th>% Total</th>
           <th>Urgentes</th>
           <th>Distancia</th>
@@ -169,7 +169,7 @@ function generarHTMLReporte(zonas: ZonaGeografica[], vistaGeneral: boolean): str
   zonas.forEach((zona) => {
     detalleZonas += `
       <div class="zona-detalle">
-        <h2>Casos en ${zona.ciudad}, ${zona.provincia} (${zona.totalCasos})</h2>
+        <h2>Expedientes en ${zona.ciudad}, ${zona.provincia} (${zona.totalCasos})</h2>
         <p class="zona-info">
           Distancia: <strong>${zona.distanciaKm} km</strong> &nbsp;|&nbsp;
           Clasificación: <strong>${zona.clasificacionDistancia.label}</strong>
@@ -428,7 +428,7 @@ function generarHTMLReporte(zonas: ZonaGeografica[], vistaGeneral: boolean): str
 
     <div class="portada-meta">
       <div class="meta-item">
-        <span class="meta-label">Total de casos</span>
+        <span class="meta-label">Total de expedientes</span>
         <span class="meta-valor">${totalCasos}</span>
       </div>
       <div class="meta-item">

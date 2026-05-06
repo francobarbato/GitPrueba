@@ -1,6 +1,10 @@
 'use client'
 
 // app/reportes/auditoria/components/TimelineAuditoriaReporte.tsx
+//
+// CAMBIO: agrega visualización de hitos de tareas con badge "EVENTO" y
+// ícono ClipboardCheck. Las acciones de tarea muestran el título del evento
+// y la categoría como contexto, y la acción destaca como detalle principal.
 
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
@@ -8,7 +12,8 @@ import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import {
   History, ShieldAlert, ChevronRight, User,
   FileText, CheckCircle2, DollarSign, Scale,
-  MapPin, Lock, RotateCcw, AlertCircle, Clock, Calendar
+  MapPin, Lock, RotateCcw, AlertCircle, Clock, Calendar,
+  ClipboardCheck, ClipboardX, Unlock, ClipboardList, Sparkles,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { EventoAuditoria, EventosPorDia } from "../page"
@@ -19,12 +24,41 @@ import type { EventoAuditoria, EventosPorDia } from "../page"
 
 const ACCIONES_CRITICAS = ["MONTO_CHANGE", "JUZGADO_CHANGE", "UBICACION_CHANGE", "CIERRE", "REAPERTURA"]
 
+const ACCIONES_TAREA = [
+  "TAREA_CREADA",
+  "TAREA_ESTADO_CHANGE",
+  "TAREA_COMPLETADA_CON_DEMORA",
+  "TAREA_DESBLOQUEADA",
+  "TAREA_VENCIDA_CERRADA_MANUAL",
+]
+
+const CATEGORIA_LABELS: Record<string, string> = {
+  PRESENTACION_ESCRITO: "Presentación / Escrito",
+  AUDIENCIA: "Audiencia",
+  NOTIFICACION_CEDULA: "Notificación / Cédula",
+  CONTROL_EXPEDIENTE: "Control de Expediente",
+  APELACION_RECURSO: "Apelación / Recurso",
+  PERICIA_PRUEBA: "Pericia / Prueba",
+  REUNION_CLIENTE: "Reunión con Cliente",
+  REDACCION_DOCUMENTACION: "Redacción / Documentación",
+  TRAMITE_ADMINISTRATIVO: "Trámite Administrativo",
+  REQUERIMIENTO_CLIENTE: "Req. al Cliente",
+  GESTION_FINANCIERA: "Gestión Financiera",
+  REUNION_EQUIPO: "Reunión de Equipo",
+  VENCIMIENTO_PLAZO: "Vencimiento / Plazo",
+}
+
 function esCritico(accion: string) {
   return ACCIONES_CRITICAS.includes(accion)
 }
 
-function getLabel(accion: string) {
+function esDeTarea(accion: string) {
+  return ACCIONES_TAREA.includes(accion)
+}
+
+function getLabel(accion: string, estadoNuevo?: string | null) {
   switch (accion) {
+    // Caso
     case "CREATE":           return "Creación"
     case "ESTADO_CHANGE":    return "Cambio de etapa"
     case "PRIORIDAD_CHANGE": return "Prioridad"
@@ -33,12 +67,23 @@ function getLabel(accion: string) {
     case "MONTO_CHANGE":     return "Monto"
     case "CIERRE":           return "Cierre"
     case "REAPERTURA":       return "Reapertura"
-    default:                 return "Actualización"
+    // Tarea
+    case "TAREA_CREADA":                  return "Evento creado"
+    case "TAREA_ESTADO_CHANGE":
+      // Sabemos por filtrado que solo llegan COMPLETADA / BLOQUEADA
+      if (estadoNuevo === "COMPLETADA") return "Completado"
+      if (estadoNuevo === "BLOQUEADA")  return "Bloqueado"
+      return "Cambio de estado"
+    case "TAREA_COMPLETADA_CON_DEMORA":   return "Completado con demora"
+    case "TAREA_DESBLOQUEADA":            return "Desbloqueado"
+    case "TAREA_VENCIDA_CERRADA_MANUAL":  return "Vencido cerrado"
+    default:                              return "Actualización"
   }
 }
 
-function getIconoSmall(accion: string) {
+function getIconoSmall(accion: string, estadoNuevo?: string | null) {
   switch (accion) {
+    // Caso
     case "CREATE":           return <FileText className="h-3 w-3" />
     case "ESTADO_CHANGE":    return <CheckCircle2 className="h-3 w-3" />
     case "PRIORIDAD_CHANGE": return <AlertCircle className="h-3 w-3" />
@@ -47,7 +92,15 @@ function getIconoSmall(accion: string) {
     case "MONTO_CHANGE":     return <DollarSign className="h-3 w-3" />
     case "CIERRE":           return <Lock className="h-3 w-3" />
     case "REAPERTURA":       return <RotateCcw className="h-3 w-3" />
-    default:                 return <Clock className="h-3 w-3" />
+    // Tarea
+    case "TAREA_CREADA":                  return <Sparkles className="h-3 w-3" />
+    case "TAREA_ESTADO_CHANGE":
+      if (estadoNuevo === "BLOQUEADA")    return <Lock className="h-3 w-3" />
+      return <ClipboardCheck className="h-3 w-3" />
+    case "TAREA_COMPLETADA_CON_DEMORA":   return <ClipboardCheck className="h-3 w-3" />
+    case "TAREA_DESBLOQUEADA":            return <Unlock className="h-3 w-3" />
+    case "TAREA_VENCIDA_CERRADA_MANUAL":  return <ClipboardX className="h-3 w-3" />
+    default:                              return <Clock className="h-3 w-3" />
   }
 }
 
@@ -66,6 +119,36 @@ function getAutoresUnicos(eventos: EventoAuditoria[]): string[] {
   return Array.from(nombres)
 }
 
+// ════════ Cuenta cuántos hitos de tarea hay en una lista de eventos ════════
+function contarHitosTarea(eventos: EventoAuditoria[]): number {
+  return eventos.filter(e => esDeTarea(e.accion)).length
+}
+
+// ============================================================================
+// MINI-FILA DE EVENTO DE TAREA — para listar en TarjetaCaso
+// ============================================================================
+// Renderiza inline el resumen de un hito de tarea: título + categoría + acción destacada.
+// Se usa adentro de TarjetaCaso cuando la tarjeta agrupa varios eventos de un caso.
+
+function FilaEventoTarea({ evento }: { evento: EventoAuditoria }) {
+  if (!evento.tarea) return null
+  const labelCategoria = CATEGORIA_LABELS[evento.tarea.categoria] ?? evento.tarea.categoria
+  const labelAccion = getLabel(evento.accion, evento.estadoNuevo)
+
+  return (
+    <div className="flex items-start gap-2 py-1 text-xs">
+      <ClipboardCheck className="w-3 h-3 text-indigo-500 shrink-0 mt-0.5" />
+      <div className="flex-1 min-w-0">
+        <span className="text-slate-700 font-medium">{evento.tarea.titulo}</span>
+        <span className="text-slate-400"> · {labelCategoria}</span>
+        <span className="ml-1.5 text-[10px] px-1.5 py-0.5 bg-indigo-50 text-indigo-700 rounded font-bold uppercase tracking-wider border border-indigo-200">
+          {labelAccion}
+        </span>
+      </div>
+    </div>
+  )
+}
+
 // ============================================================================
 // TARJETA DE CASO — Modo fecha
 // ============================================================================
@@ -77,12 +160,15 @@ function TarjetaCaso({
   eventos: EventoAuditoria[]; onVerDetalle: () => void
 }) {
   const criticos = eventos.filter(e => esCritico(e.accion))
+  const eventosTarea = eventos.filter(e => esDeTarea(e.accion))
+  const eventosCaso = eventos.filter(e => !esDeTarea(e.accion))
   const autores = getAutoresUnicos(eventos)
-  const tiposUnicos = Array.from(new Set(eventos.map(e => e.accion)))
+  const tiposUnicos = Array.from(new Set(eventosCaso.map(e => e.accion)))
   const horas = eventos.map(e => new Date(e.createdAt).getTime()).sort((a, b) => a - b)
   const horaInicio = format(new Date(horas[0]), "HH:mm", { locale: es })
   const horaFin = format(new Date(horas[horas.length - 1]), "HH:mm", { locale: es })
   const tieneCriticos = criticos.length > 0
+  const tieneEventos = eventosTarea.length > 0
 
   return (
     <div
@@ -101,23 +187,46 @@ function TarjetaCaso({
                 {criticos.length} crítico{criticos.length !== 1 ? "s" : ""}
               </span>
             )}
+            {tieneEventos && (
+              <span className="text-[10px] px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full font-bold flex items-center gap-1 border border-indigo-200">
+                <ClipboardCheck className="w-3 h-3" />
+                {eventosTarea.length} evento{eventosTarea.length !== 1 ? "s" : ""}
+              </span>
+            )}
           </div>
           <p className="text-sm text-slate-500 truncate mb-3">{casoTitulo}</p>
-          <div className="flex flex-wrap gap-1.5 mb-3">
-            {tiposUnicos.map(accion => (
-              <span
-                key={accion}
-                className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-medium border ${
-                  esCritico(accion)
-                    ? "bg-amber-50 text-amber-700 border-amber-200"
-                    : "bg-slate-100 text-slate-600 border-slate-200"
-                }`}
-              >
-                {getIconoSmall(accion)}
-                {getLabel(accion)}
-              </span>
-            ))}
-          </div>
+
+          {/* Tipos de acción de CASO (las de tarea van en su propio bloque debajo) */}
+          {tiposUnicos.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              {tiposUnicos.map(accion => (
+                <span
+                  key={accion}
+                  className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-medium border ${
+                    esCritico(accion)
+                      ? "bg-amber-50 text-amber-700 border-amber-200"
+                      : "bg-slate-100 text-slate-600 border-slate-200"
+                  }`}
+                >
+                  {getIconoSmall(accion)}
+                  {getLabel(accion)}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* Eventos de tarea — con título, categoría y acción destacada */}
+          {eventosTarea.length > 0 && (
+            <div className="mb-3 p-2 bg-indigo-50/40 border border-indigo-100 rounded-lg">
+              {eventosTarea.slice(0, 3).map(e => <FilaEventoTarea key={e.id} evento={e} />)}
+              {eventosTarea.length > 3 && (
+                <p className="text-[10px] text-indigo-600 mt-1 font-medium">
+                  + {eventosTarea.length - 3} evento{eventosTarea.length - 3 !== 1 ? "s" : ""} más
+                </p>
+              )}
+            </div>
+          )}
+
           <div className="flex items-center gap-1.5 flex-wrap">
             <User className="h-3 w-3 text-slate-400 shrink-0" />
             <span className="text-xs text-slate-500">{autores.join(" · ")}</span>
@@ -153,6 +262,9 @@ function TarjetaCasoConDias({
   const totalCriticos = eventosCasoAgrupados.reduce(
     (acc, d) => acc + d.eventos.filter(e => esCritico(e.accion)).length, 0
   )
+  const totalHitosTarea = eventosCasoAgrupados.reduce(
+    (acc, d) => acc + contarHitosTarea(d.eventos), 0
+  )
 
   if (eventosCasoAgrupados.length === 0) {
     return (
@@ -176,12 +288,18 @@ function TarjetaCasoConDias({
           <div className="flex items-center gap-3 shrink-0">
             <div className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 text-center min-w-[70px]">
               <p className="text-xl font-bold text-slate-800">{totalEventos}</p>
-              <p className="text-xs text-slate-500">eventos</p>
+              <p className="text-xs text-slate-500">movimientos</p>
             </div>
             <div className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 text-center min-w-[70px]">
               <p className="text-xl font-bold text-slate-800">{eventosCasoAgrupados.length}</p>
               <p className="text-xs text-slate-500">día{eventosCasoAgrupados.length !== 1 ? "s" : ""}</p>
             </div>
+            {totalHitosTarea > 0 && (
+              <div className="bg-indigo-50 border border-indigo-200 rounded-lg px-4 py-2 text-center min-w-[70px]">
+                <p className="text-xl font-bold text-indigo-700">{totalHitosTarea}</p>
+                <p className="text-xs text-indigo-600">evento{totalHitosTarea !== 1 ? "s" : ""}</p>
+              </div>
+            )}
             {totalCriticos > 0 && (
               <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-2 text-center min-w-[70px]">
                 <p className="text-xl font-bold text-amber-700">{totalCriticos}</p>
@@ -196,7 +314,8 @@ function TarjetaCasoConDias({
       <div className="divide-y divide-slate-100">
         {eventosCasoAgrupados.map((dia) => {
           const criticosDia = dia.eventos.filter(e => esCritico(e.accion))
-          const tiposDia = Array.from(new Set(dia.eventos.map(e => e.accion)))
+          const hitosTareaDia = contarHitosTarea(dia.eventos)
+          const tiposDia = Array.from(new Set(dia.eventos.filter(e => !esDeTarea(e.accion)).map(e => e.accion)))
           const autoresDia = getAutoresUnicos(dia.eventos)
           const horas = dia.eventos.map(e => new Date(e.createdAt).getTime()).sort((a, b) => a - b)
           const horaInicio = format(new Date(horas[0]), "HH:mm", { locale: es })
@@ -231,6 +350,12 @@ function TarjetaCasoConDias({
                         {getLabel(accion)}
                       </span>
                     ))}
+                    {hitosTareaDia > 0 && (
+                      <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full font-bold border border-indigo-200">
+                        <ClipboardCheck className="w-3 h-3" />
+                        {hitosTareaDia} evento{hitosTareaDia !== 1 ? "s" : ""}
+                      </span>
+                    )}
                     {criticosDia.length > 0 && (
                       <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full font-bold border border-amber-200">
                         <ShieldAlert className="w-3 h-3" />
@@ -250,7 +375,7 @@ function TarjetaCasoConDias({
                   <span className="text-xs text-slate-400 font-mono">{horaInicio}{horas.length > 1 ? ` — ${horaFin}` : ""}</span>
                   <div className="flex items-center gap-1">
                     <span className="text-sm font-bold text-slate-700">{dia.eventos.length}</span>
-                    <span className="text-xs text-slate-400">evento{dia.eventos.length !== 1 ? "s" : ""}</span>
+                    <span className="text-xs text-slate-400">movimiento{dia.eventos.length !== 1 ? "s" : ""}</span>
                   </div>
                   <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-slate-500 transition-colors" />
                 </div>
@@ -294,7 +419,6 @@ export function TimelineAuditoriaReporte({
     const params = new URLSearchParams(searchParams.toString())
     params.set("vista", "detalle")
     params.set("casoId", casoId)
-    // Si viene de modo caso con un día específico, seteamos fecha exacta
     if (fecha) {
       params.set("fecha", fecha)
       params.delete("modo")
