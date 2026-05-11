@@ -1,26 +1,44 @@
 // src/lib/feriados-judiciales.ts
-//
-// Feriados y asuetos judiciales del Poder Judicial de Córdoba.
-// Actualizar manualmente cuando el Tribunal Superior los publique.
-// Formato: "YYYY-MM-DD"
-//
-// Fuente oficial: https://www.justiciacordoba.gob.ar/
+
+export const FERIADOS_JUDICIALES_2027: string[] = [
+  // Feria Judicial de Enero 2027 (1 al 31)
+  "2027-01-01", "2027-01-02", "2027-01-03", "2027-01-04", "2027-01-05",
+  "2027-01-06", "2027-01-07", "2027-01-08", "2027-01-09", "2027-01-10",
+  "2027-01-11", "2027-01-12", "2027-01-13", "2027-01-14", "2027-01-15",
+  "2027-01-16", "2027-01-17", "2027-01-18", "2027-01-19", "2027-01-20",
+  "2027-01-21", "2027-01-22", "2027-01-23", "2027-01-24", "2027-01-25",
+  "2027-01-26", "2027-01-27", "2027-01-28", "2027-01-29", "2027-01-30",
+  "2027-01-31",
+
+  // Feria de Invierno 2027 (Estimada segunda quincena de Julio)
+  "2027-07-12", "2027-07-13", "2027-07-14", "2027-07-15", "2027-07-16",
+  "2027-07-17", "2027-07-18", "2027-07-19", "2027-07-20", "2027-07-21",
+  "2027-07-22", "2027-07-23"
+]
 
 export const FERIADOS_JUDICIALES_2026: string[] = [
-  // Ejemplos — reemplazar con los publicados oficialmente:
-  // "2026-01-02", // Asueto judicial — feria de enero
-  // "2026-07-17", // Asueto judicial — feria de julio
+  // Feria de Enero 2026
+  "2026-01-01", "2026-01-02", "2026-01-03", "2026-01-04", "2026-01-05",
+  "2026-01-06", "2026-01-07", "2026-01-08", "2026-01-09", "2026-01-10",
+  "2026-01-11", "2026-01-12", "2026-01-13", "2026-01-14", "2026-01-15",
+  "2026-01-16", "2026-01-17", "2026-01-18", "2026-01-19", "2026-01-20",
+  "2026-01-21", "2026-01-22", "2026-01-23", "2026-01-24", "2026-01-25",
+  "2026-01-26", "2026-01-27", "2026-01-28", "2026-01-29", "2026-01-30",
+  "2026-01-31",
+
+  // Otros asuetos 2026 que mencionaste
+  "2026-02-16", "2026-02-17", "2026-03-23", "2026-03-24", "2026-04-02"
 ]
 
 export const FERIADOS_JUDICIALES_2025: string[] = [
-  // "2025-01-02",
-  // "2025-01-03",
+  "2025-01-01", "2025-01-02" // Agregar más si necesitás para historial
 ]
 
-// Unificados por si el formulario abarca fin/inicio de año
+// Unificados
 export function getFeriadosJudiciales(): string[] {
   return [
     ...FERIADOS_JUDICIALES_2025,
     ...FERIADOS_JUDICIALES_2026,
+    ...FERIADOS_JUDICIALES_2027,
   ]
 }

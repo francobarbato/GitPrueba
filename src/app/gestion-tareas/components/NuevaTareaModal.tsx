@@ -155,7 +155,7 @@ export function NuevaTareaModal({ usuarios, casos, clientes = [], currentUserId,
   // cada vez que el usuario cambia de responsable. Se pasa al CalendarioCarga.
   const [cargaResponsable, setCargaResponsable] = useState<Record<string, number>>({})
   const [cargaLoading, setCargaLoading] = useState(false)
-  const { feriadosSet } = useFeriados([2025, 2026])
+  const { feriadosSet } = useFeriados([2026, 2027])
 
   const categoriasDisponibles = tipo === "PROCESAL" ? CATEGORIAS_PROCESAL : CATEGORIAS_INTERNA
   const handleTipoChange = (nuevoTipo: TipoTarea) => { setTipo(nuevoTipo); setCategoria("") }
