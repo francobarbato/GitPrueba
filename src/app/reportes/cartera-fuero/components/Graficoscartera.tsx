@@ -67,7 +67,7 @@ export function GraficosCartera({ data }: { data: FueroRow[] }) {
       <Card className="bg-white border border-slate-200">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-semibold text-slate-700">Distribución por Volumen</CardTitle>
-          <p className="text-xs text-slate-400">Cantidad de casos por fuero</p>
+          <p className="text-xs text-slate-400">Cantidad de expedientes por fuero</p>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={220}>

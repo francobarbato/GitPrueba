@@ -81,13 +81,13 @@ function BandejaAccion({ tareas }: { tareas: any[] }) {
           <Clock className="h-4 w-4 text-slate-500" />
           <div>
             <h3 className="font-semibold text-slate-800 text-sm">Tu Bandeja de Acción</h3>
-            <p className="text-xs text-slate-500">Tareas que requieren tu atención inmediata</p>
+            <p className="text-xs text-slate-500">Eventos que requieren tu atención inmediata</p>
           </div>
         </div>
         <div className="px-5 py-12 text-center">
           <CheckCircle2 className="w-10 h-10 mx-auto mb-3 text-emerald-300" />
           <p className="text-sm font-medium text-slate-600">Todo al día</p>
-          <p className="text-xs text-slate-400 mt-1">No tenés tareas urgentes por ahora</p>
+          <p className="text-xs text-slate-400 mt-1">No tenés eventos urgentes por ahora</p>
         </div>
       </div>
     )
@@ -105,7 +105,7 @@ function BandejaAccion({ tareas }: { tareas: any[] }) {
           <div>
             <h3 className="font-semibold text-slate-800 text-sm">Tu Bandeja de Acción</h3>
             <p className="text-xs text-slate-500">
-              {tareas.length} tarea{tareas.length !== 1 ? "s" : ""} requiere{tareas.length !== 1 ? "n" : ""} tu atención
+              {tareas.length} evento{tareas.length !== 1 ? "s" : ""} requiere{tareas.length !== 1 ? "n" : ""} tu atención
             </p>
           </div>
         </div>

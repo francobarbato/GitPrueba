@@ -476,8 +476,8 @@ export default async function CarteraClientesPage({ searchParams }: PageProps) {
               <p className="text-xs font-semibold text-slate-600 mb-1">Metodología del Reporte</p>
               <p className="text-xs text-slate-500">
                 <strong>Cliente activo:</strong> tiene al menos 1 caso no cerrado.{" "}
-                <strong>Cliente inactivo:</strong> todos sus casos están cerrados o archivados.{" "}
-                <strong>Recurrencia:</strong> Único (1 caso), Recurrente (2-4 casos), Frecuente (5+ casos).{" "}
+                <strong>Cliente inactivo:</strong> todos sus expedientes están cerrados o archivados.{" "}
+                <strong>Recurrencia:</strong> Único (1 caso), Recurrente (2-4 expedientes), Frecuente (5+ expedientes).{" "}
                 <strong>Capital en litigio:</strong> suma de montos en disputa de los expedientes activos del cliente.{" "}
                 <strong>Antigüedad:</strong> desde la fecha de alta del cliente en el sistema.
               </p>

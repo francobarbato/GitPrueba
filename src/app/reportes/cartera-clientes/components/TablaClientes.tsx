@@ -73,7 +73,7 @@ export function TablaClientes({ clientesRecurrentes, clientesInactivos, clientes
   const tabs = [
   {
     key: "recurrentes" as const,
-    label: "Clientes con casos en curso",
+    label: "Clientes con expedientes en curso",
     icon: <RefreshCw className="w-4 h-4" />,
     count: clientesRecurrentes.length,
   },
@@ -85,7 +85,7 @@ export function TablaClientes({ clientesRecurrentes, clientesInactivos, clientes
   },
   {
     key: "nuevos" as const,
-    label: "Clientes sin casos",
+    label: "Clientes sin expedientes",
     icon: <UserPlus className="w-4 h-4" />,   // agregar UserPlus al import
     count: clientesSinCasos.length,
   },
@@ -144,7 +144,7 @@ function TablaRecurrentes({ clientes, esGerencial }: { clientes: ClienteReporte[
         <RefreshCw className="w-10 h-10 text-slate-300 mx-auto mb-3" />
         <p className="text-slate-500 font-medium">No hay clientes recurrentes</p>
         <p className="text-sm text-slate-400 mt-1">
-          Los clientes con 2 o más casos aparecerán aquí.
+          Los clientes con 2 o más expedientes aparecerán aquí.
         </p>
       </div>
     )
@@ -158,7 +158,7 @@ function TablaRecurrentes({ clientes, esGerencial }: { clientes: ClienteReporte[
             <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Cliente</th>
             <th className="text-center px-3 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Tipo</th>
             <th className="text-center px-3 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Antigüedad</th>
-            <th className="text-center px-3 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Casos</th>
+            <th className="text-center px-3 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Expedientes</th>
             {esGerencial ? (
               <>
                 <th className="text-right px-3 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Capital en Litigio</th>
@@ -257,7 +257,7 @@ function TablaInactivos({ clientes, esGerencial }: { clientes: ClienteReporte[];
         <UserX className="w-10 h-10 text-slate-300 mx-auto mb-3" />
         <p className="text-slate-500 font-medium">No hay clientes inactivos</p>
         <p className="text-sm text-slate-400 mt-1">
-          Todos los clientes con casos tienen al menos uno activo.
+          Todos los clientes con expedientes tienen al menos uno activo.
         </p>
       </div>
     )
@@ -270,7 +270,7 @@ function TablaInactivos({ clientes, esGerencial }: { clientes: ClienteReporte[];
           <tr className="bg-slate-50 border-b border-slate-200">
             <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Cliente</th>
             <th className="text-center px-3 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Tipo</th>
-            <th className="text-center px-3 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Casos Cerrados</th>
+            <th className="text-center px-3 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Expedientes Cerrados</th>
             {esGerencial ? (
               <>
                 <th className="text-right px-3 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Capital Histórico</th>
@@ -362,9 +362,9 @@ function TablaInactivos({ clientes, esGerencial }: { clientes: ClienteReporte[];
     return (
       <div className="p-8 text-center">
         <UserPlus className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-        <p className="text-slate-500 font-medium">No hay clientes sin casos</p>
+        <p className="text-slate-500 font-medium">No hay clientes sin expedientes</p>
         <p className="text-sm text-slate-400 mt-1">
-          Todos los clientes registrados tienen al menos un caso asociado.
+          Todos los clientes registrados tienen al menos un expediente asociado.
         </p>
       </div>
     )
@@ -411,7 +411,7 @@ function TablaInactivos({ clientes, esGerencial }: { clientes: ClienteReporte[];
                   <td className="px-3 py-3 text-left text-xs text-slate-600">{c.abogadoResponsable}</td>
                 )}
                 <td className="px-3 py-3 text-center text-xs text-slate-400">
-                  Sin casos registrados
+                  Sin expedientes registrados
                 </td>
                 <td className="px-3 py-3 text-center">
                   <Link href={`/clientes/${c.id}`} className="inline-flex items-center text-indigo-600 hover:text-indigo-800">

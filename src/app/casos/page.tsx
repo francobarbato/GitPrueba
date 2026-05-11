@@ -3,7 +3,7 @@ import { CasoService } from "@/lib/aplication/services/caso.service"
 import Link from "next/link"
 import { Sidebar } from "@/app/components/sidebar"
 import { Header } from "@/app/components/header"
-import { Star, Flame, FolderOpen, Plus } from "lucide-react"
+import { Star, FolderOpen, Plus, AlertTriangle } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card" // <-- Agregado para el buscador
 import { Buscador } from "../components/buscador" 
 import { FiltrosCasos } from "./components/filtros"
@@ -183,7 +183,7 @@ if (terminoEtapa) {
                       <td className="p-4 text-center align-middle">
                         <div className="flex flex-col items-center gap-1">
                           {caso.isFavorite && <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />}
-                          {caso.priority === 'HIGH' && <Flame className="w-4 h-4 text-orange-500 fill-orange-100" />}
+                          {caso.priority === 'HIGH' && <AlertTriangle className="w-4 h-4 text-orange-500 fill-orange-100" />}
                         </div>
                       </td>
 

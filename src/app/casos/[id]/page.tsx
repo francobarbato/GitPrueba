@@ -219,37 +219,16 @@ const puedeVerMontoDisputa = isAbogado(userRol)
 
             <Tabs defaultValue="resumen" className="w-full space-y-6">
               
-              <TabsList className={`grid w-full h-auto p-1 gap-1 grid-cols-2 md:grid-cols-${Math.min(cantidadPestanas, 5)}`}>
-                <TabsTrigger value="resumen" className="h-9">
+              <TabsList className="grid w-full h-auto p-1 gap-1 grid-cols-2"> 
+                <TabsTrigger value="resumen" className="h-9 w-full">
                   <FileText className="w-4 h-4 mr-2 shrink-0" />
                   Resumen
                 </TabsTrigger>
                 
-                <TabsTrigger value="agenda" className="h-9">
+                <TabsTrigger value="agenda" className="h-9 w-full">
                   <CalendarClock className="w-4 h-4 mr-2 shrink-0" />
                   Agenda y seguimientos
                 </TabsTrigger>
-                
-                {/* <TabsTrigger value="expediente" className="h-9">
-                  <Briefcase className="w-4 h-4 mr-2 shrink-0" />
-                  Expediente
-                </TabsTrigger> */}
-
-                {/* Pestaña Pagos - Solo Admin y Abogado */}
-                {/* {puedeVerPagos && (
-                  <TabsTrigger value="pagos" className="h-9">
-                    <DollarSign className="w-4 h-4 mr-2 shrink-0" />
-                    Pagos
-                  </TabsTrigger>
-                )} */}
-                
-                {/* Pestaña Auditoría - Solo Admin */}
-                {puedeVerAuditoria && (
-                  <TabsTrigger value="auditoria" className="h-9">
-                    <History className="w-4 h-4 mr-2 shrink-0" />
-                    Auditoría
-                  </TabsTrigger>
-                )}
               </TabsList>
 
               {/* TAB 1: RESUMEN COMPLETO DEL CASO */}
@@ -621,7 +600,7 @@ const puedeVerMontoDisputa = isAbogado(userRol)
                   </Card>
 
                   {/* Equipo del Caso: Abogado Titular + Colaboradores */}
-                  <Card>
+                  {/* <Card>
                     <CardHeader className="border-b bg-slate-50/50">
                       <CardTitle className="flex items-center gap-2">
                         <Briefcase className="h-5 w-5 text-slate-600" />
@@ -637,7 +616,7 @@ const puedeVerMontoDisputa = isAbogado(userRol)
                         abogadoTitular={caso.abogado ? { nombre: caso.abogado.nombre, apellido: caso.abogado.apellido } : null}
                       />
                     </CardContent>
-                  </Card>
+                  </Card> */}
 
                 </div>
               </TabsContent>
@@ -663,7 +642,7 @@ const puedeVerMontoDisputa = isAbogado(userRol)
               </TabsContent>
 
               {/* TAB 3: EXPEDIENTE DIGITAL - Disponible para todos */}
-              <TabsContent value="expediente" className="animate-in fade-in-50">
+              {/* <TabsContent value="expediente" className="animate-in fade-in-50">
                 <Card>
                   <CardHeader className="border-b bg-slate-50/50">
                     <CardTitle>Documentos y Actuaciones</CardTitle>
@@ -676,10 +655,10 @@ const puedeVerMontoDisputa = isAbogado(userRol)
                     </div>
                   </CardContent>
                 </Card>
-              </TabsContent>
+              </TabsContent> */}
 
               {/* TAB 4: PAGOS - Solo Admin y Abogado */}
-              {puedeVerPagos && (
+              {/* {puedeVerPagos && (
                 <TabsContent value="pagos" className="animate-in fade-in-50">
                   <Card>
                     <CardHeader className="border-b bg-slate-50/50">
@@ -693,7 +672,7 @@ const puedeVerMontoDisputa = isAbogado(userRol)
                     </CardContent>
                   </Card>
                 </TabsContent>
-              )}
+              )} */}
 
               {/* TAB 5: AUDITORÍA - Solo Admin */}
               {puedeVerAuditoria && (

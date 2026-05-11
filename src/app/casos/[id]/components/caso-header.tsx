@@ -5,8 +5,9 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
 import { 
-  ArrowLeft, Edit, Star, Flame, XCircle, RotateCcw,
-  CheckCircle2, Handshake, Ban, Archive
+  ArrowLeft, Edit, Star, XCircle, RotateCcw,
+  CheckCircle2, Handshake, Ban, Archive,
+  AlertTriangle
 } from 'lucide-react'
 import { CerrarCasoModal, CierreData } from '../../components/cerrar-caso-modal'
 import { ReabrirCasoModal } from '../../components/reabrir-caso-modal'
@@ -127,7 +128,7 @@ export function CasoHeader({ caso, userRol, userId, puedeEditar }: CasoHeaderPro
               {caso.isFavorite && <Star className="h-5 w-5 text-yellow-500 fill-yellow-500" />}
               {caso.priority === 'HIGH' && (
                 <Badge variant="destructive" className="gap-1">
-                  <Flame className="h-3 w-3" /> Urgente
+                  <AlertTriangle className="h-3 w-3" /> Urgente
                 </Badge>
               )}
               {casoCerrado && (

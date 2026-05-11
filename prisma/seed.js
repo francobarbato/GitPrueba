@@ -414,13 +414,52 @@ console.log("📅 Generando tareas v4 (dispersión temporal, bitácoras unificad
   let lecturasGeneradas = 0;
   let edicionesGeneradas = 0;
  
-  // Helpers de fechas precisos
-  const hoyMs = Date.now();
-  const fecha = (diasAtras) => new Date(hoyMs - diasAtras * 24 * 60 * 60 * 1000);
-  const fechaFutura = (diasAdelante) => new Date(hoyMs + diasAdelante * 24 * 60 * 60 * 1000);
-  const random = (min, max) => min + Math.random() * (max - min);
-  const randomInt = (min, max) => Math.floor(random(min, max + 1));
-  const pickArr = (arr) => arr[randomInt(0, arr.length - 1)];
+ // ══════════════════════════════════════════════════════════════════
+// HELPERS DE FECHAS PRO (Evita Fines de Semana y Feriados 2026-2027)
+// ══════════════════════════════════════════════════════════════════
+
+// Lista de feriados judiciales/nacionales (Argentina 2026-2027)
+const FERIADOS_JUDICIALES = [
+  // 2026
+  "2026-01-01", "2026-03-24", "2026-04-02", "2026-04-03", "2026-05-01",
+  "2026-05-25", "2026-06-20", "2026-07-09", "2026-11-16", "2026-12-08", "2026-12-25",
+  // 2027
+  "2027-01-01", "2027-03-24", "2027-03-25", "2027-03-26", "2027-04-02",
+  "2027-05-01", "2027-05-25", "2027-07-09", "2027-11-16", "2027-12-08", "2027-12-25"
+];
+
+function esInhabil(d) {
+  const diaSemana = d.getDay(); // 0=Dom, 6=Sab
+  const fechaIso = d.toISOString().split('T')[0];
+  return diaSemana === 0 || diaSemana === 6 || FERIADOS_JUDICIALES.includes(fechaIso);
+}
+
+function ajustarDiaHabil(d, direccion = 1) {
+  const nuevaFecha = new Date(d);
+  // Mientras sea feriado o finde, sumamos (o restamos) días
+  while (esInhabil(nuevaFecha)) {
+    nuevaFecha.setDate(nuevaFecha.getDate() + direccion);
+  }
+  return nuevaFecha;
+}
+
+const hoyMs = Date.now();
+// Para fechas pasadas, si cae inhabil, retrocedemos al viernes anterior (direccion -1)
+const fecha = (diasAtras) => {
+  const d = new Date(hoyMs - diasAtras * 24 * 60 * 60 * 1000);
+  return ajustarDiaHabil(d, -1);
+};
+// Para fechas futuras, si cae inhabil, adelantamos al lunes siguiente (direccion 1)
+const fechaFutura = (diasAdelante) => {
+  const d = new Date(hoyMs + diasAdelante * 24 * 60 * 60 * 1000);
+  return ajustarDiaHabil(d, 1);
+};
+
+const random = (min, max) => min + Math.random() * (max - min);
+const randomInt = (min, max) => Math.floor(random(min, max + 1));
+const pickArr = (arr) => arr[randomInt(0, arr.length - 1)];
+
+// ──────────────────────────────────────────────────────────────────
  
   // ──────────────────────────────────────────────────────────────────
   // Plantillas de títulos por categoría

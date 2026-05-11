@@ -59,7 +59,7 @@ export function PanelClientesEnRiesgo({ clientes }: { clientes: ClienteRiesgo[] 
           <thead>
             <tr className="bg-slate-50 border-y border-slate-200">
               <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Cliente</th>
-              <th className="text-center px-3 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Casos</th>
+              <th className="text-center px-3 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Expedientes</th>
               <th className="text-right px-3 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Capital histórico</th>
               <th className="text-center px-3 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Último cierre</th>
               <th className="text-center px-3 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Sin actividad</th>

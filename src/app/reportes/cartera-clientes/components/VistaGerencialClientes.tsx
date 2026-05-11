@@ -151,7 +151,7 @@ function ClientesAntiguosContinuos({ clientes }: { clientes: ClienteGerencial[] 
             <tr className="bg-slate-50 border-y border-slate-200">
               <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Cliente</th>
               <th className="text-center px-3 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Antigüedad</th>
-              <th className="text-center px-3 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Casos totales</th>
+              <th className="text-center px-3 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Expedientes totales</th>
               <th className="text-center px-3 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Activos ahora</th>
               <th className="text-right px-3 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Capital activo</th>
               <th className="text-left px-3 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Abogado</th>

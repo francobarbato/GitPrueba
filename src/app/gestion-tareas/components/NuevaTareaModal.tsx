@@ -11,6 +11,7 @@ import { getCargaResponsableAction } from "src/lib/actions/getCargaResponsable"
 import type { TipoTarea, CategoriaTarea, AmbitoTarea, PrioridadTarea } from "@prisma/client"
 import { useRouter } from "next/navigation"
 import { CalendarioCarga } from "./CalendarioCarga"
+import { useFeriados } from "../../hooks/useFeriados"
 
 // ============================================================================
 // MATRIZ DE CATEGORÍAS POR TIPO
@@ -154,6 +155,7 @@ export function NuevaTareaModal({ usuarios, casos, clientes = [], currentUserId,
   // cada vez que el usuario cambia de responsable. Se pasa al CalendarioCarga.
   const [cargaResponsable, setCargaResponsable] = useState<Record<string, number>>({})
   const [cargaLoading, setCargaLoading] = useState(false)
+  const { feriadosSet } = useFeriados([2025, 2026])
 
   const categoriasDisponibles = tipo === "PROCESAL" ? CATEGORIAS_PROCESAL : CATEGORIAS_INTERNA
   const handleTipoChange = (nuevoTipo: TipoTarea) => { setTipo(nuevoTipo); setCategoria("") }
@@ -422,6 +424,7 @@ export function NuevaTareaModal({ usuarios, casos, clientes = [], currentUserId,
                 onSelect={d => setFechaVencimiento(dateToISO(d))}
                 carga={cargaResponsable}
                 loading={cargaLoading}
+                feriadosSet={feriadosSet}
               />
             </div>
 

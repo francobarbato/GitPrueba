@@ -28,7 +28,7 @@ export function PanelLitigiosidad({ data }: { data: LitigiosidadData }) {
           Tasa de Litigiosidad (Pipeline del Estudio)
         </CardTitle>
         <p className="text-xs text-slate-500">
-          ¿En qué etapa están los casos? Si todo está en ejecución, se viene un &quot;vacío&quot; de trabajo.
+          ¿En qué etapa están los expedientes? Si todo está en ejecución, se viene un &quot;vacío&quot; de trabajo.
         </p>
       </CardHeader>
       <CardContent>
@@ -43,7 +43,7 @@ export function PanelLitigiosidad({ data }: { data: LitigiosidadData }) {
             <div className="w-full bg-blue-200 rounded-full h-3">
               <div className="bg-blue-500 h-3 rounded-full transition-all" style={{ width: `${pctTemprana}%` }} />
             </div>
-            <p className="text-xs text-blue-600 mt-1 font-medium">{data.etapaTemprana} casos</p>
+            <p className="text-xs text-blue-600 mt-1 font-medium">{data.etapaTemprana} expedientes</p>
           </div>
 
           {/* Media */}
@@ -56,7 +56,7 @@ export function PanelLitigiosidad({ data }: { data: LitigiosidadData }) {
             <div className="w-full bg-amber-200 rounded-full h-3">
               <div className="bg-amber-500 h-3 rounded-full transition-all" style={{ width: `${pctMedia}%` }} />
             </div>
-            <p className="text-xs text-amber-600 mt-1 font-medium">{data.etapaMedia} casos</p>
+            <p className="text-xs text-amber-600 mt-1 font-medium">{data.etapaMedia} expedientes</p>
           </div>
 
           {/* Tardía */}
@@ -69,7 +69,7 @@ export function PanelLitigiosidad({ data }: { data: LitigiosidadData }) {
             <div className="w-full bg-emerald-200 rounded-full h-3">
               <div className="bg-emerald-500 h-3 rounded-full transition-all" style={{ width: `${pctTardia}%` }} />
             </div>
-            <p className="text-xs text-emerald-600 mt-1 font-medium">{data.etapaTardia} casos</p>
+            <p className="text-xs text-emerald-600 mt-1 font-medium">{data.etapaTardia} expedientes</p>
           </div>
         </div>
 
@@ -85,8 +85,8 @@ export function PanelLitigiosidad({ data }: { data: LitigiosidadData }) {
             <div className="flex items-start gap-2">
               <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
               <p>
-                <span className="font-semibold">Atención:</span> El {pctTardia}% de los casos están en etapa tardía. 
-                Cuando se resuelvan, puede haber un vacío de trabajo. Considerar captar nuevos casos.
+                <span className="font-semibold">Atención:</span> El {pctTardia}% de los expedientes están en etapa tardía. 
+                Cuando se resuelvan, puede haber un vacío de trabajo. Considerar captar nuevos expedientes.
               </p>
             </div>
           )}
@@ -94,7 +94,7 @@ export function PanelLitigiosidad({ data }: { data: LitigiosidadData }) {
             <div className="flex items-start gap-2">
               <ArrowUpRight className="w-4 h-4 mt-0.5 flex-shrink-0" />
               <p>
-                <span className="font-semibold">En crecimiento:</span> El {pctTemprana}% de los casos están en etapa temprana. 
+                <span className="font-semibold">En crecimiento:</span> El {pctTemprana}% de los expedientes están en etapa temprana. 
                 Buena captación pero la carga aumentará cuando avancen a prueba.
               </p>
             </div>

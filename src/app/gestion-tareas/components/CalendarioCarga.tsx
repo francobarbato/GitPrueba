@@ -1,5 +1,7 @@
 'use client'
 
+// src/components/CalendarioCarga.tsx
+
 import { useMemo } from "react"
 import { DayPicker } from "react-day-picker"
 import "react-day-picker/dist/style.css"
@@ -7,21 +9,27 @@ import { es } from "date-fns/locale"
 import { Loader2 } from "lucide-react"
 
 // ============================================================================
-// CALENDARIO CON TINTE DE CARGA
+// CALENDARIO CON TINTE DE CARGA (Escala de Violetas) + FERIADOS
 // ============================================================================
-// Niveles:
-//   0 tareas:    sin tinte
-//   1-2 tareas:  liviano (slate-200)
-//   3-4 tareas:  medio (slate-400, texto blanco)
-//   5+ tareas:   alto (slate-600, texto blanco)
+// Niveles de carga:
+//   0 tareas:    sin tinte (blanco)
+//   1-2 tareas:  liviano (violet-50)
+//   3-4 tareas:  medio (violet-200)
+//   5+ tareas:   alto (violet-400, texto blanco)
 //
-// Sábados y domingos están deshabilitados (no son días hábiles judiciales).
+// Feriados (nacionales + judiciales):
+//   - Deshabilitados (no seleccionables)
+//   - Fondo gris claro (igual que fines de semana)
+//   - Borde/tinte naranja para diferenciarlos de los fines de semana
+//   - Tooltip: "Feriado" o "Feriado judicial"
 // ============================================================================
 
 type Props = {
   selected: Date | undefined
   onSelect: (date: Date | undefined) => void
   carga: Record<string, number>
+  // Set de fechas "YYYY-MM-DD" no laborables (nacionales + judiciales)
+  feriadosSet?: Set<string>
   loading?: boolean
   fromDate?: Date
 }
@@ -40,13 +48,19 @@ function nivelDeCarga(cantidad: number): 0 | 1 | 2 | 3 {
   return 3
 }
 
-// Helper: ¿es fin de semana? (sábado=6, domingo=0 según getDay())
 function esFinDeSemana(d: Date): boolean {
   const dia = d.getDay()
   return dia === 0 || dia === 6
 }
 
-export function CalendarioCarga({ selected, onSelect, carga, loading = false, fromDate }: Props) {
+export function CalendarioCarga({
+  selected,
+  onSelect,
+  carga,
+  feriadosSet = new Set(),
+  loading = false,
+  fromDate,
+}: Props) {
   const hoy = useMemo(() => {
     const d = new Date()
     d.setHours(0, 0, 0, 0)
@@ -54,6 +68,14 @@ export function CalendarioCarga({ selected, onSelect, carga, loading = false, fr
   }, [])
 
   const minDate = fromDate ?? hoy
+
+  // Convertir feriadosSet a objetos Date para DayPicker
+  const feriadosDates = useMemo(() => {
+    return Array.from(feriadosSet).map(key => {
+      const [y, m, d] = key.split("-").map(Number)
+      return new Date(y, m - 1, d)
+    })
+  }, [feriadosSet])
 
   const modifiers = useMemo(() => {
     const liviano: Date[] = []
@@ -68,25 +90,44 @@ export function CalendarioCarga({ selected, onSelect, carga, loading = false, fr
       if (!y || !m || !d) continue
       const fecha = new Date(y, m - 1, d)
 
+      // No pintar días de carga en feriados (ya están deshabilitados)
+      if (feriadosSet.has(key)) continue
+
       if (nivel === 1) liviano.push(fecha)
       else if (nivel === 2) medio.push(fecha)
       else alto.push(fecha)
     }
 
-    return { liviano, medio, alto }
-  }, [carga])
+    return {
+      liviano,
+      medio,
+      alto,
+      feriado: feriadosDates,
+    }
+  }, [carga, feriadosSet, feriadosDates])
 
   const renderDay = (day: Date) => {
     const key = formatDateKey(day)
     const cantidad = carga[key] ?? 0
+    const esFeriado = feriadosSet.has(key)
     const finde = esFinDeSemana(day)
-    const tooltip = finde
-      ? "No es día hábil"
-      : cantidad === 0
-        ? undefined
-        : cantidad === 1 ? "1 evento ese día" : `${cantidad} eventos ese día`
+
+    let tooltip: string | undefined
+    if (esFeriado) {
+      tooltip = "Feriado — día no hábil"
+    } else if (finde) {
+      tooltip = "No es día hábil"
+    } else if (cantidad === 1) {
+      tooltip = "1 evento ese día"
+    } else if (cantidad > 1) {
+      tooltip = `${cantidad} eventos ese día`
+    }
+
     return (
-      <span title={tooltip} className="block w-full h-full flex items-center justify-center">
+      <span
+        title={tooltip}
+        className="block w-full h-full flex items-center justify-center"
+      >
         {day.getDate()}
       </span>
     )
@@ -110,16 +151,16 @@ export function CalendarioCarga({ selected, onSelect, carga, loading = false, fr
         locale={es}
         weekStartsOn={1}
         fromDate={minDate}
-        // Deshabilitamos fines de semana. react-day-picker acepta una función predicado.
-        // Días deshabilitados no son seleccionables y reciben la clase day_disabled.
         disabled={[
-          { dayOfWeek: [0, 6] }, // 0 = domingo, 6 = sábado
+          { dayOfWeek: [0, 6] },
+          ...feriadosDates,
         ]}
         modifiers={modifiers}
         modifiersClassNames={{
           liviano: "carga-liviano",
           medio: "carga-medio",
           alto: "carga-alto",
+          feriado: "dia-feriado",
         }}
         components={{
           DayContent: ({ date }) => renderDay(date),
@@ -138,9 +179,9 @@ export function CalendarioCarga({ selected, onSelect, carga, loading = false, fr
           head_cell: "text-slate-400 flex-1 font-medium text-[11px] uppercase text-center",
           row: "flex w-full mt-1",
           cell: "flex-1 text-center text-sm relative aspect-square",
-          day: "h-full w-full p-0 font-normal rounded-md hover:bg-slate-100 transition cursor-pointer text-slate-700",
-          day_selected: "!bg-blue-600 !text-white hover:!bg-blue-700 font-semibold",
-          day_today: "font-bold text-blue-600",
+          day: "h-full w-full p-0 font-normal rounded-md hover:bg-slate-50 transition cursor-pointer text-slate-700",
+          day_selected: "!bg-blue-600 !text-white hover:!bg-blue-700 font-semibold !rounded-full scale-90",
+          day_today: "font-bold text-blue-600 ring-1 ring-inset ring-blue-200",
           day_outside: "text-slate-300 opacity-50",
           day_disabled: "text-slate-300 opacity-40 cursor-not-allowed hover:bg-transparent",
         }}
@@ -152,61 +193,52 @@ export function CalendarioCarga({ selected, onSelect, carga, loading = false, fr
           margin: 0 !important;
           width: 100%;
         }
-        .rdp-months {
-          width: 100%;
-          display: flex;
-          justify-content: center;
-        }
-        .rdp-month {
-          width: 100%;
-        }
-        .rdp-table {
-          width: 100% !important;
-          max-width: none !important;
-        }
-        .rdp-tbody, .rdp-head, .rdp-row, .rdp-head_row {
-          width: 100%;
-        }
+
+        /* ── Niveles de carga — escala violeta ── */
         .rdp-button.carga-liviano {
-          background-color: rgb(226 232 240) !important;
-          color: rgb(51 65 85) !important;
-        }
-        .rdp-button.carga-liviano:hover {
-          background-color: rgb(203 213 225) !important;
+          background-color: #f5f3ff !important;
+          color: #5b21b6 !important;
         }
         .rdp-button.carga-medio {
-          background-color: rgb(148 163 184) !important;
-          color: white !important;
+          background-color: #ddd6fe !important;
+          color: #4c1d95 !important;
           font-weight: 600;
         }
-        .rdp-button.carga-medio:hover {
-          background-color: rgb(100 116 139) !important;
-        }
         .rdp-button.carga-alto {
-          background-color: rgb(71 85 105) !important;
+          background-color: #a78bfa !important;
           color: white !important;
           font-weight: 700;
         }
-        .rdp-button.carga-alto:hover {
-          background-color: rgb(51 65 85) !important;
-        }
-        /* Días deshabilitados (fines de semana) — más apagados visualmente */
-        .rdp-button.rdp-day_disabled,
-        .rdp-button.rdp-day_disabled:hover {
-          background-color: rgb(248 250 252) !important; /* slate-50 — distingue de días vacíos */
-          color: rgb(203 213 225) !important; /* slate-300 — texto muy claro */
+
+        /* ── Feriados — gris base + acento naranja ── */
+        .rdp-button.dia-feriado {
+          background-color: #f1f5f9 !important; /* slate-100, igual que fin de semana */
+          color: #94a3b8 !important;             /* slate-400 */
+          box-shadow: inset 0 0 0 1.5px #fb923c !important; /* orange-400: borde interior naranja */
           cursor: not-allowed !important;
-          font-weight: 400;
         }
+        /* Tooltip nativo ya aparece con title — el borde naranja es el diferenciador visual */
+
+        /* ── Selección azul sobrepasa todo ── */
         .rdp-button.rdp-day_selected,
         .rdp-button.rdp-day_selected.carga-liviano,
         .rdp-button.rdp-day_selected.carga-medio,
         .rdp-button.rdp-day_selected.carga-alto {
-          background-color: rgb(37 99 235) !important;
+          background-color: #2563eb !important;
           color: white !important;
+          border-radius: 9999px !important;
+          transform: scale(0.85);
+          transition: all 0.2s ease;
+          box-shadow: none !important;
+        }
+
+        .rdp-button.rdp-day_disabled:not(.dia-feriado) {
+          background-color: #f8fafc !important;
+          color: #cbd5e1 !important;
         }
       `}</style>
 
+      {/* Leyenda */}
       <div className="mt-4 pt-3 border-t border-slate-100">
         <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">
           Carga del responsable
@@ -217,20 +249,26 @@ export function CalendarioCarga({ selected, onSelect, carga, loading = false, fr
             <span className="text-slate-600">Sin eventos</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <div className="w-4 h-4 rounded bg-slate-200" />
-            <span className="text-slate-600">1-2</span>
+            <div className="w-4 h-4 rounded bg-[#f5f3ff] border border-[#ddd6fe]" />
+            <span className="text-slate-600">1–2</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <div className="w-4 h-4 rounded bg-slate-400" />
-            <span className="text-slate-600">3-4</span>
+            <div className="w-4 h-4 rounded bg-[#ddd6fe]" />
+            <span className="text-slate-600">3–4</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <div className="w-4 h-4 rounded bg-slate-600" />
+            <div className="w-4 h-4 rounded bg-[#a78bfa]" />
             <span className="text-slate-600">5+</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-4 h-4 rounded bg-slate-100 shadow-[inset_0_0_0_1.5px_#fb923c]" />
+            <span className="text-slate-600">Feriado</span>
           </div>
         </div>
         <p className="text-[10px] text-slate-400 mt-2 leading-relaxed">
-          Solo es informativo — podés elegir cualquier día hábil. Sábados y domingos no son seleccionables.
+          Solo es informativo — los colores violetas indican densidad de eventos.
+          Tu selección se marcará en <strong>azul circular</strong>.
+          Los días con borde naranja son feriados nacionales o judiciales.
         </p>
       </div>
     </div>

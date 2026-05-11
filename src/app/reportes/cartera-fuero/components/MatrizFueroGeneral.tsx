@@ -43,7 +43,7 @@ export function MatrizFueroGeneral({ data }: { data: FueroRowGeneral[] }) {
               <tr className="bg-slate-50 border-y border-slate-200">
                 <th className="w-8 px-4 py-3" />
                 <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Fuero</th>
-                <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Casos</th>
+                <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Expedientes</th>
                 <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">% Volumen</th>
                 <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Capital en Litigio</th>
                 <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">% Capital</th>

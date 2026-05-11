@@ -416,8 +416,8 @@ if (userRol === 'CLIENTE' || userRol === 'ADMIN') notFound()
             <div className="mt-8 p-4 bg-slate-100 border border-slate-200 rounded-lg">
               <p className="text-xs text-slate-600">
                 <strong>Criterios del reporte:</strong> Solo incluye expedientes activos (no cerrados ni archivados) |
-                Capital en litigio = suma de montoDisputa | Tasa de actividad = casos con movimiento en últimos 30 días |
-                Promedio de cierre = calculado sobre casos históricos cerrados del mismo fuero
+                Capital en litigio = suma de montoDisputa | Tasa de actividad = expedientes con movimiento en últimos 30 días |
+                Promedio de cierre = calculado sobre expedientes históricos cerrados del mismo fuero
               </p>
             </div>
 

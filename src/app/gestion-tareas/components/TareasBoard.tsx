@@ -24,6 +24,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Info } from "lucide-react"
 import { ABRIR_TAREA_DRAWER_EVENT } from "@/app/components/header"
 import { dispatchNotificationsRefresh } from "@/app/components/header"
+import { useFeriados } from "../../hooks/useFeriados"
 
 // ============================================================================
 // TIME-BOXING — Configuración
@@ -314,6 +315,7 @@ function ModalEditar({ tarea, onClose, onSaved, currentUserId, usuarios }: {
   // actual (sigue siendo útil para reagendar).
   const [cargaResponsable, setCargaResponsable] = useState<Record<string, number>>({})
   const [cargaLoading, setCargaLoading] = useState(false)
+  const { feriadosSet } = useFeriados([2025, 2026])
  
   useEffect(() => {
     if (!responsableId) {
@@ -421,6 +423,7 @@ function ModalEditar({ tarea, onClose, onSaved, currentUserId, usuarios }: {
               onSelect={d => setFecha(dateToISOEdit(d))}
               carga={cargaResponsable}
               loading={cargaLoading}
+              feriadosSet={feriadosSet}
             />
           </div>
  

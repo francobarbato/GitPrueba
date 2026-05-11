@@ -4,14 +4,14 @@
 // Vista de agenda dentro del expediente. Click en una card abre el drawer completo
 // con las mismas acciones que en /gestion-tareas (completar, bloquear, comentar, etc).
 
-import { useState, useTransition, useEffect } from "react"
+import { useState, useTransition, useEffect, useRef } from "react"
 import { format, isBefore, addDays, isToday } from "date-fns"
 import { es } from "date-fns/locale"
 import {
   CalendarClock, CheckCircle2, Clock, AlertTriangle,
   Lock, Unlock, User, ExternalLink,
   ChevronLeft, ChevronRight, Scale, MapPin,
-  CheckCheck, XCircle, Trash2,
+  CheckCheck, XCircle, Trash2, Info, X,
 } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -42,7 +42,6 @@ const PRIORIDAD_CONFIG: Record<string, { label: string; color: string }> = {
   FATAL: { label: "Fatal", color: "text-red-600"    },
 }
 
-// Mismo time-boxing que en Agenda: vencidas >30d van al histórico
 const DIAS_VENCIDA_ACTIVA = 30
 
 function esVencidaActiva(t: TareaConRelaciones): boolean {
@@ -56,14 +55,13 @@ function esVencidaActiva(t: TareaConRelaciones): boolean {
 function esTerminalParaBoard(t: TareaConRelaciones): boolean {
   if (t.estado === "COMPLETADA") return true
   if (t.estado === "VENCIDA" && !!t.vencidaCerradaEn) return true
-  // Vencida abandonada (>30d sin cerrar) también se considera terminal para la vista
   if (t.estado === "VENCIDA" && !esVencidaActiva(t)) return true
   return false
 }
 
 function getUrgencia(t: TareaConRelaciones): "vencida" | "urgente" | "proxima" | null {
   if (esTerminalParaBoard(t)) return null
-  if (t.estado === "VENCIDA") return "vencida" // vencida activa (<30d, sin cerrar)
+  if (t.estado === "VENCIDA") return "vencida"
   if (!t.fechaVencimiento) return null
   const fecha = new Date(t.fechaVencimiento)
   const ahora = new Date()
@@ -74,7 +72,7 @@ function getUrgencia(t: TareaConRelaciones): "vencida" | "urgente" | "proxima" |
 }
 
 // ============================================================================
-// MODALES — reutilizados de TareasBoard (bloqueo/desbloqueo/cerrar vencida/eliminar)
+// MODALES
 // ============================================================================
 
 function ModalBloqueo({ onClose, onConfirm }: { onClose: () => void; onConfirm: (m: string) => void }) {
@@ -190,12 +188,66 @@ function ModalEliminar({ titulo, onClose, onConfirm }: { titulo: string; onClose
 }
 
 // ============================================================================
-// MINI CALENDARIO (igual que antes)
+// MINI CALENDARIO — con filtro por día clickeable + tooltip (i)
 // ============================================================================
 
-function MiniCalendario({ tareas }: { tareas: TareaConRelaciones[] }) {
+function TooltipInfo() {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener("mousedown", handler)
+    return () => document.removeEventListener("mousedown", handler)
+  }, [open])
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="p-0.5 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+        aria-label="Información del calendario"
+      >
+        <Info className="w-3.5 h-3.5" />
+      </button>
+      {open && (
+<div className="absolute left-0 top-6 w-64 bg-white border border-slate-200 rounded-xl shadow-lg z-50 p-3 text-xs text-slate-600 space-y-2">          <p className="font-semibold text-slate-800 text-[11px] uppercase tracking-wide">Cómo usar el calendario</p>
+          <p>Los días con punto tienen eventos asignados. El color indica la urgencia más alta de ese día.</p>
+          <p>
+            <span className="font-medium text-slate-700">Hacé clic en un día</span> para filtrar la lista de la derecha y ver solo los eventos de esa fecha.
+          </p>
+          <p>Clic nuevamente en el mismo día para volver a ver todos los eventos.</p>
+          <div className="pt-1 border-t border-slate-100 space-y-1">
+            <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-red-500 shrink-0" /><span>Fatal o vencida</span></div>
+            <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-orange-400 shrink-0" /><span>Urgente (vence en 48hs)</span></div>
+            <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-blue-400 shrink-0" /><span>Evento pendiente</span></div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function MiniCalendario({
+  tareas,
+  diaSeleccionado,
+  onDiaSeleccionado,
+}: {
+  tareas: TareaConRelaciones[]
+  diaSeleccionado: { anio: number; mes: number; dia: number } | null
+  onDiaSeleccionado: (d: { anio: number; mes: number; dia: number } | null) => void
+}) {
   const hoy = new Date()
   const [mesActual, setMesActual] = useState(new Date(hoy.getFullYear(), hoy.getMonth(), 1))
+
+  // Si cambia de mes, deseleccionar el día
+  const handleMes = (delta: number) => {
+    setMesActual(new Date(mesActual.getFullYear(), mesActual.getMonth() + delta, 1))
+    onDiaSeleccionado(null)
+  }
 
   const diasEnMes = new Date(mesActual.getFullYear(), mesActual.getMonth() + 1, 0).getDate()
   const primerDia = new Date(mesActual.getFullYear(), mesActual.getMonth(), 1).getDay()
@@ -216,15 +268,18 @@ function MiniCalendario({ tareas }: { tareas: TareaConRelaciones[] }) {
 
   return (
     <div className="bg-white border border-slate-200 rounded-xl p-4">
+      {/* Header con (i) */}
       <div className="flex items-center justify-between mb-3">
-        <button onClick={() => setMesActual(new Date(mesActual.getFullYear(), mesActual.getMonth() - 1, 1))}
+        <button onClick={() => handleMes(-1)}
           className="p-1 rounded hover:bg-slate-100 transition-colors">
           <ChevronLeft className="w-4 h-4 text-slate-500" />
         </button>
-        <span className="text-sm font-semibold text-slate-700 capitalize">
-          {format(mesActual, "MMMM yyyy", { locale: es })}
-        </span>
-        <button onClick={() => setMesActual(new Date(mesActual.getFullYear(), mesActual.getMonth() + 1, 1))}
+        <div className="flex items-center gap-1.5">
+          <span className="text-sm font-semibold text-slate-700 capitalize">
+            {format(mesActual, "MMMM yyyy", { locale: es })}
+          </span>
+        </div>
+        <button onClick={() => handleMes(1)}
           className="p-1 rounded hover:bg-slate-100 transition-colors">
           <ChevronRight className="w-4 h-4 text-slate-500" />
         </button>
@@ -243,22 +298,49 @@ function MiniCalendario({ tareas }: { tareas: TareaConRelaciones[] }) {
           const dia = i + 1
           const tareasDelDia = tareasPorDia.get(dia) ?? []
           const esHoy = isToday(new Date(mesActual.getFullYear(), mesActual.getMonth(), dia))
+          const tieneEventos = tareasDelDia.length > 0
+
+          const esteEsSeleccionado =
+            diaSeleccionado !== null &&
+            diaSeleccionado.anio === mesActual.getFullYear() &&
+            diaSeleccionado.mes === mesActual.getMonth() &&
+            diaSeleccionado.dia === dia
 
           const tieneFatalOVencida = tareasDelDia.some(t =>
             t.prioridad === "FATAL" || t.estado === "VENCIDA" || getUrgencia(t) === "vencida"
           )
           const tieneUrgente = tareasDelDia.some(t => getUrgencia(t) === "urgente")
 
+          const handleClick = () => {
+            if (!tieneEventos) return
+            if (esteEsSeleccionado) {
+              onDiaSeleccionado(null)
+            } else {
+              onDiaSeleccionado({ anio: mesActual.getFullYear(), mes: mesActual.getMonth(), dia })
+            }
+          }
+
+          // Estilos del día
+          let clasesDia = "relative flex flex-col items-center py-1 rounded-lg text-xs transition-colors "
+
+          if (esHoy && esteEsSeleccionado) {
+            clasesDia += "bg-blue-700 text-white font-bold ring-2 ring-blue-400 ring-offset-1 cursor-pointer"
+          } else if (esHoy) {
+            clasesDia += "bg-blue-600 text-white font-bold " + (tieneEventos ? "cursor-pointer hover:bg-blue-700" : "")
+          } else if (esteEsSeleccionado) {
+            clasesDia += "bg-slate-700 text-white font-semibold ring-2 ring-slate-400 ring-offset-1 cursor-pointer"
+          } else if (tieneEventos) {
+            clasesDia += "bg-slate-50 hover:bg-slate-200 cursor-pointer"
+          } else {
+            clasesDia += "text-slate-400 cursor-default"
+          }
+
           return (
-            <div key={dia} className={`relative flex flex-col items-center py-1 rounded-lg text-xs transition-colors ${
-              esHoy ? "bg-blue-600 text-white font-bold"
-              : tareasDelDia.length > 0 ? "bg-slate-50 hover:bg-slate-100 cursor-default"
-              : "text-slate-500"
-            }`}>
+            <div key={dia} className={clasesDia} onClick={handleClick}>
               <span>{dia}</span>
-              {tareasDelDia.length > 0 && (
+              {tieneEventos && (
                 <div className="flex gap-0.5 mt-0.5">
-                  {esHoy ? (
+                  {esHoy || esteEsSeleccionado ? (
                     <div className="w-1.5 h-1.5 rounded-full bg-white" />
                   ) : tieneFatalOVencida ? (
                     <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
@@ -274,26 +356,48 @@ function MiniCalendario({ tareas }: { tareas: TareaConRelaciones[] }) {
         })}
       </div>
 
-      <div className="mt-3 pt-3 border-t border-slate-100 flex items-center gap-4 flex-wrap">
-        <div className="flex items-center gap-1.5">
-          <div className="w-2 h-2 rounded-full bg-red-500" />
-          <span className="text-[10px] text-slate-500">Fatal / Vencida</span>
+      {/* Leyenda + indicador de filtro activo */}
+      <div className="mt-3 pt-3 border-t border-slate-100 space-y-2">
+        <div className="flex items-center gap-4 flex-wrap">
+          <div className="flex items-center gap-1.5">
+            <div className="w-2 h-2 rounded-full bg-red-500" />
+            <span className="text-[10px] text-slate-500">Fatal / Vencida</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-2 h-2 rounded-full bg-orange-400" />
+            <span className="text-[10px] text-slate-500">Urgente (48hs)</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-2 h-2 rounded-full bg-blue-400" />
+            <span className="text-[10px] text-slate-500">Tarea pendiente</span>
+          </div>
         </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-2 h-2 rounded-full bg-orange-400" />
-          <span className="text-[10px] text-slate-500">Urgente (48hs)</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-2 h-2 rounded-full bg-blue-400" />
-          <span className="text-[10px] text-slate-500">Tarea pendiente</span>
-        </div>
+
+        {/* Chip de filtro activo */}
+        {diaSeleccionado && (
+          <div className="flex items-center gap-1.5 bg-slate-100 rounded-lg px-2 py-1 w-fit">
+            <span className="text-[10px] text-slate-600 font-medium">
+              Filtrando: {diaSeleccionado.dia} de {format(
+                new Date(diaSeleccionado.anio, diaSeleccionado.mes, diaSeleccionado.dia),
+                "MMMM", { locale: es }
+              )}
+            </span>
+            <button
+              onClick={() => onDiaSeleccionado(null)}
+              className="text-slate-400 hover:text-slate-600 transition-colors"
+              aria-label="Quitar filtro"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )
 }
 
 // ============================================================================
-// CARD DE TAREA — ahora clickeable, abre el drawer
+// CARD DE TAREA
 // ============================================================================
 
 function TareaCard({ tarea, onClick }: { tarea: TareaConRelaciones; onClick: () => void }) {
@@ -318,7 +422,6 @@ function TareaCard({ tarea, onClick }: { tarea: TareaConRelaciones; onClick: () 
       className={`bg-white border border-slate-200 rounded-xl p-4 cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all ${bordeIzquierdo}`}
     >
       <div className="flex-1 min-w-0">
-        {/* Badges */}
         <div className="flex items-center gap-1.5 flex-wrap mb-2">
           {esProcesal && (
             <span className="text-[10px] px-2 py-0.5 bg-red-100 text-red-700 rounded-full font-bold border border-red-200 flex items-center gap-1">
@@ -339,19 +442,16 @@ function TareaCard({ tarea, onClick }: { tarea: TareaConRelaciones; onClick: () 
           )}
         </div>
 
-        {/* Título */}
         <p className="text-sm font-semibold text-slate-800 mb-1.5 hover:text-blue-600 transition-colors">
           {tarea.titulo}
         </p>
 
-        {/* Descripción */}
         {tarea.descripcion && (
           <p className="text-xs text-slate-500 mb-2 leading-relaxed line-clamp-2">
             {tarea.descripcion}
           </p>
         )}
 
-        {/* Motivo bloqueo */}
         {tarea.estado === "BLOQUEADA" && tarea.motivoBloqueo && (
           <div className="flex items-start gap-1.5 mb-2 p-2 bg-red-50 rounded-lg border border-red-200">
             <Lock className="w-3 h-3 text-red-500 mt-0.5 shrink-0" />
@@ -361,7 +461,6 @@ function TareaCard({ tarea, onClick }: { tarea: TareaConRelaciones; onClick: () 
           </div>
         )}
 
-        {/* Motivo cierre vencida */}
         {esVencidaCerrada && tarea.motivoCierreVencida && (
           <div className="flex items-start gap-1.5 mb-2 p-2 bg-slate-100 rounded-lg border border-slate-200">
             <XCircle className="w-3 h-3 text-slate-500 mt-0.5 shrink-0" />
@@ -371,7 +470,6 @@ function TareaCard({ tarea, onClick }: { tarea: TareaConRelaciones; onClick: () 
           </div>
         )}
 
-        {/* Fecha vencimiento */}
         {tarea.fechaVencimiento && (
           <div className={`flex items-center gap-1 text-xs font-medium mb-2 ${
             tarea.estado === "VENCIDA" || urgencia === "vencida" ? "text-red-600" :
@@ -386,7 +484,6 @@ function TareaCard({ tarea, onClick }: { tarea: TareaConRelaciones; onClick: () 
           </div>
         )}
 
-        {/* Lugar */}
         {lugarLimpio && lugarLimpio !== "Estudio Jurídico" && (
           <div className="flex items-center gap-1 mb-2">
             <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
@@ -394,7 +491,6 @@ function TareaCard({ tarea, onClick }: { tarea: TareaConRelaciones; onClick: () 
           </div>
         )}
 
-        {/* Actores — una sola vez, sin duplicar */}
         <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap">
           <div className="flex items-center gap-1">
             <User className="w-3 h-3 text-slate-400" />
@@ -413,7 +509,6 @@ function TareaCard({ tarea, onClick }: { tarea: TareaConRelaciones; onClick: () 
           )}
         </div>
 
-        {/* Fecha completada / abandonada */}
         {esCompletada && tarea.fechaCompletada && (
           <p className="text-[10px] text-green-600 mt-2 flex items-center gap-1">
             <CheckCircle2 className="w-3 h-3" />
@@ -453,6 +548,9 @@ export function TaskManager({ casoId, tareas: tareasIniciales, puedeCrear, curre
   const [filtro, setFiltro] = useState<"activas" | "completadas">("activas")
   const [isPending, startTransition] = useTransition()
 
+  // ── NUEVO: estado del día seleccionado en el calendario ──
+  const [diaSeleccionado, setDiaSeleccionado] = useState<{ anio: number; mes: number; dia: number } | null>(null)
+
   // Drawer + modales
   const [drawerTarea, setDrawerTarea] = useState<TareaConRelaciones | null>(null)
   const [modalBloqueo, setModalBloqueo] = useState<string | null>(null)
@@ -460,7 +558,6 @@ export function TaskManager({ casoId, tareas: tareasIniciales, puedeCrear, curre
   const [modalCerrarVencida, setModalCerrarVencida] = useState<string | null>(null)
   const [modalEliminar, setModalEliminar] = useState<{ id: string; titulo: string } | null>(null)
 
-  // Separar: activas (no terminales para board) vs terminadas (completadas, vencidas cerradas, vencidas abandonadas)
   const tareasActivas = tareas.filter(t => !esTerminalParaBoard(t))
   const tareasTerminadas = tareas.filter(t => esTerminalParaBoard(t))
 
@@ -472,7 +569,20 @@ export function TaskManager({ casoId, tareas: tareasIniciales, puedeCrear, curre
 
   const tareasMostradas = filtro === "activas" ? tareasActivas : tareasTerminadas
 
-  const tareasOrdenadas = [...tareasMostradas].sort((a, b) => {
+  // ── NUEVO: si hay día seleccionado, filtrar por fecha de vencimiento ──
+  const tareasFiltradasPorDia = diaSeleccionado
+    ? tareasMostradas.filter(t => {
+        if (!t.fechaVencimiento) return false
+        const f = new Date(t.fechaVencimiento)
+        return (
+          f.getFullYear() === diaSeleccionado.anio &&
+          f.getMonth() === diaSeleccionado.mes &&
+          f.getDate() === diaSeleccionado.dia
+        )
+      })
+    : tareasMostradas
+
+  const tareasOrdenadas = [...tareasFiltradasPorDia].sort((a, b) => {
     if (filtro === "completadas") {
       const fa = a.fechaCompletada ? new Date(a.fechaCompletada).getTime()
         : a.vencidaCerradaEn ? new Date(a.vencidaCerradaEn).getTime()
@@ -497,21 +607,16 @@ export function TaskManager({ casoId, tareas: tareasIniciales, puedeCrear, curre
   })
 
   const handleOpenDrawer = async (tarea: TareaConRelaciones) => {
-    // Si ya hay un drawer abierto con OTRA tarea, lo cerramos primero
-    // para que el Sheet desmonte el contenido viejo. Si no, el cambio de
-    // tarea es invisible porque `open` sigue en true.
     if (drawerTarea && drawerTarea.id !== tarea.id) {
       setDrawerTarea(null)
     }
     try {
       const fresh = await getTareaDetalle(tarea.id)
-      // setTimeout(0) asegura que el null anterior se aplique antes del nuevo set
       setTimeout(() => setDrawerTarea(fresh ?? tarea), 0)
     } catch {
       setTimeout(() => setDrawerTarea(tarea), 0)
     }
   }
- 
 
   const handleCloseDrawer = () => setDrawerTarea(null)
 
@@ -564,8 +669,6 @@ export function TaskManager({ casoId, tareas: tareasIniciales, puedeCrear, curre
   }
 
   const handleEdit = () => {
-    // Edición avanzada vive en /gestion-tareas — redirigimos ahí.
-    // Esto mantiene la UX del expediente enfocada en consulta + acciones rápidas.
     window.location.href = `/gestion-tareas?caso=${casoId}`
   }
 
@@ -605,7 +708,6 @@ export function TaskManager({ casoId, tareas: tareasIniciales, puedeCrear, curre
         currentUserId={currentUserId}
       />
 
-      {/* Alerta de tareas vencidas/urgentes */}
       {tareasConAlerta.length > 0 && (
         <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2">
           <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
@@ -617,9 +719,17 @@ export function TaskManager({ casoId, tareas: tareasIniciales, puedeCrear, curre
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-        {/* Columna izquierda: calendario + KPIs + acceso */}
+        {/* Columna izquierda */}
         <div className="space-y-4">
-          <MiniCalendario tareas={tareasActivas} />
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] text-slate-500 font-medium">Calendario de eventos</span>
+            <TooltipInfo />
+          </div>
+          <MiniCalendario
+            tareas={tareasActivas}
+            diaSeleccionado={diaSeleccionado}
+            onDiaSeleccionado={setDiaSeleccionado}
+          />
 
           <div className="grid grid-cols-2 gap-3">
             <div className="bg-white border border-slate-200 rounded-xl p-3 text-center">
@@ -642,37 +752,49 @@ export function TaskManager({ casoId, tareas: tareasIniciales, puedeCrear, curre
               </Button>
             </Link>
           )}
-
-          <p className="text-[11px] text-slate-400 leading-relaxed">
-            Hacé clic en cualquier tarea para ver el detalle completo, comentar o gestionar su estado.
-          </p>
         </div>
 
-        {/* Columna derecha: lista de tareas */}
+        {/* Columna derecha: lista */}
         <div className="lg:col-span-2 space-y-4">
 
-          <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1 w-fit">
-            <button onClick={() => setFiltro("activas")}
+          <div className="flex items-center justify-between w-full">
+            <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1 w-fit">
+            <button onClick={() => { setFiltro("activas"); setDiaSeleccionado(null) }}
               className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
                 filtro === "activas" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"
               }`}>
               Activas ({tareasActivas.length})
             </button>
-            <button onClick={() => setFiltro("completadas")}
+            <button onClick={() => { setFiltro("completadas"); setDiaSeleccionado(null) }}
               className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
                 filtro === "completadas" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"
               }`}>
               Finalizadas ({tareasTerminadas.length})
             </button>
+            </div>
+              <p className="text-[11px] text-slate-400">
+                Hacé clic en un evento para ver el detalle, comentar o gestionar su estado.
+              </p>
           </div>
 
           {tareasOrdenadas.length === 0 ? (
             <div className="text-center py-12 bg-white border border-slate-200 rounded-xl">
               <CalendarClock className="w-10 h-10 mx-auto text-slate-300 mb-3" />
               <p className="text-slate-500 font-medium">
-                {filtro === "activas" ? "No hay actividad en este expediente" : "No hay actividades finalizadas"}
+                {diaSeleccionado
+                  ? `No hay eventos el ${diaSeleccionado.dia} de ${format(new Date(diaSeleccionado.anio, diaSeleccionado.mes, diaSeleccionado.dia), "MMMM", { locale: es })}`
+                  : filtro === "activas" ? "No hay actividad en este expediente" : "No hay actividades finalizadas"
+                }
               </p>
-              {filtro === "activas" && puedeCrear && (
+              {diaSeleccionado && (
+                <button
+                  onClick={() => setDiaSeleccionado(null)}
+                  className="mt-2 text-sm text-blue-600 hover:underline"
+                >
+                  Ver todos los eventos
+                </button>
+              )}
+              {!diaSeleccionado && filtro === "activas" && puedeCrear && (
                 <Link href={`/gestion-tareas?caso=${casoId}`}>
                   <Button variant="ghost" size="sm" className="mt-2 gap-1 text-blue-600">
                     <ExternalLink className="w-3 h-3" /> Gestionar agenda para este expediente
