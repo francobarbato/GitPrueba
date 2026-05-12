@@ -8,6 +8,7 @@ import { getUserSessionServer } from "@/auth/actions/auth-actions"
 import {
   ClipboardCheck, Briefcase, BarChart3, MapPinned, Timer,
   TrendingUp, Target, PieChart, LineChart, FileText,
+  ChevronRight, LayoutDashboard // Agregados para el Breadcrumb
 } from "lucide-react"
 
 const COLOR_MAP: Record<string, { bg: string; text: string; border: string }> = {
@@ -29,17 +30,13 @@ type Reporte = {
   color: keyof typeof COLOR_MAP
 }
 
-const BLOQUES: { titulo: string; descripcion: string; reportes: Reporte[] }[] = [
+const BLOQUES: { reportes: Reporte[] }[] = [
   {
-    titulo: "Personal",
-    descripcion: "Auditoría de actividad propia",
     reportes: [
       { titulo: "Auditoría personal", descripcion: "Registro de cambios en mis expedientes", href: "/reportes/auditoria", icono: FileText, color: "slate" },
     ],
   },
   {
-    titulo: "Gestión operativa",
-    descripcion: "Herramientas para el día a día del estudio",
     reportes: [
       { titulo: "Cumplimiento de Plazos", descripcion: "Cómo se trabajó: eventos cumplidos en plazo, con demora y vencidas", href: "/reportes/cumplimiento-tareas", icono: ClipboardCheck, color: "blue" },
       { titulo: "Carga de trabajo", descripcion: "Qué tenés encima hoy: expedientes, agenda, eventos activos y próximos a vencer", href: "/reportes/matriz-carga", icono: Briefcase, color: "cyan" },
@@ -48,16 +45,12 @@ const BLOQUES: { titulo: string; descripcion: string; reportes: Reporte[] }[] = 
     ],
   },
   {
-    titulo: "Rendimiento y procesos",
-    descripcion: "Evaluación del desempeño del estudio",
     reportes: [
       { titulo: "Estado de expedientes por etapa", descripcion: "Dónde están trabados los expedientes y cuáles requieren atención", href: "/reportes/tiempo-por-etapa", icono: Timer, color: "amber" },
       { titulo: "Resultados de expedientes cerrados", descripcion: "Tasa de éxito, recupero y resultados por motivo de cierre", href: "/reportes/analisis-resultados", icono: Target, color: "rose" },
     ],
   },
   {
-    titulo: "Estrategia de negocio",
-    descripcion: "Análisis para decisiones estratégicas",
     reportes: [
       { titulo: "Composición de cartera por fuero", descripcion: "Dónde está el volumen y el valor económico del estudio", href: "/reportes/cartera-fuero", icono: PieChart, color: "indigo" },
       { titulo: "Análisis de cartera de clientes", descripcion: "Perfil de la base de clientes: activos, recurrentes, antigüedad", href: "/reportes/cartera-clientes", icono: TrendingUp, color: "emerald" },
@@ -79,20 +72,40 @@ export default async function ReportesPage() {
       <div className="flex flex-col flex-1 overflow-hidden">
         <Header />
         <main className="flex-1 overflow-auto p-6">
-          <div className="max-w-7xl mx-auto">
-            <div className="mb-6">
+          {/* Quitamos max-w-7xl para ensanchar como en Clientes/Expedientes */}
+          <div className="w-full">
+            
+            {/* BREADCRUMB - Consistencia con el resto del sistema */}
+            <nav className="mb-4 flex items-center gap-1.5 text-sm text-slate-400">
+              <Link href="/" className="hover:text-slate-700 transition-colors flex items-center gap-1">
+                <LayoutDashboard className="w-3.5 h-3.5" />
+                Inicio
+              </Link>
+              <ChevronRight className="w-3.5 h-3.5" />
+              <span className="text-slate-600 font-medium">Reportes</span>
+            </nav>
+
+            {/* ENCABEZADO */}
+            <div className="mb-8">
               <h1 className="text-2xl font-bold text-slate-900">Reportes</h1>
-              <p className="text-sm text-slate-500">Herramientas de análisis para la toma de decisiones del estudio.</p>
+              <p className="text-sm text-slate-500 mt-1">
+                Herramientas de análisis para la toma de decisiones del estudio.
+              </p>
             </div>
 
-            <div className="space-y-8">
+            <div className="space-y-10">
               {BLOQUES.map(bloque => (
-                <section key={bloque.titulo}>
-                  <div className="mb-3">
-                    <h2 className="text-lg font-semibold text-slate-800">{bloque.titulo}</h2>
-                    <p className="text-xs text-slate-500">{bloque.descripcion}</p>
+                <section className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+                  <div className="mb-4 border-b border-slate-200 pb-2">
+                    <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                      
+                    </h2>
+                    <p className="text-xs text-slate-400 font-medium uppercase tracking-wider">
+                      
+                    </p>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                     {bloque.reportes.map(r => {
                       const cfg = COLOR_MAP[r.color]
                       const Icon = r.icono
@@ -100,14 +113,18 @@ export default async function ReportesPage() {
                         <Link
                           key={r.href}
                           href={r.href}
-                          className={`flex items-start gap-3 p-4 bg-white border ${cfg.border} rounded-lg hover:shadow-md hover:border-opacity-100 transition-all`}
+                          className={`group flex items-start gap-3 p-4 bg-white border border-slate-200 rounded-xl hover:shadow-lg hover:border-blue-300 transition-all duration-300`}
                         >
-                          <div className={`p-2 rounded-lg ${cfg.bg} shrink-0`}>
+                          <div className={`p-2.5 rounded-lg ${cfg.bg} shrink-0 group-hover:scale-110 transition-transform`}>
                             <Icon className={`w-5 h-5 ${cfg.text}`} />
                           </div>
                           <div className="min-w-0">
-                            <p className="font-semibold text-slate-800 text-sm">{r.titulo}</p>
-                            <p className="text-xs text-slate-500 mt-0.5">{r.descripcion}</p>
+                            <p className="font-bold text-slate-800 text-sm group-hover:text-blue-700 transition-colors">
+                              {r.titulo}
+                            </p>
+                            <p className="text-[11px] leading-relaxed text-slate-500 mt-1 line-clamp-2">
+                              {r.descripcion}
+                            </p>
                           </div>
                         </Link>
                       )

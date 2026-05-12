@@ -30,6 +30,11 @@ const isAdmin = (rol: string) => rol?.toUpperCase() === 'ADMIN'
 const isAbogado = (rol: string) => rol?.toUpperCase() === 'ABOGADO'
 const isAsistente = (rol: string) => rol?.toUpperCase() === 'ASISTENTE'
 
+const usuarios = await prisma.user.findMany({
+  where: { isActive: true, rol: { not: "ADMIN" } },
+  select: { id: true, nombre: true, apellido: true, rol: true }
+})
+
 export default async function CasoDetailPage({ params }: { params: { id: string } }) {
   const user = await getUserSessionServer()
   
@@ -636,6 +641,7 @@ const puedeVerMontoDisputa = isAbogado(userRol)
                       tareas={tareasDeCaso}
                       puedeCrear={puedeEditar}
                       currentUserId={user.id} 
+                      usuarios={usuarios}
                     />
                   </CardContent>
                 </Card>

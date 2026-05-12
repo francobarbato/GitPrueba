@@ -3,7 +3,7 @@ import { CasoService } from "@/lib/aplication/services/caso.service"
 import Link from "next/link"
 import { Sidebar } from "@/app/components/sidebar"
 import { Header } from "@/app/components/header"
-import { Star, FolderOpen, Plus, AlertTriangle } from "lucide-react"
+import { Star, FolderOpen, Plus, AlertTriangle, ChevronRight, LayoutDashboard, Eye } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card" // <-- Agregado para el buscador
 import { Buscador } from "../components/buscador" 
 import { FiltrosCasos } from "./components/filtros"
@@ -86,8 +86,8 @@ if (terminoEtapa) {
 
   // Textos según rol
   const getTitulo = () => {
-    if (isAdmin(userRol)) return 'Gestión Global de Casos'
-    if (isAsistente(userRol)) return 'Panel de Casos'
+    if (isAdmin(userRol)) return 'Gestión Global de Expedientes'
+    if (isAsistente(userRol)) return 'Panel de Expedientes'
     return 'Mis Expedientes Activos'
   }
 
@@ -105,22 +105,35 @@ if (terminoEtapa) {
         <Header />
         
         <main className="flex-1 overflow-auto p-6">
-          <div className="flex justify-between items-center mb-6">
-            <div>
-              <h1 className="text-2xl font-bold text-slate-800">{getTitulo()}</h1>
-              <p className="text-gray-500 text-sm mt-1">{getSubtitulo()}</p>
-            </div>
+          <div className="w-full">
             
-            {/* Botón Nuevo Caso - Todos los roles pueden crear */}
-            {!isAdmin(userRol) && (
-            <Link 
-              href="/casos/nuevo" 
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition flex items-center gap-2 shadow-sm font-medium"
-            >
-              <Plus className="w-4 h-4" /> Nuevo Expediente
-            </Link>
-          )}
-          </div>
+            {/* BREADCRUMB AGREGADO */}
+            <nav className="mb-4 flex items-center gap-1.5 text-sm text-slate-400">
+              <Link href="/" className="hover:text-slate-700 transition-colors flex items-center gap-1">
+                <LayoutDashboard className="w-3.5 h-3.5" />
+                Inicio
+              </Link>
+              <ChevronRight className="w-3.5 h-3.5" />
+              <span className="text-slate-600 font-medium">Expedientes</span>
+            </nav>
+
+            {/* ENCABEZADO UNIFICADO */}
+            <div className="flex items-start justify-between mb-6 flex-wrap gap-4">
+              <div>
+                <h1 className="text-2xl font-bold text-slate-900">{getTitulo()}</h1>
+                <p className="text-sm text-slate-500 mt-1">{getSubtitulo()}</p>
+              </div>
+              
+              {!isAdmin(userRol) && (
+                <Link 
+                  href="/casos/nuevo" 
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition flex items-center gap-2 shadow-sm font-medium"
+                >
+                  <Plus className="w-4 h-4" /> Nuevo Expediente
+                </Link>
+              )}
+            </div>
+            </div>
             
           {/* Indicador de rol para Asistente */}
           {isAsistente(userRol) && (
@@ -237,13 +250,19 @@ if (terminoEtapa) {
                           </div>
                       </td>
                       
-                      <td className="p-4 text-right">
-                        <Link 
-                          href={`/casos/${caso.id}`} 
-                          className="text-blue-600 hover:text-blue-800 text-sm font-medium hover:underline"
-                        >
-                          Ver Expediente
-                        </Link>
+                      <td className="p-4 text-right pr-6">
+                        <div className="flex justify-end">
+                          <Link href={`/casos/${caso.id}`}>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="group/btn h-8 gap-2 px-3 hover:bg-blue-50 hover:text-blue-700 text-slate-600 transition-all rounded-lg"
+                            >
+                              <span className="text-xs font-semibold">Ver Expediente</span>
+                              <Eye className="w-4 h-4 text-slate-400 group-hover/btn:text-blue-600 transition-colors" />
+                            </Button>
+                          </Link>
+                        </div>
                       </td>
                     </tr>
                   ))

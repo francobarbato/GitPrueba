@@ -16,7 +16,6 @@ import type { TareaConRelaciones } from "src/lib/actions/tarea-actions"
 import type { EstadoTarea } from "@prisma/client"
 import { marcarTareaLeidaAction } from "src/lib/actions/comentario-actions"
 import { ComentariosSection } from "./ComentariosSection"
-// IMPORTANTE: ajustá la ruta al Header según donde lo tengas en tu proyecto.
 import { dispatchNotificationsRefresh } from "@/app/components/header"
 
 const ESTADO_CONFIG: Record<string, { label: string; dot: string; text: string; bg: string; border: string }> = {

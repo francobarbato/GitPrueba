@@ -152,6 +152,10 @@ function getTipoNovedad(
  
   if (!ultimoAcceso) return "nueva"
   if (new Date(t.updatedAt) <= new Date(ultimoAcceso)) return null
+    // Si sos creador Y responsable, ningún cambio tuyo genera novedad
+  if (t.creadorId === currentUserId && t.responsableId === currentUserId) return null
+
+  // Si sos solo el creador, filtramos la creación inicial
   if (t.creadorId === currentUserId) {
     const diffMs = Math.abs(new Date(t.updatedAt).getTime() - new Date(t.createdAt).getTime())
     if (diffMs < 5000) return null
@@ -282,7 +286,7 @@ function isoToDateEdit(s: string): Date | undefined {
   return new Date(y, m - 1, d)
 }
  
-function ModalEditar({ tarea, onClose, onSaved, currentUserId, usuarios }: {
+export function ModalEditar({ tarea, onClose, onSaved, currentUserId, usuarios }: {
   tarea: TareaConRelaciones; onClose: () => void; onSaved: (t: TareaConRelaciones) => void
   currentUserId: string; usuarios?: { id: string; nombre: string | null; apellido: string | null; rol: string }[]
 }) {
@@ -420,7 +424,11 @@ function ModalEditar({ tarea, onClose, onSaved, currentUserId, usuarios }: {
             </label>
             <CalendarioCarga
               selected={isoToDateEdit(fechaVencimiento)}
-              onSelect={d => setFecha(dateToISOEdit(d))}
+              onSelect={(d) => {
+              if (!d) { setFecha(""); return }
+              const normalizada = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0)
+              setFecha(dateToISOEdit(normalizada))
+}}
               carga={cargaResponsable}
               loading={cargaLoading}
               feriadosSet={feriadosSet}

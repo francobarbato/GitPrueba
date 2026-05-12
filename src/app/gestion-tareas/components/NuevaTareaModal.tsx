@@ -420,12 +420,16 @@ export function NuevaTareaModal({ usuarios, casos, clientes = [], currentUserId,
                 )}
               </Label>
               <CalendarioCarga
-                selected={isoToDate(fechaVencimiento)}
-                onSelect={d => setFechaVencimiento(dateToISO(d))}
-                carga={cargaResponsable}
-                loading={cargaLoading}
-                feriadosSet={feriadosSet}
-              />
+                  selected={isoToDate(fechaVencimiento)}
+                  onSelect={(d) => {
+                    if (!d) { setFechaVencimiento(""); return }
+                    const normalizada = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0)
+                    setFechaVencimiento(dateToISO(normalizada))
+                  }}
+                  carga={cargaResponsable}
+                  loading={cargaLoading}
+                  feriadosSet={feriadosSet}
+                />
             </div>
 
             <div>

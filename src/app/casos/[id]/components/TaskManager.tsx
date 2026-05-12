@@ -22,6 +22,7 @@ import {
   eliminarTareaAction, getTareaDetalle,
 } from "src/lib/actions/tarea-actions"
 import { TareaDetalleDrawer } from "../../../gestion-tareas/components/TareaDetalleDrawer"
+import { ModalEditar } from "../../../gestion-tareas/components/TareasBoard"
 
 // ============================================================================
 // HELPERS DE PRESENTACIÓN
@@ -48,7 +49,11 @@ function esVencidaActiva(t: TareaConRelaciones): boolean {
   if (t.estado !== "VENCIDA") return false
   if (t.vencidaCerradaEn) return false
   if (!t.fechaVencimiento) return false
-  const dias = Math.floor((Date.now() - new Date(t.fechaVencimiento).getTime()) / (1000 * 60 * 60 * 24))
+
+  const fVenc = new Date(t.fechaVencimiento)
+  const fAjustada = new Date(fVenc.getTime() + fVenc.getTimezoneOffset() * 60000)
+
+  const dias = Math.floor((Date.now() - fAjustada.getTime()) / (1000 * 60 * 60 * 24))
   return dias <= DIAS_VENCIDA_ACTIVA
 }
 
@@ -214,7 +219,7 @@ function TooltipInfo() {
         <Info className="w-3.5 h-3.5" />
       </button>
       {open && (
-<div className="absolute left-0 top-6 w-64 bg-white border border-slate-200 rounded-xl shadow-lg z-50 p-3 text-xs text-slate-600 space-y-2">          <p className="font-semibold text-slate-800 text-[11px] uppercase tracking-wide">Cómo usar el calendario</p>
+          <div className="absolute left-0 top-6 w-64 bg-white border border-slate-200 rounded-xl shadow-lg z-50 p-3 text-xs text-slate-600 space-y-2">          <p className="font-semibold text-slate-800 text-[11px] uppercase tracking-wide">Cómo usar el calendario</p>
           <p>Los días con punto tienen eventos asignados. El color indica la urgencia más alta de ese día.</p>
           <p>
             <span className="font-medium text-slate-700">Hacé clic en un día</span> para filtrar la lista de la derecha y ver solo los eventos de esa fecha.
@@ -253,12 +258,20 @@ function MiniCalendario({
   const primerDia = new Date(mesActual.getFullYear(), mesActual.getMonth(), 1).getDay()
   const offset = primerDia === 0 ? 6 : primerDia - 1
 
-  const tareasPorDia = new Map<number, TareaConRelaciones[]>()
+const tareasPorDia = new Map<number, TareaConRelaciones[]>()
+  
   tareas.forEach(t => {
     if (!t.fechaVencimiento) return
+    
     const fecha = new Date(t.fechaVencimiento)
-    if (fecha.getFullYear() === mesActual.getFullYear() && fecha.getMonth() === mesActual.getMonth()) {
-      const dia = fecha.getDate()
+    
+    const fechaAjustada = new Date(fecha.getTime() + fecha.getTimezoneOffset() * 60000);
+    
+    if (
+      fechaAjustada.getFullYear() === mesActual.getFullYear() && 
+      fechaAjustada.getMonth() === mesActual.getMonth()
+    ) {
+      const dia = fechaAjustada.getDate() 
       if (!tareasPorDia.has(dia)) tareasPorDia.set(dia, [])
       tareasPorDia.get(dia)!.push(t)
     }
@@ -480,7 +493,12 @@ function TareaCard({ tarea, onClick }: { tarea: TareaConRelaciones; onClick: () 
             <Clock className="w-3 h-3" />
             {tarea.estado === "VENCIDA" && !esVencidaCerrada && "Vencida — "}
             {urgencia === "urgente" && "Urgente — "}
-            Vence: {format(new Date(tarea.fechaVencimiento), "d 'de' MMMM yyyy", { locale: es })}
+            
+            Vence: {format(
+              new Date(new Date(tarea.fechaVencimiento).getTime() + new Date(tarea.fechaVencimiento).getTimezoneOffset() * 60000), 
+              "d 'de' MMMM yyyy", 
+              { locale: es }
+            )}
           </div>
         )}
 
@@ -512,7 +530,7 @@ function TareaCard({ tarea, onClick }: { tarea: TareaConRelaciones; onClick: () 
         {esCompletada && tarea.fechaCompletada && (
           <p className="text-[10px] text-green-600 mt-2 flex items-center gap-1">
             <CheckCircle2 className="w-3 h-3" />
-            Completada el {format(new Date(tarea.fechaCompletada), "d MMM yyyy", { locale: es })}
+            Completada el {format(new Date(new Date(tarea.fechaCompletada).getTime() + new Date(tarea.fechaCompletada).getTimezoneOffset() * 60000), "d MMM yyyy", { locale: es })}
             {tarea.fechaVencimiento && new Date(tarea.fechaCompletada) > new Date(tarea.fechaVencimiento) && (
               <span className="text-amber-600 font-medium ml-1">· con demora</span>
             )}
@@ -539,9 +557,12 @@ type Props = {
   tareas: TareaConRelaciones[]
   puedeCrear: boolean
   currentUserId: string
+  usuarios: { id: string; nombre: string | null; apellido: string | null; rol: string }[] 
+
 }
 
-export function TaskManager({ casoId, tareas: tareasIniciales, puedeCrear, currentUserId }: Props) {
+export function TaskManager({ casoId,usuarios , tareas: tareasIniciales, puedeCrear, currentUserId }: Props) {
+  const [tareaAEditar, setTareaAEditar] = useState<TareaConRelaciones | null>(null)
   const [tareas, setTareas] = useState(tareasIniciales)
   useEffect(() => { setTareas(tareasIniciales) }, [tareasIniciales])
 
@@ -557,6 +578,7 @@ export function TaskManager({ casoId, tareas: tareasIniciales, puedeCrear, curre
   const [modalDesbloqueo, setModalDesbloqueo] = useState<string | null>(null)
   const [modalCerrarVencida, setModalCerrarVencida] = useState<string | null>(null)
   const [modalEliminar, setModalEliminar] = useState<{ id: string; titulo: string } | null>(null)
+  const [expandido, setExpandido] = useState(false)
 
   const tareasActivas = tareas.filter(t => !esTerminalParaBoard(t))
   const tareasTerminadas = tareas.filter(t => esTerminalParaBoard(t))
@@ -574,10 +596,12 @@ export function TaskManager({ casoId, tareas: tareasIniciales, puedeCrear, curre
     ? tareasMostradas.filter(t => {
         if (!t.fechaVencimiento) return false
         const f = new Date(t.fechaVencimiento)
+
+        const fechaAjustada = new Date(f.getTime() + f.getTimezoneOffset() * 60000);
         return (
-          f.getFullYear() === diaSeleccionado.anio &&
-          f.getMonth() === diaSeleccionado.mes &&
-          f.getDate() === diaSeleccionado.dia
+          fechaAjustada.getFullYear() === diaSeleccionado.anio &&
+          fechaAjustada.getMonth() === diaSeleccionado.mes &&
+          fechaAjustada.getDate() === diaSeleccionado.dia
         )
       })
     : tareasMostradas
@@ -668,9 +692,9 @@ export function TaskManager({ casoId, tareas: tareasIniciales, puedeCrear, curre
     })
   }
 
-  const handleEdit = () => {
-    window.location.href = `/gestion-tareas?caso=${casoId}`
-  }
+const handleEdit = (tarea: TareaConRelaciones) => {
+  setTareaAEditar(tarea)
+}
 
   const handleDelete = (tareaId: string) => {
     const t = tareas.find(x => x.id === tareaId)
@@ -702,11 +726,25 @@ export function TaskManager({ casoId, tareas: tareasIniciales, puedeCrear, curre
         open={!!drawerTarea}
         onClose={handleCloseDrawer}
         onChangeEstado={handleCambioEstado}
-        onEdit={handleEdit}
+        onEdit={(tarea) => handleEdit(tarea)}
         onDelete={handleDelete}
         onCerrarVencida={handleCerrarVencida}
         currentUserId={currentUserId}
+        
       />
+
+      {tareaAEditar && (
+        <ModalEditar
+          tarea={tareaAEditar}
+          onClose={() => setTareaAEditar(null)}
+          onSaved={(tareaActualizada) => {
+            setTareas(prev => prev.map(t => t.id === tareaActualizada.id ? tareaActualizada : t))
+            setTareaAEditar(null)
+          }}
+          currentUserId={currentUserId}
+          usuarios={usuarios}
+        />
+      )}
 
       {tareasConAlerta.length > 0 && (
         <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2">
@@ -720,8 +758,8 @@ export function TaskManager({ casoId, tareas: tareasIniciales, puedeCrear, curre
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
         {/* Columna izquierda */}
-        <div className="space-y-4">
-          <div className="flex items-center gap-1.5">
+        <div className="space-y-4 lg:sticky lg:top-4">
+            <div className="flex items-center gap-1.5">
             <span className="text-[11px] text-slate-500 font-medium">Calendario de eventos</span>
             <TooltipInfo />
           </div>
@@ -755,17 +793,16 @@ export function TaskManager({ casoId, tareas: tareasIniciales, puedeCrear, curre
         </div>
 
         {/* Columna derecha: lista */}
-        <div className="lg:col-span-2 space-y-4">
-
+        <div className="lg:col-span-2 space-y-4 max-h-[600px] overflow-y-auto pr-2 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-slate-200 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-transparent">
           <div className="flex items-center justify-between w-full">
             <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1 w-fit">
-            <button onClick={() => { setFiltro("activas"); setDiaSeleccionado(null) }}
+            <button onClick={() => { setFiltro("activas"); setDiaSeleccionado(null); setExpandido(false) }}
               className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
                 filtro === "activas" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"
               }`}>
               Activas ({tareasActivas.length})
             </button>
-            <button onClick={() => { setFiltro("completadas"); setDiaSeleccionado(null) }}
+            <button onClick={() => { setFiltro("completadas"); setDiaSeleccionado(null); setExpandido(false) }}
               className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
                 filtro === "completadas" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"
               }`}>
@@ -778,37 +815,44 @@ export function TaskManager({ casoId, tareas: tareasIniciales, puedeCrear, curre
           </div>
 
           {tareasOrdenadas.length === 0 ? (
-            <div className="text-center py-12 bg-white border border-slate-200 rounded-xl">
-              <CalendarClock className="w-10 h-10 mx-auto text-slate-300 mb-3" />
-              <p className="text-slate-500 font-medium">
-                {diaSeleccionado
-                  ? `No hay eventos el ${diaSeleccionado.dia} de ${format(new Date(diaSeleccionado.anio, diaSeleccionado.mes, diaSeleccionado.dia), "MMMM", { locale: es })}`
-                  : filtro === "activas" ? "No hay actividad en este expediente" : "No hay actividades finalizadas"
-                }
-              </p>
-              {diaSeleccionado && (
-                <button
-                  onClick={() => setDiaSeleccionado(null)}
-                  className="mt-2 text-sm text-blue-600 hover:underline"
-                >
-                  Ver todos los eventos
-                </button>
-              )}
-              {!diaSeleccionado && filtro === "activas" && puedeCrear && (
-                <Link href={`/gestion-tareas?caso=${casoId}`}>
-                  <Button variant="ghost" size="sm" className="mt-2 gap-1 text-blue-600">
-                    <ExternalLink className="w-3 h-3" /> Gestionar agenda para este expediente
-                  </Button>
-                </Link>
-              )}
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {tareasOrdenadas.map(tarea => (
-                <TareaCard key={tarea.id} tarea={tarea} onClick={() => handleOpenDrawer(tarea)} />
-              ))}
-            </div>
-          )}
+              <div className="text-center py-12 bg-white border border-slate-200 rounded-xl">
+                <CalendarClock className="w-10 h-10 mx-auto text-slate-300 mb-3" />
+                <p className="text-slate-500 font-medium">
+                  {diaSeleccionado
+                    ? `No hay eventos el ${diaSeleccionado.dia} de ${format(new Date(diaSeleccionado.anio, diaSeleccionado.mes, diaSeleccionado.dia), "MMMM", { locale: es })}`
+                    : filtro === "activas" ? "No hay actividad en este expediente" : "No hay actividades finalizadas"
+                  }
+                </p>
+                {diaSeleccionado && (
+                  <button onClick={() => setDiaSeleccionado(null)} className="mt-2 text-sm text-blue-600 hover:underline">
+                    Ver todos los eventos
+                  </button>
+                )}
+                {!diaSeleccionado && filtro === "activas" && puedeCrear && (
+                  <Link href={`/gestion-tareas?caso=${casoId}`}>
+                    <Button variant="ghost" size="sm" className="mt-2 gap-1 text-blue-600">
+                      <ExternalLink className="w-3 h-3" /> Gestionar agenda para este expediente
+                    </Button>
+                  </Link>
+                )}
+              </div>
+            ) : (
+              <>
+                <div className="space-y-3">
+                  {(expandido ? tareasOrdenadas : tareasOrdenadas.slice(0, 5)).map(tarea => (
+                    <TareaCard key={tarea.id} tarea={tarea} onClick={() => handleOpenDrawer(tarea)} />
+                  ))}
+                </div>
+                {tareasOrdenadas.length > 5 && (
+                  <button
+                    onClick={() => setExpandido(v => !v)}
+                    className="w-full py-2 text-sm text-slate-500 hover:text-slate-700 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors"
+                  >
+                    {expandido ? "Ver menos" : `Ver todos los eventos (${tareasOrdenadas.length})`}
+                  </button>
+                )}
+              </>
+            )}
         </div>
       </div>
     </div>

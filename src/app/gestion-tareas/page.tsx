@@ -2,7 +2,7 @@ import { Sidebar } from "@/app/components/sidebar"
 import { Header } from "@/app/components/header"
 import { getUserSessionServer } from "@/auth/actions/auth-actions"
 import { redirect, notFound } from "next/navigation"
-import { CheckCircle2, ChevronRight } from "lucide-react"
+import { CheckCircle2, ChevronRight, LayoutDashboard } from "lucide-react"
 import Link from "next/link"
 import {
   getTareasDelUsuario,
@@ -69,7 +69,10 @@ export default async function TareasPage() {
           <div className="w-full">
 
             <nav className="mb-4 flex items-center gap-1.5 text-sm text-slate-400">
-              <Link href="/" className="hover:text-slate-700 transition-colors">Inicio</Link>
+              <Link href="/" className="hover:text-slate-700 transition-colors flex items-center gap-1">
+                <LayoutDashboard className="w-3.5 h-3.5" />
+                Inicio
+              </Link>
               <ChevronRight className="w-3.5 h-3.5" />
               <span className="text-slate-600 font-medium">Agenda y Seguimientos</span>
             </nav>

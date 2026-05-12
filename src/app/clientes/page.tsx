@@ -6,7 +6,7 @@ import { Header } from "@/app/components/header"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Plus, Edit, User, Building2, Eye } from "lucide-react"
+import { Plus, Edit, User, Building2, Eye, ChevronRight, LayoutDashboard } from "lucide-react"
 import { Buscador } from "../components/buscador"
 import { redirect, notFound } from "next/navigation"
 
@@ -88,24 +88,35 @@ export default async function ClientesPage({
   }
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex h-screen bg-slate-50"> {/* Cambiado gray-50 a slate-50 para consistencia */}
       <Sidebar />
       
       <div className="flex flex-col flex-1 overflow-hidden">
         <Header />
         
         <main className="flex-1 overflow-auto p-6">
-          <div className="max-w-6xl mx-auto">
-            {/* Header */}
-            <div className="flex items-center justify-between mb-8">
+          {/* ELIMINADO max-w-6xl para que use todo el ancho visual */}
+          <div className="w-full">
+            
+            {/* BREADCRUMB AGREGADO */}
+            <nav className="mb-4 flex items-center gap-1.5 text-sm text-slate-400">
+              <Link href="/" className="hover:text-slate-700 transition-colors flex items-center gap-1">
+                <LayoutDashboard className="w-3.5 h-3.5" />
+                Inicio
+              </Link>
+              <ChevronRight className="w-3.5 h-3.5" />
+              <span className="text-slate-600 font-medium">Clientes</span>
+            </nav>
+
+            {/* HEADER UNIFICADO (Estilo Agenda/Expedientes) */}
+            <div className="flex items-start justify-between mb-6 flex-wrap gap-4">
               <div>
-                <h1 className="text-3xl font-bold text-slate-800">{getTitulo()}</h1>
-                <p className="text-gray-600">{getSubtitulo()}</p>
+                <h1 className="text-2xl font-bold text-slate-900">{getTitulo()}</h1>
+                <p className="text-sm text-slate-500 mt-1">{getSubtitulo()}</p>
               </div>
               
-              {/* Botón Nuevo Cliente */}
               <Link href="/clientes/nuevo">
-                <Button className="gap-2 bg-blue-600 hover:bg-blue-700">
+                <Button className="gap-2 bg-blue-600 hover:bg-blue-700 shadow-sm font-medium">
                   <Plus className="w-4 h-4" />
                   Nuevo Cliente
                 </Button>
@@ -114,25 +125,23 @@ export default async function ClientesPage({
 
             {/* Indicador de rol para Asistente */}
             {isAsistente(userRol) && (
-              <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm">
+              <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm shadow-sm">
                 <strong>Modo Asistente:</strong> Puedes ver y registrar clientes. 
                 Los clientes creados quedarán disponibles para ser asignados a casos por los abogados.
               </div>
             )}
 
-            {/* Filtros con Buscador Inteligente y Pestañas de Estado */}
+            {/* Filtros */}
             <Card className="mb-6 shadow-sm border-slate-200">
-              <CardHeader className="pb-3">
+              <CardHeader className="pb-3 px-4">
                 <CardTitle className="text-lg">Filtros de Búsqueda</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-4 pb-4">
                 <div className="flex flex-col sm:flex-row gap-4">
-                  {/* Buscador de texto */}
                   <div className="flex-1">
                     <Buscador placeholder="Buscar por nombre, apellido, DNI, empresa..." />
                   </div>
 
-                  {/* Selector de Estado (Estilo Pestañas/Toggle) */}
                   <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200 shrink-0">
                     <Link 
                       href={buildFilterUrl('habilitados')}
@@ -158,14 +167,15 @@ export default async function ClientesPage({
             </Card>
 
             {/* Tabla */}
-            <Card className="shadow-sm border-slate-200">
-              <CardHeader>
-                <CardTitle>Lista de Clientes ({clientes.length})</CardTitle>
+            <Card className="shadow-sm border-slate-200 overflow-hidden">
+              <CardHeader className="bg-white border-b border-slate-100 px-4">
+                <CardTitle className="text-lg">Lista de Clientes ({clientes.length})</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-0"> {/* Eliminado el padding para que la tabla toque los bordes del Card */}
                 {clientes.length === 0 ? (
-                  <div className="text-center py-12 text-gray-500">
-                    <p className="text-lg">No se encontraron clientes</p>
+                  <div className="text-center py-16 text-slate-500">
+                    <User className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                    <p className="text-lg font-medium text-slate-600">No se encontraron clientes</p>
                     {terminoBusqueda === "" && filtroEstado === "habilitados" && (
                       <Link href="/clientes/nuevo" className="text-blue-600 hover:underline text-sm mt-2 block">
                         Crear el primero
@@ -175,74 +185,58 @@ export default async function ClientesPage({
                 ) : (
                   <div className="overflow-x-auto">
                     <Table>
-                      <TableHeader className="bg-slate-50">
+                      <TableHeader className="bg-slate-50/50">
                         <TableRow>
-                          <TableHead className="font-semibold text-slate-600">Tipo</TableHead>
+                          <TableHead className="w-[80px] font-semibold text-slate-600 text-center">Tipo</TableHead>
                           <TableHead className="font-semibold text-slate-600">Cliente</TableHead>
                           <TableHead className="font-semibold text-slate-600">Documento</TableHead>
                           <TableHead className="font-semibold text-slate-600">Email</TableHead>
                           <TableHead className="font-semibold text-slate-600">Teléfono</TableHead>
                           <TableHead className="font-semibold text-slate-600">Estado</TableHead>
-                          <TableHead className="font-semibold text-slate-600">Acciones</TableHead>
+                          <TableHead className="font-semibold text-slate-600 text-right pr-6">Acciones</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {clientes.map((cliente) => (
-                          <TableRow key={cliente.id} className="hover:bg-slate-50 transition">
-                            {/* Indicador de tipo de persona */}
-                            <TableCell>
-                              <div title={cliente.tipoPersona === 'FISICA' ? "Persona Física" : "Persona Jurídica"}>
+                          <TableRow key={cliente.id} className="hover:bg-slate-50/80 transition-colors group">
+                            <TableCell className="text-center">
+                              <div className="flex justify-center" title={cliente.tipoPersona === 'FISICA' ? "Persona Física" : "Persona Jurídica"}>
                                 {cliente.tipoPersona === 'FISICA' ? (
-                                  <User className="h-4 w-4 text-blue-600" />
+                                  <User className="h-4 w-4 text-blue-500" />
                                 ) : (
-                                  <Building2 className="h-4 w-4 text-purple-600" />
+                                  <Building2 className="h-4 w-4 text-purple-500" />
                                 )}
                               </div>
                             </TableCell>
-                            
-                            {/* Nombre */}
-                            <TableCell className="font-medium text-slate-900">
+                            <TableCell className="font-medium text-slate-900 py-4">
                               {cliente.nombre} {cliente.apellido || ''}
                             </TableCell>
-                            
-                            {/* Documento */}
-                            <TableCell className="text-slate-600">
+                            <TableCell className="text-slate-500 text-sm">
                               {cliente.numeroDocumento ? (
-                                <span className="text-xs">
-                                  <span className="font-semibold">{cliente.tipoDocumento || 'DNI'}:</span> {cliente.numeroDocumento}
+                                <span>
+                                  <span className="font-medium text-slate-400 text-[10px] uppercase mr-1">{cliente.tipoDocumento || 'DNI'}</span> 
+                                  {cliente.numeroDocumento}
                                 </span>
                               ) : "-"}
                             </TableCell>
-                            
-                            {/* Email */}
-                            <TableCell className="text-slate-600 text-sm">{cliente.email || "-"}</TableCell>
-                            
-                            {/* Teléfono */}
-                            <TableCell className="text-slate-600 text-sm">{cliente.telefono || "-"}</TableCell>
-                            
-                            {/* Estado (Actualizado a Habilitado/Archivado) */}
+                            <TableCell className="text-slate-500 text-sm font-light">{cliente.email || "-"}</TableCell>
+                            <TableCell className="text-slate-500 text-sm">{cliente.telefono || "-"}</TableCell>
                             <TableCell>
-                              <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium 
-                                ${cliente.activo ? "bg-green-100 text-green-800 border border-green-200" : "bg-gray-100 text-gray-600 border border-gray-200"}`}>
+                              <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-medium border 
+                                ${cliente.activo ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-slate-100 text-slate-500 border-slate-200"}`}>
                                 {cliente.activo ? 'Habilitado' : 'Archivado'}
                               </span>
                             </TableCell>
-                            
-                            {/* Acciones */}
-                            <TableCell>
-                              <div className="flex gap-2">
+                            <TableCell className="text-right pr-6">
+                              <div className="flex justify-end gap-1">
                                 <Link href={`/clientes/${cliente.id}`}>
-                                  <Button 
-                                    variant="ghost" 
-                                    size="sm" 
-                                    className="h-8 w-8 p-0 hover:bg-blue-50"
-                                    title="Ver detalles">
-                                    <Eye className="w-4 h-4 text-blue-600" />
+                                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-blue-50 group/eye">
+                                    <Eye className="w-4 h-4 text-slate-400 group-hover/eye:text-blue-600 transition-colors" />
                                   </Button>
                                 </Link>
                                 <Link href={`/clientes/${cliente.id}/editar`}>
-                                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" title="Editar / Restaurar">
-                                    <Edit className="w-4 h-4 text-slate-500 hover:text-blue-600" />
+                                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-slate-100 group/edit">
+                                    <Edit className="w-4 h-4 text-slate-400 group-hover/edit:text-slate-900 transition-colors" />
                                   </Button>
                                 </Link>
                               </div>

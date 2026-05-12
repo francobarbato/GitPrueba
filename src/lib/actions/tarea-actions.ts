@@ -236,7 +236,7 @@ export async function getTareasParaNotificaciones(): Promise<{ nuevas: TareaNoti
     },
     select: {
       id: true, titulo: true, tipo: true, prioridad: true, estado: true,
-      fechaVencimiento: true, updatedAt: true, createdAt: true, creadorId: true,
+      fechaVencimiento: true, responsableId: true,updatedAt: true, createdAt: true, creadorId: true,
       creador: { select: { nombre: true, apellido: true } },
       caso: { select: { numero: true } },
     },
@@ -255,18 +255,22 @@ export async function getTareasParaNotificaciones(): Promise<{ nuevas: TareaNoti
   const lecturasMap = new Map(lecturas.map(l => [l.tareaId, l.ultimaLectura]))
  
   const UMBRAL_MS = 5000
-  const tareasFiltradas = tareasRaw.filter(t => {
-    // Filtro existente: ignorar tareas recién creadas por el propio usuario
-    if (t.creadorId === user.id) {
-      const diffMs = Math.abs(t.updatedAt.getTime() - t.createdAt.getTime())
-      if (diffMs <= UMBRAL_MS) return false
-    }
-    // ═══ NUEVO: si tengo lectura posterior al updatedAt, ya la vi ═══
-    const ultimaLectura = lecturasMap.get(t.id)
-    if (ultimaLectura && ultimaLectura >= t.updatedAt) return false
- 
-    return true
-  })
+const tareasFiltradas = tareasRaw.filter(t => {
+  // Si sos creador Y responsable, ningún cambio tuyo te genera notificación
+  if (t.creadorId === user.id && t.responsableId === user.id) return false
+
+  // Si sos solo el creador, filtramos solo la creación inicial (diff <= 5s)
+  if (t.creadorId === user.id) {
+    const diffMs = Math.abs(t.updatedAt.getTime() - t.createdAt.getTime())
+    if (diffMs <= UMBRAL_MS) return false
+  }
+
+  // Si ya leíste la tarea después del último cambio, no es novedad
+  const ultimaLectura = lecturasMap.get(t.id)
+  if (ultimaLectura && ultimaLectura >= t.updatedAt) return false
+
+  return true
+})
  
   const tareas = tareasFiltradas.slice(0, 20)
  
@@ -331,8 +335,7 @@ export async function crearTareaAction(data: {
         ambito: data.ambito, 
         prioridad: data.prioridad, 
         estado: "PENDIENTE",
-        fechaVencimiento: data.fechaVencimiento ? new Date(data.fechaVencimiento) : null,
-        fechaInicio: data.fechaInicio ? new Date(data.fechaInicio) : new Date(),
+        fechaVencimiento: data.fechaVencimiento ? new Date(data.fechaVencimiento + "T12:00:00") : null,        fechaInicio: data.fechaInicio ? new Date(data.fechaInicio) : new Date(),
         lugarFisico: data.lugarFisico?.trim() || null, 
         visibleCliente: data.visibleCliente ?? false,
         categoria: data.categoria,
@@ -576,8 +579,7 @@ export async function editarTareaAction(
     const updateData: any = {}
 
     if (data.fechaVencimiento !== undefined) {
-      updateData.fechaVencimiento = data.fechaVencimiento === null ? null : data.fechaVencimiento ? new Date(data.fechaVencimiento) : undefined
-    }
+    updateData.fechaVencimiento = data.fechaVencimiento === null ? null : data.fechaVencimiento ? new Date(data.fechaVencimiento + "T12:00:00") : undefined    }
     if (data.lugarFisico !== undefined) updateData.lugarFisico = data.lugarFisico?.trim() || null
     if (data.descripcion !== undefined) updateData.descripcion = data.descripcion?.trim() || null
     if (data.visibleCliente !== undefined) updateData.visibleCliente = data.visibleCliente
