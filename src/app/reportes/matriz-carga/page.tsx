@@ -70,6 +70,7 @@ export type TareaActivaDetalle = {
   caso: string | null
   casoId: string | null
   fechaVencimiento: string | null
+  
 }
 
 export type TareaBloqueadaDetalle = {
@@ -137,7 +138,23 @@ async function getMatrizCarga(abogadoId?: string) {
     },
   })
 
-  const whereTareas: any = { estado: { notIn: ["COMPLETADA", "VENCIDA"] } }
+  const treintaDiasAtras = new Date()
+treintaDiasAtras.setDate(treintaDiasAtras.getDate() - 30)
+
+const whereTareas: any = {
+  estado: { notIn: ["COMPLETADA"] },
+  NOT: {
+    AND: [
+      { estado: "VENCIDA" },
+      {
+        OR: [
+          { vencidaCerradaEn: { not: null } },
+          { fechaVencimiento: { lt: treintaDiasAtras } },
+        ]
+      }
+    ]
+  }
+}
   if (abogadoId) whereTareas.responsableId = abogadoId
 
   const tareasActivasRaw = await prisma.tarea.findMany({

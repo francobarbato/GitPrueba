@@ -581,7 +581,7 @@ function TareaCard({ tarea, onChange, onEdit, onDelete, onOpenDrawer, onCerrarVe
             {esResponsable && tarea.estado === "PENDIENTE" && (
               <>
                 {CATEGORIAS_FLUJO_COMPLETO.has(tarea.categoria) ? (
-                  <button onClick={e => { e.stopPropagation(); onChange(tarea.id, "EN_PROCESO") }} className="text-[10px] px-2 py-1 bg-blue-50 text-blue-700 rounded-md hover:bg-blue-100 border border-blue-200 transition-colors">En proceso</button>
+                  <button onClick={e => { e.stopPropagation(); onChange(tarea.id, "EN_PROCESO") }} className="text-[10px] px-2 py-1 bg-blue-50 text-blue-700 rounded-md hover:bg-blue-100 border border-blue-200 transition-colors">Poner en proceso</button>
                 ) : (
                   <button onClick={e => { e.stopPropagation(); onChange(tarea.id, "COMPLETADA") }} className="text-[10px] px-2 py-1 bg-green-50 text-green-700 rounded-md hover:bg-green-100 border border-green-200 transition-colors font-semibold">Completar</button>
                 )}

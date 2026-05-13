@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Briefcase, ListChecks, ChevronDown, ChevronRight, Clock } from "lucide-react"
 import Link from "next/link"
 import type { CasoActivoDetalle, TareaActivaDetalle } from "../page"
+import { useRouter } from "next/navigation"
 
 const formatMoney = (n: number) =>
   new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(n)
@@ -31,20 +32,22 @@ const ESTADO_LABELS: Record<string, { label: string; color: string }> = {
   PENDIENTE:  { label: "Pendiente",  color: "bg-slate-100 text-slate-600" },
   EN_PROCESO: { label: "En proceso", color: "bg-blue-100 text-blue-700" },
   BLOQUEADA:  { label: "Bloqueado",  color: "bg-red-100 text-red-700" },
+  VENCIDA:    { label: "Vencida",    color: "bg-red-100 text-red-700 font-bold" },
+}
+
+const ORDEN_ESTADO: Record<string, number> = {
+  VENCIDA: 0, EN_PROCESO: 1, PENDIENTE: 2, BLOQUEADA: 3,
 }
 
 export function DetalleCargaPersonal({ casos, tareas }: { casos: CasoActivoDetalle[]; tareas: TareaActivaDetalle[] }) {
+  const router = useRouter()
   const [casosExpandido, setCasosExpandido] = useState(false)
   const [tareasExpandido, setTareasExpandido] = useState(false)
 
-  // Filtros expedientes
   const [filtroCasoTipo, setFiltroCasoTipo] = useState("todos")
-
-  // Filtros eventos
   const [filtroTareaTipo, setFiltroTareaTipo] = useState("todos")
   const [filtroTareaCat, setFiltroTareaCat] = useState("todos")
 
-  // Tipos presentes
   const tiposCasoPresentes = useMemo(() => {
     const set = new Set<string>()
     casos.forEach(c => set.add(c.tipo))
@@ -57,35 +60,27 @@ export function DetalleCargaPersonal({ casos, tareas }: { casos: CasoActivoDetal
     return Array.from(set).sort()
   }, [tareas])
 
-  // ============================================================================
-  // Preview inline cuando el desplegable está cerrado — totales por categoría
-  // ============================================================================
-
-  // Preview para expedientes: agrupa por tipo
   const previewCasos = useMemo(() => {
     const porTipo = new Map<string, number>()
     for (const c of casos) porTipo.set(c.tipo, (porTipo.get(c.tipo) ?? 0) + 1)
-    // Ordenamos por cantidad desc y tomamos los 3 más frecuentes
     return Array.from(porTipo.entries())
       .sort((a, b) => b[1] - a[1])
       .slice(0, 3)
       .map(([tipo, cantidad]) => ({ tipo, cantidad }))
   }, [casos])
 
-  // Preview para eventos: totales por estado
   const previewTareas = useMemo(() => {
     let pendientes = 0
     let enProceso = 0
-    let bloqueados = 0
+    let vencidos = 0
     for (const t of tareas) {
       if (t.estado === "PENDIENTE") pendientes++
       else if (t.estado === "EN_PROCESO") enProceso++
-      else if (t.estado === "BLOQUEADA") bloqueados++
+      else if (t.estado === "VENCIDA") vencidos++
     }
-    return { pendientes, enProceso, bloqueados }
+    return { pendientes, enProceso, vencidos }
   }, [tareas])
 
-  // Filtrar
   const casosFiltrados = useMemo(() => {
     if (filtroCasoTipo === "todos") return casos
     return casos.filter(c => c.tipo === filtroCasoTipo)
@@ -93,6 +88,7 @@ export function DetalleCargaPersonal({ casos, tareas }: { casos: CasoActivoDetal
 
   const tareasFiltradas = useMemo(() => {
     return tareas.filter(t => {
+      if (t.estado === "BLOQUEADA") return false
       if (filtroTareaTipo !== "todos" && t.tipo !== filtroTareaTipo) return false
       if (filtroTareaCat !== "todos" && t.categoria !== filtroTareaCat) return false
       return true
@@ -104,7 +100,7 @@ export function DetalleCargaPersonal({ casos, tareas }: { casos: CasoActivoDetal
 
   return (
     <div className="space-y-4 mb-6">
-      {/* Sección: Mis expedientes activos */}
+      {/* ── Mis expedientes activos ── */}
       <Card className="bg-white border border-slate-200">
         <button
           onClick={() => setCasosExpandido(!casosExpandido)}
@@ -114,8 +110,6 @@ export function DetalleCargaPersonal({ casos, tareas }: { casos: CasoActivoDetal
             <Briefcase className="w-5 h-5 text-indigo-600 shrink-0" />
             <span className="text-base font-semibold text-slate-800">Mis expedientes activos</span>
             <span className="text-xs px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full font-bold">{casos.length}</span>
-
-            {/* Preview inline: solo visible si desplegable está cerrado y hay datos */}
             {!casosExpandido && previewCasos.length > 0 && (
               <div className="flex items-center gap-1.5 ml-2 flex-wrap">
                 <span className="text-xs text-slate-300">·</span>
@@ -150,7 +144,9 @@ export function DetalleCargaPersonal({ casos, tareas }: { casos: CasoActivoDetal
               </div>
             )}
             {casosFiltrados.length === 0 ? (
-              <p className="text-sm text-slate-400 text-center py-6">{hayFiltroCasos ? "Sin expedientes para el filtro seleccionado" : "Sin expedientes activos"}</p>
+              <p className="text-sm text-slate-400 text-center py-6">
+                {hayFiltroCasos ? "Sin expedientes para el filtro seleccionado" : "Sin expedientes activos"}
+              </p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -170,7 +166,9 @@ export function DetalleCargaPersonal({ casos, tareas }: { casos: CasoActivoDetal
                         <td className="px-4 py-2.5 text-slate-800 font-medium max-w-[250px] truncate">{c.titulo}</td>
                         <td className="px-3 py-2.5 text-xs text-slate-500">{c.tipo}</td>
                         <td className="px-4 py-2.5 text-right text-xs text-slate-600">{c.capitalEnLitigio > 0 ? formatMoney(c.capitalEnLitigio) : "—"}</td>
-                        <td className="px-3 py-2.5 text-center"><Link href={`/casos/${c.id}`} className="text-blue-600 hover:underline text-xs font-medium">Ver</Link></td>
+                        <td className="px-3 py-2.5 text-center">
+                          <Link href={`/casos/${c.id}`} className="text-blue-600 hover:underline text-xs font-medium">Ver</Link>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -181,7 +179,7 @@ export function DetalleCargaPersonal({ casos, tareas }: { casos: CasoActivoDetal
         )}
       </Card>
 
-      {/* Sección: Mis eventos activos */}
+      {/* ── Mis eventos activos ── */}
       <Card className="bg-white border border-slate-200">
         <button
           onClick={() => setTareasExpandido(!tareasExpandido)}
@@ -191,29 +189,27 @@ export function DetalleCargaPersonal({ casos, tareas }: { casos: CasoActivoDetal
             <ListChecks className="w-5 h-5 text-blue-600 shrink-0" />
             <span className="text-base font-semibold text-slate-800">Mis eventos activos</span>
             <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full font-bold">{tareas.length}</span>
-
-            {/* Preview inline: totales por estado cuando desplegable está cerrado */}
             {!tareasExpandido && tareas.length > 0 && (
               <div className="flex items-center gap-1.5 ml-2 flex-wrap">
                 <span className="text-xs text-slate-300">·</span>
-                {previewTareas.pendientes > 0 && (
+                {previewTareas.vencidos > 0 && (
                   <span className="text-xs text-slate-500">
-                    <span className="font-semibold text-slate-700">{previewTareas.pendientes}</span> pendiente{previewTareas.pendientes !== 1 ? "s" : ""}
+                    <span className="font-semibold text-red-700">{previewTareas.vencidos}</span> vencido{previewTareas.vencidos !== 1 ? "s" : ""}
                   </span>
                 )}
-                {previewTareas.enProceso > 0 && (
+                {previewTareas.pendientes > 0 && (
                   <>
-                    {previewTareas.pendientes > 0 && <span className="text-xs text-slate-300">·</span>}
+                    {previewTareas.vencidos > 0 && <span className="text-xs text-slate-300">·</span>}
                     <span className="text-xs text-slate-500">
-                      <span className="font-semibold text-blue-700">{previewTareas.enProceso}</span> en proceso
+                      <span className="font-semibold text-slate-700">{previewTareas.pendientes}</span> pendiente{previewTareas.pendientes !== 1 ? "s" : ""}
                     </span>
                   </>
                 )}
-                {previewTareas.bloqueados > 0 && (
+                {previewTareas.enProceso > 0 && (
                   <>
-                    {(previewTareas.pendientes > 0 || previewTareas.enProceso > 0) && <span className="text-xs text-slate-300">·</span>}
+                    {(previewTareas.vencidos > 0 || previewTareas.pendientes > 0) && <span className="text-xs text-slate-300">·</span>}
                     <span className="text-xs text-slate-500">
-                      <span className="font-semibold text-red-700">{previewTareas.bloqueados}</span> bloqueado{previewTareas.bloqueados !== 1 ? "s" : ""}
+                      <span className="font-semibold text-blue-700">{previewTareas.enProceso}</span> en proceso
                     </span>
                   </>
                 )}
@@ -244,13 +240,20 @@ export function DetalleCargaPersonal({ casos, tareas }: { casos: CasoActivoDetal
               )}
               {hayFiltroTareas && (
                 <>
-                  <button onClick={() => { setFiltroTareaTipo("todos"); setFiltroTareaCat("todos") }} className="text-xs text-slate-500 hover:text-slate-700 underline">Limpiar</button>
+                  <button
+                    onClick={() => { setFiltroTareaTipo("todos"); setFiltroTareaCat("todos") }}
+                    className="text-xs text-slate-500 hover:text-slate-700 underline"
+                  >
+                    Limpiar
+                  </button>
                   <span className="text-xs text-slate-400">{tareasFiltradas.length} de {tareas.length}</span>
                 </>
               )}
             </div>
             {tareasFiltradas.length === 0 ? (
-              <p className="text-sm text-slate-400 text-center py-6">{hayFiltroTareas ? "Sin eventos para los filtros seleccionados" : "Sin eventos activos"}</p>
+              <p className="text-sm text-slate-400 text-center py-6">
+                {hayFiltroTareas ? "Sin eventos para los filtros seleccionados" : "Sin eventos activos"}
+              </p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -265,37 +268,57 @@ export function DetalleCargaPersonal({ casos, tareas }: { casos: CasoActivoDetal
                     </tr>
                   </thead>
                   <tbody>
-                    {tareasFiltradas.map((t, idx) => {
-                      const prioCfg = PRIORIDAD_CONFIG[t.prioridad] ?? PRIORIDAD_CONFIG.MEDIA
-                      const estadoCfg = ESTADO_LABELS[t.estado] ?? ESTADO_LABELS.PENDIENTE
-                      return (
-                        <tr key={t.id} className={`border-b border-slate-100 ${idx % 2 === 0 ? "bg-white" : "bg-slate-50/50"}`}>
-                          <td className="px-4 py-2.5 font-medium text-slate-800 max-w-[220px] truncate">{t.titulo}</td>
-                          <td className="px-3 py-2.5 text-center">
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${estadoCfg.color}`}>{estadoCfg.label}</span>
-                          </td>
-                          <td className="px-3 py-2.5 text-center">
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold border ${prioCfg.color}`}>{prioCfg.label}</span>
-                          </td>
-                          <td className="px-4 py-2.5 text-center text-xs text-slate-500">
-                            {t.fechaVencimiento ? (
-                              <span className="flex items-center justify-center gap-1">
-                                <Clock className="w-3 h-3 text-slate-400" />
-                                {new Date(t.fechaVencimiento).toLocaleDateString("es-AR", { day: "2-digit", month: "short" })}
+                    {[...tareasFiltradas]
+                      .sort((a, b) => (ORDEN_ESTADO[a.estado] ?? 4) - (ORDEN_ESTADO[b.estado] ?? 4))
+                      .map((t, idx) => {
+                        const prioCfg = PRIORIDAD_CONFIG[t.prioridad] ?? PRIORIDAD_CONFIG.MEDIA
+                        const estadoCfg = ESTADO_LABELS[t.estado] ?? ESTADO_LABELS.PENDIENTE
+                        return (
+                          <tr
+                            key={t.id}
+                            onClick={() => router.push(`/gestion-tareas?tareaAbierta=${t.id}`)}
+                            className={`border-b border-slate-100 cursor-pointer hover:bg-blue-50/40 group transition-colors ${idx % 2 === 0 ? "bg-white" : "bg-slate-50/50"}`}
+                          >
+                            <td className="px-4 py-2.5 font-medium text-slate-800 max-w-[220px] truncate group-hover:text-blue-700 transition-colors">
+                              {t.titulo}
+                            </td>
+                            <td className="px-3 py-2.5 text-center">
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${estadoCfg.color}`}>
+                                {estadoCfg.label}
                               </span>
-                            ) : "—"}
-                          </td>
-                          <td className="px-3 py-2.5 text-xs text-slate-500">{CATEGORIA_LABELS[t.categoria] ?? t.categoria}</td>
-                          <td className="px-3 py-2.5 text-center">
-                            {t.caso ? (
-                              <Link href={`/casos/${t.casoId}`} className="font-mono text-xs text-blue-600 font-bold hover:underline">{t.caso}</Link>
-                            ) : (
-                              <span className="text-xs text-slate-400">—</span>
-                            )}
-                          </td>
-                        </tr>
-                      )
-                    })}
+                            </td>
+                            <td className="px-3 py-2.5 text-center">
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold border ${prioCfg.color}`}>
+                                {prioCfg.label}
+                              </span>
+                            </td>
+                            <td className="px-4 py-2.5 text-center text-xs text-slate-500">
+                              {t.fechaVencimiento ? (
+                                <span className="flex items-center justify-center gap-1">
+                                  <Clock className="w-3 h-3 text-slate-400" />
+                                  {new Date(t.fechaVencimiento).toLocaleDateString("es-AR", { day: "2-digit", month: "short" })}
+                                </span>
+                              ) : "—"}
+                            </td>
+                            <td className="px-3 py-2.5 text-xs text-slate-500">
+                              {CATEGORIA_LABELS[t.categoria] ?? t.categoria}
+                            </td>
+                            <td className="px-3 py-2.5 text-center">
+                              {t.caso ? (
+                                <Link
+                                  href={`/casos/${t.casoId}`}
+                                  onClick={e => e.stopPropagation()}
+                                  className="font-mono text-xs text-blue-600 font-bold hover:underline"
+                                >
+                                  {t.caso}
+                                </Link>
+                              ) : (
+                                <span className="text-xs text-slate-400">—</span>
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      })}
                   </tbody>
                 </table>
               </div>
