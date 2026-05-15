@@ -164,7 +164,7 @@ export function PerfilView({ user }: { user: UserData }) {
     }
   }
 
-  // Cambiar contraseña
+// Cambiar contraseña
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
@@ -186,7 +186,7 @@ export function PerfilView({ user }: { user: UserData }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          currentPassword: passwordData.currentPassword,
+          ...(resetPasswordRequired ? {} : { currentPassword: passwordData.currentPassword }),
           newPassword: passwordData.newPassword
         })
       })
@@ -194,19 +194,18 @@ export function PerfilView({ user }: { user: UserData }) {
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.error || 'Error al cambiar contraseña')
+        throw new Error(data.error || 'Error al cambiar la contraseña')
       }
 
-      setSuccess('Contraseña actualizada correctamente')
-      setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' })
+      setSuccess('Contraseña actualizada correctamente. Redirigiendo...')
 
-      // Si era obligatorio cambiar la contraseña, redirigir al home
-      if (resetPasswordRequired) {
-        setTimeout(() => {
-          router.push('/')
-          router.refresh()
-        }, 1500)
-      }
+      // ═══ BARRERA DE SEGURIDAD ═══
+      // Usamos window.location.href para forzar la recarga de la sesión
+      // y que el Middleware reconozca el nuevo estado del usuario
+      setTimeout(() => {
+        window.location.href = data.redirectUrl || '/'
+      }, 1500)
+
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -309,7 +308,7 @@ export function PerfilView({ user }: { user: UserData }) {
             </h3>
             
             <form onSubmit={handleChangePassword} className="grid gap-4">
-              {/* Contraseña actual (solo si no es primer login) */}
+              {/* ===== ESTO ES LO QUE OCULTA EL CAMPO SI ES OBLIGATORIO ===== */}
               {!resetPasswordRequired && (
                 <div>
                   <label className="text-xs font-medium text-gray-500 mb-1 block">Contraseña Actual</label>
@@ -321,7 +320,7 @@ export function PerfilView({ user }: { user: UserData }) {
                       onChange={(e) => setPasswordData({...passwordData, currentPassword: e.target.value})}
                       className="w-full pl-9 pr-10 p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                       placeholder="••••••••"
-                      required={!resetPasswordRequired}
+                      required={!resetPasswordRequired} // Si es obligatorio el reset, el input no es required
                     />
                     <button
                       type="button"

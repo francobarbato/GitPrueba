@@ -448,7 +448,7 @@ export function NuevaTareaModal({ usuarios, casos, clientes = [], currentUserId,
         </div>
         <div className="flex justify-end gap-3 p-4 border-t border-slate-100 bg-slate-50 shrink-0 rounded-b-2xl">
           <Button variant="ghost" onClick={() => { setOpen(false); reset() }} className="text-slate-500">Cancelar</Button>
-          <Button onClick={handleSubmit} disabled={isPending} className="gap-2 bg-blue-600 hover:bg-blue-700">{isPending ? "Guardando..." : "Crear Tarea"}</Button>
+          <Button onClick={handleSubmit} disabled={isPending} className="gap-2 bg-blue-600 hover:bg-blue-700">{isPending ? "Guardando..." : "Crear Evento"}</Button>
         </div>
       </div>
     </div>

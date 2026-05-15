@@ -288,6 +288,8 @@ export default async function DashboardPage() {
   const user = await getUserSessionServer()
   if (!user) redirect("/api/auth/signin")
 
+    if (user.rol?.toUpperCase() === 'CLIENTE') redirect("/portal")
+
   const rol = user.rol || 'ABOGADO'
   const esAdmin = rol.toUpperCase() === 'ADMIN'
   const esAsistente = rol.toUpperCase() === 'ASISTENTE'

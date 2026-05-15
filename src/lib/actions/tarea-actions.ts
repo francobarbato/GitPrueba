@@ -301,7 +301,7 @@ export async function crearTareaAction(data: {
 }): Promise<{ success?: boolean; error?: string; tareaId?: string }> {
   const user = await getUserSessionServer()
   if (!user?.id) return { error: "No autorizado" }
-  if (user.rol !== "ABOGADO" && user.rol !== "ASISTENTE") return { error: "Sin permisos para crear tareas" }
+  if (user.rol !== "ABOGADO" && user.rol !== "ASISTENTE") return { error: "Sin permisos para crear eventos" }
   if (!data.titulo?.trim()) return { error: "El título es obligatorio" }
   if (!data.responsableId) return { error: "Debe asignar un responsable" }
 
