@@ -23,8 +23,9 @@ const getMenuItems = (rol?: string) => {
   const items = [
     { name: "Inicio", href: "/", icon: Home, roles: ['ADMIN', 'ABOGADO', 'ASISTENTE'] },
     { name: "Gestión de Expedientes", href: "/casos", icon: FileText, roles: ['ABOGADO', 'ASISTENTE'] },
-    { name: "Gestión de clientes", href: "/clientes", icon: Users, roles: ['ABOGADO', 'ASISTENTE'] },
+    { name: "Gestión de Clientes", href: "/clientes", icon: Users, roles: ['ABOGADO', 'ASISTENTE'] },
     { name: "Agenda y Seguimientos", href: "/gestion-tareas", icon: Calendar, roles: ['ABOGADO', 'ASISTENTE'] },
+    { name: "Documentos y Plantillas", href: "/documentos", icon: FileCheck, roles: ['ABOGADO', 'ASISTENTE'] },
     { name: "Reportes", href: "/reportes", icon: PieChart, roles: ['ABOGADO', 'ASISTENTE'] },
   ]
   if (isAdmin(rol)) {

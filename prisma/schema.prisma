@@ -40,6 +40,7 @@ model User {
   tareasCreadas      Tarea[] @relation("TareasCreadas")
   tareasAsignadas    Tarea[] @relation("TareasAsignadas")
   tareasSupervisadas Tarea[] @relation("TareasSupervisadas")
+  documentos    Documento[]  @relation 
 
   colaboraciones CasoColaborador[]
 
@@ -130,6 +131,7 @@ model Caso {
   pagos             Pago[]
   requirements      Requirement[]
   tareas            Tarea[]
+  documentos    Documento[] 
 
   @@index([abogadoId], map: "Caso_abogadoId_fkey")
   @@index([clienteId], map: "Caso_clienteId_fkey")
@@ -291,6 +293,45 @@ model Bitacora {
   @@index([createdAt])
   @@index([accion])
   @@map("bitacora")
+}
+
+model Documento {
+  id            String    @id @default(uuid())
+  nombre        String                          // "Demanda_inicial.pdf"
+  nombreOriginal String                         // nombre tal como lo subió el usuario
+  storageKey    String                          // clave en el storage (path relativo o key S3)
+  url           String?                         // URL pública o firmada (opcional)
+  tipo          String                          // "application/pdf", "image/png", etc.
+  extension     String                          // "pdf", "docx", "jpg"
+  tamanio       Int                             // bytes
+  carpeta       CarpetaDocumento               // enum de carpetas predefinidas
+  descripcion   String?   @db.Text
+  esInterno     Boolean   @default(false)       // true = no visible para cliente
+  
+  // Relaciones
+  casoId        String
+  caso          Caso      @relation(fields: [casoId], references: [id], onDelete: Cascade)
+  
+  subidoPorId   String
+  subidoPor     User      @relation(fields: [subidoPorId], references: [id])
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([casoId])
+  @@index([subidoPorId])
+  @@index([carpeta])
+  @@map("documento")
+}
+
+enum CarpetaDocumento {
+  DEMANDA_CONTESTACION        // Demanda y Contestación
+  ESCRITOS_JUDICIALES         // Escritos Judiciales
+  NOTIFICACIONES_CEDULAS      // Notificaciones y Cédulas
+  PRUEBA                      // Prueba
+  DOCUMENTACION_CLIENTE       // Documentación del Cliente
+  NOTAS_INTERNOS              // Notas y Documentos Internos
+  OTROS                       // Sin clasificar
 }
 
 model Pago {
