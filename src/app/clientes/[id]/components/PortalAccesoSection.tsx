@@ -31,7 +31,7 @@ import {
   Lock,
   Unlock
 } from 'lucide-react'
-import { crearUsuarioPortalAction, desactivarUsuarioPortalAction } from 'src/app/clientes/actions/portal-actions'
+import { crearUsuarioPortalAction, desactivarUsuarioPortalAction, reactivarUsuarioPortalAction  } from 'src/app/clientes/actions/portal-actions'
 import { useRouter } from 'next/navigation'
 
 interface PortalAccesoSectionProps {
@@ -63,60 +63,85 @@ export function PortalAccesoSection({ cliente, userRol }: PortalAccesoSectionPro
   const [showPassword, setShowPassword] = useState(false)
   const [copiado, setCopiado] = useState<'email' | 'password' | null>(null)
 
+  const [isPortalActive, setIsPortalActive] = useState(cliente.usuarioPortal?.isActive === true)
+
+
   const tieneAccesoPortal = cliente.usuarioPortalId !== null && cliente.usuarioPortal !== null
-  const usuarioActivo = cliente.usuarioPortal?.isActive === true
+  const usuarioActivo = isPortalActive
   
   // Solo Admin y Abogado pueden gestionar acceso al portal
   const puedeGestionarPortal = userRol === 'ADMIN' || userRol === 'ABOGADO'
 
   // Crear usuario de acceso
   const handleCrearUsuario = async () => {
-    if (!cliente.email) {
-      setError('El cliente debe tener un email registrado para crear acceso al portal')
-      return
-    }
-
-    setError('')
-    setIsLoading(true)
-
-    try {
-      const result = await crearUsuarioPortalAction(cliente.id)
-      
-      if (result.error) {
-        setError(result.error)
-      } else if (result.credenciales) {
-        setCredenciales(result.credenciales)
-        setShowCrearModal(false)
-        setShowCredencialesModal(true)
-        router.refresh()
+      if (!cliente.email) {
+        setError('El cliente debe tener un email registrado para crear acceso al portal')
+        return
       }
-    } catch (err: any) {
-      setError(err.message || 'Error al crear usuario')
-    } finally {
-      setIsLoading(false)
-    }
+
+      setError('')
+      setIsLoading(true)
+
+      try {
+        const result = await crearUsuarioPortalAction(cliente.id)
+        
+        if (result.error) {
+          setError(result.error)
+        } else if (result.credenciales) {
+          setCredenciales(result.credenciales)
+          setIsPortalActive(true) // 🌟 Sincroniza estado local
+          setShowCrearModal(false)
+          setShowCredencialesModal(true)
+          router.refresh()
+        }
+      } catch (err: any) {
+        setError(err.message || 'Error al crear usuario')
+      } finally {
+        setIsLoading(false)
+      }
   }
 
   // Desactivar usuario
   const handleDesactivarUsuario = async () => {
     setError('')
-    setIsLoading(true)
+        setIsLoading(true)
 
-    try {
-      const result = await desactivarUsuarioPortalAction(cliente.id)
-      
-      if (result.error) {
-        setError(result.error)
-      } else {
-        setShowDesactivarModal(false)
-        router.refresh()
-      }
-    } catch (err: any) {
-      setError(err.message || 'Error al desactivar usuario')
-    } finally {
-      setIsLoading(false)
-    }
+        try {
+          const result = await desactivarUsuarioPortalAction(cliente.id)
+          
+          if (result.error) {
+            setError(result.error)
+          } else {
+            setIsPortalActive(false) // 🌟 Forzamos a falso al desactivar exitosamente
+            setShowDesactivarModal(false)
+            router.refresh()
+          }
+        } catch (err: any) {
+          setError(err.message || 'Error al desactivar usuario')
+        } finally {
+          setIsLoading(false)
+        }
   }
+
+  const handleReactivarUsuario = async () => {
+    setError('')
+        setIsLoading(true)
+
+        try {
+          const result = await reactivarUsuarioPortalAction(cliente.id)
+          
+          if (result.error) {
+            setError(result.error)
+          } else {
+            setIsPortalActive(true) // 🌟 Forzamos a verdadero al reactivar exitosamente
+            router.refresh()
+          }
+        } catch (err: any) {
+          setError(err.message || 'Error al reactivar usuario')
+        } finally {
+          setIsLoading(false)
+        }
+}
 
   // Copiar al portapapeles
   const copiarAlPortapapeles = async (texto: string, tipo: 'email' | 'password') => {
@@ -207,10 +232,11 @@ export function PortalAccesoSection({ cliente, userRol }: PortalAccesoSectionPro
               </div>
 
               {/* Acciones */}
-              {puedeGestionarPortal && usuarioActivo && (
-                <div className="flex gap-2">
-                  <Button 
-                    variant="outline" 
+              {puedeGestionarPortal && (
+              <div className="flex gap-2">
+                {usuarioActivo ? (
+                  <Button
+                    variant="outline"
                     size="sm"
                     onClick={() => setShowDesactivarModal(true)}
                     className="text-red-600 hover:text-red-700 hover:bg-red-50"
@@ -218,8 +244,19 @@ export function PortalAccesoSection({ cliente, userRol }: PortalAccesoSectionPro
                     <Lock className="h-4 w-4 mr-2" />
                     Desactivar Acceso
                   </Button>
-                </div>
-              )}
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleReactivarUsuario()}
+                    className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                  >
+                    <Unlock className="h-4 w-4 mr-2" />
+                    Reactivar Acceso
+                  </Button>
+                )}
+              </div>
+            )}
             </div>
           ) : (
             // ❌ Cliente SIN acceso al portal
