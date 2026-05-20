@@ -208,51 +208,28 @@ export async function desactivarUsuarioPortalAction(clienteId: string): Promise<
 // ============================================================================
 // REACTIVAR USUARIO DE PORTAL
 // ============================================================================
-export async function reactivarUsuarioPortalAction(clienteId: string): Promise<{
-  error?: string
-  success?: boolean
-}> {
+export async function reactivarUsuarioPortalAction(clienteId: string) {
   const user = await getUserSessionServer()
-
-  if (!user || !user.id) {
-    return { error: "No autorizado" }
-  }
-
-  const userRol = user.rol?.toUpperCase()
-
-  // Solo Admin puede reactivar usuarios
-  if (userRol !== 'ADMIN') {
-    return { error: "Solo el Administrador puede reactivar usuarios de portal" }
-  }
+  if (!user?.id) return { error: "No autorizado" }
 
   try {
     const cliente = await prisma.cliente.findUnique({
       where: { id: clienteId },
-      select: {
-        id: true,
-        nombre: true,
-        usuarioPortalId: true
-      }
+      select: { usuarioPortalId: true, nombre: true }
     })
-
-    if (!cliente || !cliente.usuarioPortalId) {
-      return { error: "Cliente o usuario de portal no encontrado" }
-    }
+    if (!cliente?.usuarioPortalId) return { error: "No hay usuario de portal asociado" }
 
     await prisma.user.update({
       where: { id: cliente.usuarioPortalId },
       data: { isActive: true }
     })
 
-    console.log(`🔓 Usuario de portal reactivado para cliente ${cliente.nombre} - Por: ${user.id}`)
-
+    console.log(`✅ Usuario de portal reactivado para cliente ${cliente.nombre} - Por: ${user.id}`)
     revalidatePath(`/clientes/${clienteId}`)
-
     return { success: true }
-
-  } catch (error: any) {
-    console.error("Error reactivando usuario:", error)
-    return { error: error.message || "Error al reactivar usuario" }
+  } catch (error) {
+    console.error("Error reactivando usuario portal:", error)
+    return { error: "Error al reactivar el usuario" }
   }
 }
 
