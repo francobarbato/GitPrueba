@@ -14,6 +14,7 @@ async function obtenerDatos(userId: string, esAdmin: boolean) {
   const casos = await prisma.caso.findMany({
     where: esAdmin ? {} : { abogadoId: userId },
     select: {
+      cliente: true,
       id: true,
       numero: true,
       titulo: true,

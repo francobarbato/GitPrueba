@@ -70,6 +70,8 @@ model Cliente {
   tipoPersona     TipoPersona   @default(FISICA)
   creadoPorId     String?
   ultimoAccesoPortal  DateTime?
+
+  
   usuarioPortalId String?       @unique
   casos           Caso[]        @relation("ClienteCasos")
   abogado         User          @relation("AbogadoClientes", fields: [abogadoId], references: [id])
@@ -131,7 +133,8 @@ model Caso {
   pagos             Pago[]
   requirements      Requirement[]
   tareas            Tarea[]
-  documentos    Documento[] 
+  documentos        Documento[] 
+  contraparte       Contraparte?
 
   @@index([abogadoId], map: "Caso_abogadoId_fkey")
   @@index([clienteId], map: "Caso_clienteId_fkey")
@@ -170,6 +173,27 @@ model CasoColaborador {
 
   @@unique([casoId, userId])
   @@map("caso_colaborador")
+}
+
+model Contraparte {
+  id          String      @id @default(uuid())
+  casoId      String      @unique
+  caso        Caso        @relation(fields: [casoId], references: [id], onDelete: Cascade)
+
+  tipoPersona TipoPersona @default(FISICA)
+  nombre      String
+  apellido    String?
+  documento   String?
+  rol         String?
+  domicilio   String?
+  localidad   String?
+  provincia   String?
+  notas       String?     @db.Text
+
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@map("contraparte")
 }
 
 model Tarea {
