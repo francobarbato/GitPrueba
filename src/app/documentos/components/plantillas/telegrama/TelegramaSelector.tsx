@@ -6,18 +6,10 @@ import { Button } from "@/components/ui/button"
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { SelectorExpediente } from '../SelectorExpediente'
 import { TelegramaFormulario } from './TelegramaFormulario'
-// import { escanearTodosLosPdfs } from './telegramaAction'
-// import { escanearDimensiones } from './telegramaAction'
 
 // ═══════════════════════════════════════════════════════════════════════════
-// CAMBIO: se agregó la cuarta opción "ARCA / Art. 11".
-//   El PDF (comunicacion-ARCA-articulo-11.pdf) ya existía en la carpeta y el
-//   switch de la action ya lo contemplaba, pero no había tarjeta para elegirlo.
-//   Ahora el tipo incluye 'arca' y la grilla pasa a 4 tarjetas.
-//
-//   NOTA: el formulario de ARCA tiene campos especiales (destinatario fijo,
-//   "DATOS DEL EMPLEADOR", radio buttons de Motivo). Por ahora usa el mismo
-//   TelegramaFormulario; el mapeo fino de esos campos se hace en otra etapa.
+// Selector de telegramas: 4 tipos (Renuncia, Ausencia, Otro, ARCA).
+// Flujo: elegir tipo → buscar expediente → formulario.
 // ═══════════════════════════════════════════════════════════════════════════
 
 interface Caso {
@@ -49,19 +41,6 @@ export function TelegramaSelector({ casos }: TelegramaSelectorProps) {
             Seleccioná el tipo de comunicación postal oficial que necesitás emitir.
           </p>
         </div>
-
-          {/* BOTÓN TEMPORAL — escáner de campos. BORRAR después de usar. */}
-          <div className="text-center">
-            <button
-              onClick={async () => {
-                // await escanearDimensiones() 
-                alert('Listo. Mirá la terminal de VS Code.')
-              }}
-              className="bg-red-500 text-white px-4 py-2 rounded-lg text-sm font-semibold"
-            >
-              🔍 ESCANEAR PDFs (temporal)
-            </button>
-          </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
           {/* 1. Renuncia */}

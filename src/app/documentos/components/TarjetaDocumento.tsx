@@ -1,10 +1,18 @@
 'use client'
 
 import { useState } from "react"
-import { Eye, Download, Trash2, Lock, FileText, FileImage, FileSpreadsheet, File } from "lucide-react"
+import { Eye, Download, Trash2, Lock, FileText, FileImage, FileSpreadsheet, File, AlertTriangle } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-// import { DocumentoListItem, CARPETA_LABELS } from "@/lib/aplication/services/documento.service"
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog"
 import { DocumentoListItem, CARPETA_LABELS } from "@/lib/aplication/services/documento.types"
 import { eliminarDocumentoAction } from "@/app/casos/actions/documento-actions"
 import { format } from "date-fns"
@@ -50,17 +58,18 @@ function formatearTamanio(bytes: number): string {
 
 export function TarjetaDocumento({ documento, modo, onPreview, userId, userRol, casos }: Props) {
   const [eliminando, setEliminando] = useState(false)
+  const [confirmarOpen, setConfirmarOpen] = useState(false)
   const puedeEliminar = userRol !== 'ASISTENTE'
 
   const handleEliminar = async () => {
-    if (!confirm(`¿Seguro que querés eliminar "${documento.nombre}"?`)) return
     setEliminando(true)
     try {
-      await eliminarDocumentoAction(documento.id, documento.storageKey)
+      await eliminarDocumentoAction(documento.id, documento.casoId)
     } catch (error) {
       console.error('Error eliminando:', error)
     } finally {
       setEliminando(false)
+      setConfirmarOpen(false)
     }
   }
 
@@ -70,6 +79,36 @@ export function TarjetaDocumento({ documento, modo, onPreview, userId, userRol, 
     link.download = documento.nombreOriginal
     link.click()
   }
+
+  // ── Modal de confirmación (compartido entre grilla y lista) ──
+  const ModalConfirmacion = (
+    <AlertDialog open={confirmarOpen} onOpenChange={setConfirmarOpen}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-red-50 rounded-lg">
+              <AlertTriangle className="h-5 w-5 text-red-600" />
+            </div>
+            <AlertDialogTitle>Eliminar documento</AlertDialogTitle>
+          </div>
+          <AlertDialogDescription className="pt-2">
+            ¿Seguro que querés eliminar <span className="font-medium text-slate-700">"{documento.nombre}"</span>?
+            Esta acción es permanente y no se puede deshacer.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={eliminando}>Cancelar</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={(e) => { e.preventDefault(); handleEliminar() }}
+            disabled={eliminando}
+            className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+          >
+            {eliminando ? 'Eliminando...' : 'Eliminar'}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  )
 
   // ========== VISTA GRILLA ==========
   if (modo === 'grilla') {
@@ -122,7 +161,7 @@ export function TarjetaDocumento({ documento, modo, onPreview, userId, userRol, 
           </button>
           {puedeEliminar && (
             <button
-              onClick={handleEliminar}
+              onClick={() => setConfirmarOpen(true)}
               disabled={eliminando}
               className="p-1.5 hover:bg-red-50 rounded text-slate-400 hover:text-red-600 transition-colors"
               title="Eliminar"
@@ -131,6 +170,8 @@ export function TarjetaDocumento({ documento, modo, onPreview, userId, userRol, 
             </button>
           )}
         </div>
+
+        {ModalConfirmacion}
       </div>
     )
   }
@@ -202,7 +243,7 @@ export function TarjetaDocumento({ documento, modo, onPreview, userId, userRol, 
           </button>
           {puedeEliminar && (
             <button
-              onClick={handleEliminar}
+              onClick={() => setConfirmarOpen(true)}
               disabled={eliminando}
               className="p-1.5 hover:bg-red-50 rounded transition-colors text-slate-400 hover:text-red-600"
               title="Eliminar"
@@ -211,6 +252,8 @@ export function TarjetaDocumento({ documento, modo, onPreview, userId, userRol, 
             </button>
           )}
         </div>
+
+        {ModalConfirmacion}
       </td>
     </tr>
   )

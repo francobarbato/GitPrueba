@@ -9,16 +9,11 @@ import { getUserSessionServer } from "src/auth/actions/auth-actions"
 // ═══════════════════════════════════════════════════════════════════════════
 // ACTION DE TELEGRAMAS — versión final
 // ═══════════════════════════════════════════════════════════════════════════
-// Límites del cuerpo (calibrados empíricamente con texto real):
-//   • Renuncia / Ausencia → "hasta 30 palabras" (límite oficial del Correo)
-//   • Otro  → 1568 caracteres
-//   • ARCA  → 1187 caracteres
-//
-// El reparto físico del cuerpo:
-//   • Renuncia → 3 renglones con ancho real por renglón (267/532/262)
-//   • Ausencia / Otro / ARCA → campo multilínea (enableMultiline)
-//
-// Seguridad: sesión + ownership (caso.abogadoId). Aplanado final (no editable).
+//   • CUIT del destinatario: se escribe sin guiones, al imprimir se formatea
+//     como XX-XXXXXXXX-X (si tiene 11 dígitos).
+//   • Fecha: automática (la del día). El formulario ya no la pide.
+//   • Límites: Renuncia/Ausencia 30 palabras, Otro 1568, ARCA 1187 caracteres.
+//   • Seguridad: sesión + ownership. Aplanado final.
 // ═══════════════════════════════════════════════════════════════════════════
 
 export interface DatosTelegrama {
@@ -44,9 +39,7 @@ export interface DatosTelegrama {
 const TAMANO_FUENTE = 10
 const MARGEN_ANCHO = 0.95
 
-// Límites del cuerpo por tipo (deben coincidir con limites-telegrama.ts)
 type LimiteCuerpo = { unidad: 'palabras' | 'caracteres'; max: number }
-
 type RenglonConfig = { nombre: string; ancho: number }
 type CuerpoConfig =
   | { tipo: 'renglones'; renglones: RenglonConfig[]; limite: LimiteCuerpo }
@@ -169,8 +162,15 @@ function contarPalabras(texto: string): number {
   return texto.trim().split(/\s+/).filter(Boolean).length
 }
 
-// Valida el cuerpo contra su límite (palabras o caracteres). Devuelve mensaje
-// de error si se pasa, o null si está OK.
+function formatearCuit(valor?: string): string {
+  if (!valor) return ''
+  const soloDigitos = valor.replace(/\D/g, '')
+  if (soloDigitos.length === 11) {
+    return `${soloDigitos.slice(0, 2)}-${soloDigitos.slice(2, 10)}-${soloDigitos.slice(10)}`
+  }
+  return valor
+}
+
 function validarLimiteCuerpo(texto: string, limite: LimiteCuerpo): string | null {
   if (limite.unidad === 'palabras') {
     const p = contarPalabras(texto)
@@ -205,7 +205,6 @@ export async function generarTelegramaPdfAction(datos: DatosTelegrama) {
     const mapeo = MAPEOS[nombreArchivoPdf]
     if (!mapeo) return { success: false, error: "No hay mapeo de campos para este tipo de telegrama" }
 
-    // ── Validar el límite del cuerpo ANTES de tocar el PDF ──
     if (datos.cuerpoTexto?.trim()) {
       const errorLimite = validarLimiteCuerpo(datos.cuerpoTexto, mapeo.cuerpo.limite)
       if (errorLimite) return { success: false, error: errorLimite }
@@ -238,15 +237,16 @@ export async function generarTelegramaPdfAction(datos: DatosTelegrama) {
     rellenar(mapeo.remitenteTelefono, datos.remitenteTelefono)
     rellenar(mapeo.remitenteCp, datos.remitenteCp)
 
-    // ── Destinatario (ARCA no tiene → se saltea solo) ──
+    // ── Destinatario (CUIT formateado con guiones) ──
     rellenar(mapeo.destinatarioNombre, datos.destinatarioNombre)
-    rellenar(mapeo.destinatarioCuit, datos.destinatarioCuit)
+    rellenar(mapeo.destinatarioCuit, formatearCuit(datos.destinatarioCuit))
     rellenar(mapeo.destinatarioDomicilio, datos.destinatarioDomicilio)
     rellenar(mapeo.destinatarioLocalidad, datos.destinatarioLocalidad)
     rellenar(mapeo.destinatarioProvincia, datos.destinatarioProvincia)
     rellenar(mapeo.destinatarioActividad, datos.destinatarioActividad)
     rellenar(mapeo.destinatarioCp, datos.destinatarioCp)
 
+    // ── Fecha automática (la del día) ──
     rellenar(mapeo.fecha, new Date().toLocaleDateString('es-AR'))
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -262,7 +262,6 @@ export async function generarTelegramaPdfAction(datos: DatosTelegrama) {
           }
         } catch { /* no existe */ }
       } else {
-        // Renglones (Renuncia) con ancho real por renglón
         const renglonesCfg = mapeo.cuerpo.renglones
         const pals = safeUpper(datos.cuerpoTexto).split(/\s+/).filter(Boolean)
         const textosPorRenglon: string[] = []

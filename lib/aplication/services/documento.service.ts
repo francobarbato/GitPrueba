@@ -5,10 +5,10 @@ import { storage } from "src/lib/storage"
 import { buildStorageKey } from "src/lib/storage/storageKeys"
 import { CarpetaDocumento } from "@prisma/client"
 import { differenceInDays } from "date-fns"
-import { 
-  DocumentoListItem, 
-  DocumentosPorCarpeta, 
-  CARPETA_LABELS 
+import {
+  DocumentoListItem,
+  DocumentosPorCarpeta,
+  CARPETA_LABELS
 } from "./documento.types"
 
 // ============================================================================
@@ -29,43 +29,13 @@ export type DocumentoUploadInput = {
   }
 }
 
-// export type DocumentoListItem = {
-//   id: string
-//   nombre: string
-//   nombreOriginal: string
-//   tipo: string
-//   extension: string
-//   tamanio: number
-//   carpeta: CarpetaDocumento
-//   descripcion: string | null
-//   esInterno: boolean
-//   url: string
-//   storageKey: string
-//   subidoPor: string
-//   subidoPorId: string
-//   createdAt: Date
-//   diasSubido: number
-// }
+// Contexto del usuario para validar ownership.
+// rol ADMIN es técnico: no accede a datos legales (mismo criterio que el resto del sistema).
+export type ContextoUsuario = {
+  usuarioId: string
+  rol?: string | null
+}
 
-// export type DocumentosPorCarpeta = {
-//   carpeta: CarpetaDocumento
-//   label: string
-//   documentos: DocumentoListItem[]
-//   cantidad: number
-// }
-
-// Labels para mostrar en UI
-// export const CARPETA_LABELS: Record<CarpetaDocumento, string> = {
-//   DEMANDA_CONTESTACION: 'Demanda y Contestación',
-//   ESCRITOS_JUDICIALES: 'Escritos Judiciales',
-//   NOTIFICACIONES_CEDULAS: 'Notificaciones y Cédulas',
-//   PRUEBA: 'Prueba',
-//   DOCUMENTACION_CLIENTE: 'Documentación del Cliente',
-//   NOTAS_INTERNOS: 'Notas y Documentos Internos',
-//   OTROS: 'Otros'
-// }
-
-// Tipos de archivo permitidos
 const TIPOS_PERMITIDOS = [
   'application/pdf',
   'application/msword',
@@ -87,6 +57,40 @@ const TAMANIO_MAXIMO = 10 * 1024 * 1024 // 10MB
 export class DocumentoService {
 
   // --------------------------------------------------------------------------
+  // OWNERSHIP — valida que el caso pertenezca al usuario (ADMIN excluido)
+  // --------------------------------------------------------------------------
+  private async verificarAccesoCaso(casoId: string, ctx?: ContextoUsuario): Promise<void> {
+    const caso = await prisma.caso.findUnique({
+      where: { id: casoId },
+      select: { id: true, abogadoId: true }
+    })
+    if (!caso) throw new Error('Caso no encontrado')
+
+    // Si no hay contexto (llamada interna), no bloquea — pero las actions siempre lo pasan.
+    if (!ctx) return
+
+    if (ctx.rol?.toUpperCase() === 'ADMIN') {
+      throw new Error('El rol administrador no tiene acceso a los documentos de los expedientes')
+    }
+    if (caso.abogadoId !== ctx.usuarioId) {
+      throw new Error('No tenés permiso para acceder a los documentos de este expediente')
+    }
+  }
+
+  // Valida acceso a partir de un documentoId (resuelve su caso y verifica ownership).
+  private async verificarAccesoDocumento(documentoId: string, ctx?: ContextoUsuario) {
+    const documento = await prisma.documento.findUnique({
+      where: { id: documentoId },
+      select: {
+        id: true, nombre: true, storageKey: true, casoId: true, carpeta: true
+      }
+    })
+    if (!documento) throw new Error('Documento no encontrado')
+    await this.verificarAccesoCaso(documento.casoId, ctx)
+    return documento
+  }
+
+  // --------------------------------------------------------------------------
   // VALIDACIONES
   // --------------------------------------------------------------------------
 
@@ -97,14 +101,12 @@ export class DocumentoService {
         error: `Tipo de archivo no permitido. Se aceptan: PDF, Word, Excel, imágenes y texto plano.`
       }
     }
-
     if (tamanio > TAMANIO_MAXIMO) {
       return {
         valido: false,
         error: `El archivo supera el tamaño máximo permitido de 10MB.`
       }
     }
-
     return { valido: true }
   }
 
@@ -112,30 +114,22 @@ export class DocumentoService {
   // SUBIR DOCUMENTO
   // --------------------------------------------------------------------------
 
-  async subirDocumento(input: DocumentoUploadInput) {
+  async subirDocumento(input: DocumentoUploadInput, ctx?: ContextoUsuario) {
     const { casoId, subidoPorId, carpeta, descripcion, esInterno, file } = input
 
-    // Validar archivo
     const validacion = this.validarArchivo(file.tipo, file.tamanio)
     if (!validacion.valido) {
       throw new Error(validacion.error)
     }
 
-    // Verificar que el caso existe
-    const caso = await prisma.caso.findUnique({
-      where: { id: casoId },
-      select: { id: true, numero: true, titulo: true }
-    })
-    if (!caso) throw new Error('Caso no encontrado')
+    // Ownership: el caso debe ser del usuario.
+    await this.verificarAccesoCaso(casoId, ctx)
 
-    // Construir key única para storage
     const storageKey = buildStorageKey(casoId, carpeta, file.nombre)
     const extension = file.nombre.split('.').pop()?.toLowerCase() || ''
 
-    // Subir al storage
     const resultado = await storage.upload(file.buffer, storageKey, file.tipo)
 
-    // Guardar en base de datos
     const documento = await prisma.documento.create({
       data: {
         nombre: file.nombre,
@@ -153,7 +147,6 @@ export class DocumentoService {
       }
     })
 
-    // Registrar en bitácora
     await prisma.bitacora.create({
       data: {
         casoId,
@@ -175,31 +168,22 @@ export class DocumentoService {
   async getDocumentosPorCaso(
     casoId: string,
     opciones?: {
-      soloPublicos?: boolean   // Para portal cliente
+      soloPublicos?: boolean
       carpeta?: CarpetaDocumento
     }
   ): Promise<DocumentosPorCarpeta[]> {
     const where: any = { casoId }
-
-    if (opciones?.soloPublicos) {
-      where.esInterno = false
-    }
-
-    if (opciones?.carpeta) {
-      where.carpeta = opciones.carpeta
-    }
+    if (opciones?.soloPublicos) where.esInterno = false
+    if (opciones?.carpeta) where.carpeta = opciones.carpeta
 
     const documentos = await prisma.documento.findMany({
       where,
       include: {
-        subidoPor: {
-          select: { nombre: true, apellido: true, email: true }
-        }
+        subidoPor: { select: { nombre: true, apellido: true, email: true } }
       },
       orderBy: { createdAt: 'desc' }
     })
 
-    // Mapear a DocumentoListItem
     const items: DocumentoListItem[] = documentos.map(doc => ({
       id: doc.id,
       nombre: doc.nombre,
@@ -212,6 +196,7 @@ export class DocumentoService {
       esInterno: doc.esInterno,
       url: doc.url || '',
       storageKey: doc.storageKey,
+      casoId: doc.casoId,   // ← necesario para eliminar/revalidar correctamente
       subidoPor: doc.subidoPor.nombre && doc.subidoPor.apellido
         ? `${doc.subidoPor.nombre} ${doc.subidoPor.apellido}`
         : doc.subidoPor.email.split('@')[0],
@@ -220,9 +205,7 @@ export class DocumentoService {
       diasSubido: differenceInDays(new Date(), doc.createdAt)
     }))
 
-    // Agrupar por carpeta
     const todasLasCarpetas = Object.keys(CARPETA_LABELS) as CarpetaDocumento[]
-    
     return todasLasCarpetas.map(carpeta => ({
       carpeta,
       label: CARPETA_LABELS[carpeta],
@@ -239,12 +222,8 @@ export class DocumentoService {
     return await prisma.documento.findUnique({
       where: { id: documentoId },
       include: {
-        subidoPor: {
-          select: { nombre: true, apellido: true, email: true }
-        },
-        caso: {
-          select: { id: true, numero: true, titulo: true }
-        }
+        subidoPor: { select: { nombre: true, apellido: true, email: true } },
+        caso: { select: { id: true, numero: true, titulo: true } }
       }
     })
   }
@@ -253,29 +232,16 @@ export class DocumentoService {
   // ELIMINAR DOCUMENTO
   // --------------------------------------------------------------------------
 
-  async eliminarDocumento(documentoId: string, usuarioId: string) {
-    const documento = await prisma.documento.findUnique({
-      where: { id: documentoId },
-      select: {
-        id: true,
-        nombre: true,
-        storageKey: true,
-        casoId: true,
-        carpeta: true
-      }
-    })
+  async eliminarDocumento(documentoId: string, usuarioId: string, ctx?: ContextoUsuario) {
+    // Ownership: resuelve el caso del documento y valida acceso.
+    const documento = await this.verificarAccesoDocumento(
+      documentoId,
+      ctx ?? { usuarioId }
+    )
 
-    if (!documento) throw new Error('Documento no encontrado')
-
-    // Eliminar del storage
     await storage.delete(documento.storageKey)
+    await prisma.documento.delete({ where: { id: documentoId } })
 
-    // Eliminar de la base de datos
-    await prisma.documento.delete({
-      where: { id: documentoId }
-    })
-
-    // Registrar en bitácora
     await prisma.bitacora.create({
       data: {
         casoId: documento.casoId,
@@ -291,7 +257,7 @@ export class DocumentoService {
   }
 
   // --------------------------------------------------------------------------
-  // ACTUALIZAR METADATA (descripción, carpeta, visibilidad)
+  // ACTUALIZAR METADATA
   // --------------------------------------------------------------------------
 
   async actualizarDocumento(
@@ -301,21 +267,19 @@ export class DocumentoService {
       descripcion?: string
       carpeta?: CarpetaDocumento
       esInterno?: boolean
-    }
+    },
+    ctx?: ContextoUsuario
   ) {
-    const documento = await prisma.documento.findUnique({
-      where: { id: documentoId },
-      select: { id: true, casoId: true, nombre: true }
-    })
-
-    if (!documento) throw new Error('Documento no encontrado')
+    const documento = await this.verificarAccesoDocumento(
+      documentoId,
+      ctx ?? { usuarioId }
+    )
 
     const actualizado = await prisma.documento.update({
       where: { id: documentoId },
       data
     })
 
-    // Registrar en bitácora
     await prisma.bitacora.create({
       data: {
         casoId: documento.casoId,
@@ -344,9 +308,7 @@ export class DocumentoService {
         ]
       },
       include: {
-        subidoPor: {
-          select: { nombre: true, apellido: true }
-        }
+        subidoPor: { select: { nombre: true, apellido: true } }
       },
       orderBy: { createdAt: 'desc' }
     })
@@ -364,16 +326,8 @@ export class DocumentoService {
 
   getIconoPorExtension(extension: string): string {
     const iconos: Record<string, string> = {
-      pdf: '📄',
-      doc: '📝',
-      docx: '📝',
-      xls: '📊',
-      xlsx: '📊',
-      jpg: '🖼️',
-      jpeg: '🖼️',
-      png: '🖼️',
-      webp: '🖼️',
-      txt: '📃'
+      pdf: '📄', doc: '📝', docx: '📝', xls: '📊', xlsx: '📊',
+      jpg: '🖼️', jpeg: '🖼️', png: '🖼️', webp: '🖼️', txt: '📃'
     }
     return iconos[extension.toLowerCase()] || '📎'
   }

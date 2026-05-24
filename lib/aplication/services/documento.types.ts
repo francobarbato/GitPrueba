@@ -15,6 +15,7 @@ export type DocumentoListItem = {
   esInterno: boolean
   url: string
   storageKey: string
+  casoId: string
   subidoPor: string
   subidoPorId: string
   createdAt: Date

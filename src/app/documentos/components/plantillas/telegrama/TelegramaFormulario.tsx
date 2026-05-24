@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { FileText, ArrowLeft, Printer, Loader2, AlertCircle, Landmark } from 'lucide-react'
+import { FileText, ArrowLeft, Printer, Loader2, AlertCircle, Landmark, Info } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -16,12 +16,40 @@ interface TelegramaFormularioProps {
   onVolver: () => void
 }
 
+// Filtros de input
+const soloNumeros = (v: string) => v.replace(/\D/g, '')
+const soloLetras = (v: string) => v.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]/g, '')
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Extrae el DNI a partir de lo que venga del expediente.
+//   • Si son 11 dígitos y el prefijo es de persona física (20/23/24/27),
+//     el DNI son los 8 dígitos del medio del CUIT.
+//   • Si son 11 dígitos pero es CUIT de empresa (30/33/34...), NO hay DNI →
+//     devuelve '' (se completa a mano) y marca que hubo un CUIT de empresa.
+//   • Si ya parece un DNI (7-8 dígitos), lo devuelve tal cual.
+// Devuelve { dni, huboCuit } para poder avisar al usuario.
+// ═══════════════════════════════════════════════════════════════════════════
+function extraerDniDesdeExpediente(valor: string): { dni: string; huboCuit: boolean } {
+  const d = (valor || '').replace(/\D/g, '')
+  if (d.length === 11) {
+    const prefijo = d.slice(0, 2)
+    const esPersonaFisica = ['20', '23', '24', '27'].includes(prefijo)
+    if (esPersonaFisica) {
+      return { dni: d.slice(2, 10), huboCuit: true }  // 8 del medio
+    }
+    return { dni: '', huboCuit: true }  // CUIT de empresa: sin DNI
+  }
+  // Ya es un DNI (o algo corto): tal cual
+  return { dni: d, huboCuit: false }
+}
+
 export function TelegramaFormulario({ casoId, tipoTelegrama, onVolver }: TelegramaFormularioProps) {
   const [loading, setLoading] = useState(true)
   const [procesandoPdf, setProcesandoPdf] = useState(false)
   const [error, setError] = useState('')
+  // Avisa si el DNI del remitente se derivó de un CUIT (hay que chequear).
+  const [dniDerivadoDeCuit, setDniDerivadoDeCuit] = useState(false)
 
-  // ARCA tiene destinatario fijo (Agencia de Recaudación, preimpreso en el PDF).
   const esArca = tipoTelegrama === 'arca'
 
   const [formData, setFormData] = useState<DatosTelegrama>({
@@ -42,7 +70,6 @@ export function TelegramaFormulario({ casoId, tipoTelegrama, onVolver }: Telegra
     cuerpoTexto: ''
   })
 
-  // ── Límite del cuerpo según el tipo (palabras o caracteres) ──
   const limite = LIMITES_CUERPO[tipoTelegrama] ?? { unidad: 'caracteres' as const, max: 350 }
   const cantidadActual = limite.unidad === 'palabras'
     ? contarPalabras(formData.cuerpoTexto)
@@ -60,15 +87,19 @@ export function TelegramaFormulario({ casoId, tipoTelegrama, onVolver }: Telegra
         }
 
         const c = res.caso
+
+        // El remitente pide DNI; del cliente puede venir un CUIT → extraemos.
+        const { dni, huboCuit } = extraerDniDesdeExpediente(c.cliente.numeroDocumento || '')
+        setDniDerivadoDeCuit(huboCuit)
+
         setFormData(prev => ({
           ...prev,
           remitenteNombre: `${c.cliente.nombre} ${c.cliente.apellido || ''}`.trim(),
-          remitenteDni: c.cliente.numeroDocumento || '',
+          remitenteDni: dni,
           remitenteDomicilio: c.cliente.direccion || '',
-          remitenteTelefono: c.cliente.telefono || '',
-          // En ARCA el destinatario es fijo (preimpreso), no se carga.
+          remitenteTelefono: (c.cliente.telefono || '').replace(/\D/g, ''),
           destinatarioNombre: esArca ? '' : (c.contraparte?.nombre || ''),
-          destinatarioCuit: esArca ? '' : (c.contraparte?.documento || ''),
+          destinatarioCuit: esArca ? '' : (c.contraparte?.documento || '').replace(/\D/g, ''),
           destinatarioDomicilio: esArca ? '' : (c.contraparte?.domicilio || ''),
           destinatarioLocalidad: esArca ? '' : (c.contraparte?.localidad || ''),
           destinatarioProvincia: esArca ? '' : (c.contraparte?.provincia || ''),
@@ -141,7 +172,17 @@ export function TelegramaFormulario({ casoId, tipoTelegrama, onVolver }: Telegra
         </Alert>
       )}
 
-      {/* En ARCA mostramos una sola columna (remitente); el destinatario es fijo */}
+      {/* Advertencia general sobre tipo de dato (DNI vs CUIT) */}
+      <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg p-3">
+        <Info className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+        <p className="text-xs text-amber-800 leading-relaxed">
+          <span className="font-semibold">Verificá los datos antes de imprimir.</span> El sistema precarga la
+          información del expediente, pero el telegrama puede pedir un tipo de dato distinto al cargado
+          (por ejemplo, pide <strong>DNI</strong> y en el expediente cargaste un <strong>CUIT</strong>).
+          Revisá que cada campo tenga el dato correcto.
+        </p>
+      </div>
+
       <div className={esArca ? "grid grid-cols-1 gap-6" : "grid grid-cols-1 md:grid-cols-2 gap-6"}>
 
         {/* Remitente */}
@@ -149,16 +190,54 @@ export function TelegramaFormulario({ casoId, tipoTelegrama, onVolver }: Telegra
           <h4 className="font-semibold text-slate-900 text-sm border-b pb-1 text-blue-600">REMITENTE (Trabajador)</h4>
           <div className="space-y-2">
             <Label className="text-xs">Apellido y Nombre</Label>
-            <Input value={formData.remitenteNombre} onChange={e => setFormData({...formData, remitenteNombre: e.target.value})} required className="h-8 text-sm" />
+            <Input
+              value={formData.remitenteNombre}
+              onChange={e => setFormData({...formData, remitenteNombre: soloLetras(e.target.value)})}
+              required className="h-8 text-sm"
+            />
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-2"><Label className="text-xs">DNI N°</Label><Input value={formData.remitenteDni} onChange={e => setFormData({...formData, remitenteDni: e.target.value})} required className="h-8 text-sm" /></div>
-            <div className="space-y-2"><Label className="text-xs">Teléfono</Label><Input value={formData.remitenteTelefono} onChange={e => setFormData({...formData, remitenteTelefono: e.target.value})} className="h-8 text-sm" /></div>
+            <div className="space-y-2">
+              <Label className="text-xs">DNI N°</Label>
+              <Input
+                value={formData.remitenteDni}
+                onChange={e => { setFormData({...formData, remitenteDni: soloNumeros(e.target.value)}); setDniDerivadoDeCuit(false) }}
+                inputMode="numeric" maxLength={8}
+                required className="h-8 text-sm"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs">Teléfono</Label>
+              <Input
+                value={formData.remitenteTelefono}
+                onChange={e => setFormData({...formData, remitenteTelefono: soloNumeros(e.target.value)})}
+                inputMode="numeric" maxLength={13}
+                className="h-8 text-sm"
+              />
+            </div>
           </div>
-          <div className="space-y-2"><Label className="text-xs">Domicilio Real</Label><Input value={formData.remitenteDomicilio} onChange={e => setFormData({...formData, remitenteDomicilio: e.target.value})} required className="h-8 text-sm" /></div>
+
+          {/* Aviso específico: el DNI se derivó de un CUIT */}
+          {dniDerivadoDeCuit && (
+            <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
+              El DNI se obtuvo a partir del CUIT cargado en el expediente. Verificá que sea correcto;
+              si el expediente tenía un CUIT de empresa, completá el DNI a mano.
+            </p>
+          )}
+
+          <div className="space-y-2">
+            <Label className="text-xs">Domicilio Real</Label>
+            <Input value={formData.remitenteDomicilio} onChange={e => setFormData({...formData, remitenteDomicilio: e.target.value})} required className="h-8 text-sm" />
+          </div>
           <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-2"><Label className="text-xs">Localidad</Label><Input value={formData.remitenteLocalidad} onChange={e => setFormData({...formData, remitenteLocalidad: e.target.value})} required className="h-8 text-sm" /></div>
-            <div className="space-y-2"><Label className="text-xs">Provincia</Label><Input value={formData.remitenteProvincia} onChange={e => setFormData({...formData, remitenteProvincia: e.target.value})} required className="h-8 text-sm" /></div>
+            <div className="space-y-2">
+              <Label className="text-xs">Localidad</Label>
+              <Input value={formData.remitenteLocalidad} onChange={e => setFormData({...formData, remitenteLocalidad: e.target.value})} required className="h-8 text-sm" />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs">Provincia</Label>
+              <Input value={formData.remitenteProvincia} onChange={e => setFormData({...formData, remitenteProvincia: e.target.value})} required className="h-8 text-sm" />
+            </div>
           </div>
         </div>
 
@@ -171,20 +250,41 @@ export function TelegramaFormulario({ casoId, tipoTelegrama, onVolver }: Telegra
               <Input value={formData.destinatarioNombre} onChange={e => setFormData({...formData, destinatarioNombre: e.target.value})} required className="h-8 text-sm" />
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-2"><Label className="text-xs">CUIT N°</Label><Input value={formData.destinatarioCuit} onChange={e => setFormData({...formData, destinatarioCuit: e.target.value})} className="h-8 text-sm" /></div>
-              <div className="space-y-2"><Label className="text-xs">Actividad Principal</Label><Input value={formData.destinatarioActividad} onChange={e => setFormData({...formData, destinatarioActividad: e.target.value})} className="h-8 text-sm" /></div>
+              <div className="space-y-2">
+                <Label className="text-xs">CUIT N° <span className="text-slate-400">(sin guiones)</span></Label>
+                <Input
+                  value={formData.destinatarioCuit}
+                  onChange={e => setFormData({...formData, destinatarioCuit: soloNumeros(e.target.value)})}
+                  inputMode="numeric" maxLength={11}
+                  placeholder="30700033333"
+                  className="h-8 text-sm"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs">Actividad Principal</Label>
+                <Input value={formData.destinatarioActividad} onChange={e => setFormData({...formData, destinatarioActividad: e.target.value})} className="h-8 text-sm" />
+              </div>
             </div>
-            <div className="space-y-2"><Label className="text-xs">Domicilio Laboral</Label><Input value={formData.destinatarioDomicilio} onChange={e => setFormData({...formData, destinatarioDomicilio: e.target.value})} required className="h-8 text-sm" /></div>
+            <div className="space-y-2">
+              <Label className="text-xs">Domicilio Laboral</Label>
+              <Input value={formData.destinatarioDomicilio} onChange={e => setFormData({...formData, destinatarioDomicilio: e.target.value})} required className="h-8 text-sm" />
+            </div>
             <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-2"><Label className="text-xs">Localidad</Label><Input value={formData.destinatarioLocalidad} onChange={e => setFormData({...formData, destinatarioLocalidad: e.target.value})} required className="h-8 text-sm" /></div>
-              <div className="space-y-2"><Label className="text-xs">Provincia</Label><Input value={formData.destinatarioProvincia} onChange={e => setFormData({...formData, destinatarioProvincia: e.target.value})} required className="h-8 text-sm" /></div>
+              <div className="space-y-2">
+                <Label className="text-xs">Localidad</Label>
+                <Input value={formData.destinatarioLocalidad} onChange={e => setFormData({...formData, destinatarioLocalidad: e.target.value})} required className="h-8 text-sm" />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs">Provincia</Label>
+                <Input value={formData.destinatarioProvincia} onChange={e => setFormData({...formData, destinatarioProvincia: e.target.value})} required className="h-8 text-sm" />
+              </div>
             </div>
           </div>
         )}
 
       </div>
 
-      {/* Cartel aclaratorio del destinatario fijo en ARCA */}
+      {/* Cartel del destinatario fijo en ARCA */}
       {esArca && (
         <div className="flex items-start gap-2 bg-emerald-50 border border-emerald-200 rounded-lg p-3">
           <Landmark className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />

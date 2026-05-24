@@ -27,49 +27,48 @@ export async function subirDocumentoAction(
 
   const userRol = user.rol?.toUpperCase()
 
-  // Asistente no puede subir documentos internos
   const esInterno = formData.get('esInterno') === 'true'
   if (userRol === 'ASISTENTE' && esInterno) {
     return { error: 'No tenés permiso para subir documentos internos' }
   }
 
-  // Obtener datos del form
   const casoId = formData.get('casoId') as string
   const carpeta = formData.get('carpeta') as CarpetaDocumento
   const descripcion = formData.get('descripcion') as string
   const archivo = formData.get('archivo') as File
 
-  // Validaciones básicas
   if (!casoId) return { error: 'Caso no especificado' }
   if (!carpeta) return { error: 'Carpeta no especificada' }
   if (!archivo || archivo.size === 0) return { error: 'No se seleccionó ningún archivo' }
 
-  // Validar que la carpeta sea válida
   const carpetasValidas = Object.values(CarpetaDocumento)
   if (!carpetasValidas.includes(carpeta)) {
     return { error: 'Carpeta no válida' }
   }
 
   try {
-    // Convertir File a Buffer
     const bytes = await archivo.arrayBuffer()
     const buffer = Buffer.from(bytes)
 
-    const documento = await documentoService.subirDocumento({
-      casoId,
-      subidoPorId: user.id,
-      carpeta,
-      descripcion: descripcion || undefined,
-      esInterno,
-      file: {
-        buffer,
-        nombre: archivo.name,
-        tipo: archivo.type,
-        tamanio: archivo.size
-      }
-    })
+    const documento = await documentoService.subirDocumento(
+      {
+        casoId,
+        subidoPorId: user.id,
+        carpeta,
+        descripcion: descripcion || undefined,
+        esInterno,
+        file: {
+          buffer,
+          nombre: archivo.name,
+          tipo: archivo.type,
+          tamanio: archivo.size
+        }
+      },
+      { usuarioId: user.id, rol: user.rol }   // ← ownership
+    )
 
     revalidatePath(`/casos/${casoId}`)
+    revalidatePath(`/documentos`)
 
     return {
       message: `Documento "${archivo.name}" subido correctamente`,
@@ -94,16 +93,19 @@ export async function eliminarDocumentoAction(
   if (!user?.id) return { error: 'No autorizado' }
 
   const userRol = user.rol?.toUpperCase()
-
-  // Solo abogado y admin pueden eliminar
   if (userRol === 'ASISTENTE') {
     return { error: 'No tenés permiso para eliminar documentos' }
   }
 
   try {
-    await documentoService.eliminarDocumento(documentoId, user.id)
+    await documentoService.eliminarDocumento(
+      documentoId,
+      user.id,
+      { usuarioId: user.id, rol: user.rol }   // ← ownership
+    )
 
     revalidatePath(`/casos/${casoId}`)
+    revalidatePath(`/documentos`)
 
     return { message: 'Documento eliminado correctamente' }
 
@@ -139,13 +141,19 @@ export async function actualizarDocumentoAction(
   if (!casoId) return { error: 'Caso no especificado' }
 
   try {
-    await documentoService.actualizarDocumento(documentoId, user.id, {
-      descripcion: descripcion || undefined,
-      carpeta: carpeta || undefined,
-      esInterno
-    })
+    await documentoService.actualizarDocumento(
+      documentoId,
+      user.id,
+      {
+        descripcion: descripcion || undefined,
+        carpeta: carpeta || undefined,
+        esInterno
+      },
+      { usuarioId: user.id, rol: user.rol }   // ← ownership
+    )
 
     revalidatePath(`/casos/${casoId}`)
+    revalidatePath(`/documentos`)
 
     return { message: 'Documento actualizado correctamente' }
 

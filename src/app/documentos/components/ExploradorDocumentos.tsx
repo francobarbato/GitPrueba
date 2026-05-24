@@ -5,15 +5,21 @@ import { FileText, LayoutGrid, List, Upload, Search, MailOpen } from "lucide-rea
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs" 
 import { CarpetaDocumento } from "@prisma/client"
 import { DocumentoListItem, DocumentosPorCarpeta, CARPETA_LABELS } from "@/lib/aplication/services/documento.types"
 import { PanelNavegacion } from "./PanelNavegacion"
 import { PanelContenido } from "./PanelContenido"
 import { SubirDocumentoDrawer } from "./SubirDocumentoDrawer"
 import { TelegramaSelector } from "./plantillas/telegrama/TelegramaSelector"
-import { CartaFormulario } from "./plantillas/carta/CartaFormulario"
-import { PlantillasSection } from "./plantillas/PlantillasSection"
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LIMPIEZA del tab "Plantillas Oficiales":
+//   • Se eliminó el <Tabs> Telegramas/Cartas (solo existen telegramas).
+//   • Se eliminó CartaFormulario (PDF inexistente → ENOENT) y su import.
+//   • Se eliminó la doble renderización (PlantillasSection + TelegramaSelector
+//     mostraban lo mismo). Ahora el tab muestra DIRECTO el TelegramaSelector.
+//   • Scroll unificado: un solo contenedor con overflow en cada panel.
+// ═══════════════════════════════════════════════════════════════════════════
 
 interface Caso {
   id: string
@@ -109,7 +115,7 @@ export function ExploradorDocumentos({ casos, documentosPorCaso, userId, userRol
         </Button>
       </div>
 
-      {/* ── Tabs manuales principales ── */}
+      {/* ── Tabs principales ── */}
       <div className="px-6 pt-3 bg-white border-b border-slate-200 flex-shrink-0">
         <div className="flex gap-1">
           <button
@@ -137,15 +143,15 @@ export function ExploradorDocumentos({ casos, documentosPorCaso, userId, userRol
         </div>
       </div>
 
-      {/* ── Contenido Dinámico de las Tabs ── */}
+      {/* ── Contenido dinámico ── */}
       <div className="flex-1 min-h-0 flex flex-col">
-        
-        {/* 1. SECCIÓN EXPLORADOR DE ARCHIVOS TRADICIONAL */}
-        {tabActiva === 'documentos' && (
-          <div className="flex flex-1 min-h-0"> 
 
-            {/* Panel izquierdo */}
-            <div className="w-82 border-r border-slate-200 bg-white overflow-y-auto flex-shrink-0">
+        {/* 1. EXPLORADOR DE ARCHIVOS */}
+        {tabActiva === 'documentos' && (
+          <div className="flex flex-1 min-h-0">
+
+            {/* Panel izquierdo (navegación por expediente/carpeta) */}
+            <div className="w-80 border-r border-slate-200 bg-white overflow-y-auto flex-shrink-0">
               <PanelNavegacion
                 casos={casos}
                 documentosPorCaso={documentosPorCaso}
@@ -158,7 +164,7 @@ export function ExploradorDocumentos({ casos, documentosPorCaso, userId, userRol
             {/* Panel derecho */}
             <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
 
-              {/* Barra superior de búsqueda/vista */}
+              {/* Barra de búsqueda/vista */}
               <div className="flex items-center justify-between px-6 py-3 bg-white border-b border-slate-100 flex-shrink-0">
                 <div className="flex items-center gap-3">
                   <h2 className="font-semibold text-slate-800 text-sm truncate max-w-[300px]">
@@ -207,42 +213,15 @@ export function ExploradorDocumentos({ casos, documentosPorCaso, userId, userRol
           </div>
         )}
 
-        {/* 2. SECCIÓN GENERADORA DE DOCUMENTOS POSTALES (Fase 4) 🚀 */}
+        {/* 2. GENERADOR DE TELEGRAMAS — directo, sin tabs intermedios */}
         {tabActiva === 'plantillas' && (
-          <div className="flex-1 overflow-y-auto bg-slate-50/50 p-6">
-            <Tabs defaultValue="telegramas" className="w-full">
-              
-              {/* Interruptor superior para elegir el tipo de correspondencia */}
-              <TabsList className="grid w-full grid-cols-2 max-w-[450px] mx-auto bg-slate-200/70 p-1 rounded-xl shadow-sm border mb-6">
-                <TabsTrigger value="telegramas" className="rounded-lg text-sm font-semibold py-2 data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-sm transition-all">
-                  Telegramas Laborales (Ley 23.789)
-                </TabsTrigger>
-                <TabsTrigger value="cartas" className="rounded-lg text-sm font-semibold py-2 data-[state=active]:bg-white data-[state=active]:text-purple-600 data-[state=active]:shadow-sm transition-all">
-                  Cartas Documento Oficiales
-                </TabsTrigger>
-              </TabsList>
-
-              {/* Contenedor dinámico de Telegramas */}
-              <TabsContent value="telegramas" className="mt-2 focus-visible:outline-none">
-                <TelegramaSelector casos={casos} />
-              </TabsContent>
-
-              {/* Contenedor dinámico de Cartas Documento */}
-              <TabsContent value="cartas" className="mt-2 focus-visible:outline-none">
-                <CartaFormulario casos={casos} />
-              </TabsContent>
-
-            </Tabs>
-            <div className="flex-1 overflow-y-auto">
-            <PlantillasSection casos={casos} />
+          <div className="flex-1 min-h-0 overflow-y-auto bg-slate-50/50">
+            <TelegramaSelector casos={casos} />
           </div>
-            
-          </div>
-            
         )}
       </div>
 
-      {/* Drawer lateral de carga de archivos tradicionales */}
+      {/* Drawer de carga de archivos */}
       <SubirDocumentoDrawer
         abierto={drawerAbierto}
         onCerrar={() => setDrawerAbierto(false)}
