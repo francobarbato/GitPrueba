@@ -135,6 +135,7 @@ model Caso {
   tareas            Tarea[]
   documentos        Documento[] 
   contraparte       Contraparte?
+  carpetas          Carpeta[]
 
   @@index([abogadoId], map: "Caso_abogadoId_fkey")
   @@index([clienteId], map: "Caso_clienteId_fkey")
@@ -328,13 +329,15 @@ model Documento {
   tipo          String                          // "application/pdf", "image/png", etc.
   extension     String                          // "pdf", "docx", "jpg"
   tamanio       Int                             // bytes
-  carpeta       CarpetaDocumento               // enum de carpetas predefinidas
   descripcion   String?   @db.Text
   esInterno     Boolean   @default(false)       // true = no visible para cliente
   
   // Relaciones
   casoId        String
   caso          Caso      @relation(fields: [casoId], references: [id], onDelete: Cascade)
+
+  carpetaId     String?
+  carpetaRef    Carpeta?  @relation(fields: [carpetaId], references: [id], onDelete: Cascade)
   
   subidoPorId   String
   subidoPor     User      @relation(fields: [subidoPorId], references: [id])
@@ -344,19 +347,29 @@ model Documento {
 
   @@index([casoId])
   @@index([subidoPorId])
-  @@index([carpeta])
+  @@index([carpetaId])
   @@map("documento")
 }
 
-enum CarpetaDocumento {
-  DEMANDA_CONTESTACION        // Demanda y Contestación
-  ESCRITOS_JUDICIALES         // Escritos Judiciales
-  NOTIFICACIONES_CEDULAS      // Notificaciones y Cédulas
-  PRUEBA                      // Prueba
-  DOCUMENTACION_CLIENTE       // Documentación del Cliente
-  NOTAS_INTERNOS              // Notas y Documentos Internos
-  OTROS                       // Sin clasificar
+model Carpeta {
+  id              String      @id @default(uuid())
+  nombre          String
+  casoId          String
+  carpetaPadreId  String?     // null = raíz del expediente; con valor = anidada
+
+  caso            Caso        @relation(fields: [casoId], references: [id], onDelete: Cascade)
+  carpetaPadre    Carpeta?    @relation("CarpetasAnidadas", fields: [carpetaPadreId], references: [id], onDelete: Cascade)
+  subcarpetas     Carpeta[]   @relation("CarpetasAnidadas")
+  documentos      Documento[]
+
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([casoId])
+  @@index([carpetaPadreId])
+  @@map("carpeta")
 }
+
 
 model Pago {
   id              String    @id @default(cuid())

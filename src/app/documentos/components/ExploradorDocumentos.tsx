@@ -1,25 +1,10 @@
 'use client'
 
-import { useState, useMemo } from "react"
-import { FileText, LayoutGrid, List, Upload, Search, MailOpen } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { useState } from "react"
+import { FileText, MailOpen, Search, Briefcase, FolderClosed } from "lucide-react"
 import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
-import { CarpetaDocumento } from "@prisma/client"
-import { DocumentoListItem, DocumentosPorCarpeta, CARPETA_LABELS } from "@/lib/aplication/services/documento.types"
-import { PanelNavegacion } from "./PanelNavegacion"
-import { PanelContenido } from "./PanelContenido"
-import { SubirDocumentoDrawer } from "./SubirDocumentoDrawer"
 import { TelegramaSelector } from "./plantillas/telegrama/TelegramaSelector"
-
-// ═══════════════════════════════════════════════════════════════════════════
-// LIMPIEZA del tab "Plantillas Oficiales":
-//   • Se eliminó el <Tabs> Telegramas/Cartas (solo existen telegramas).
-//   • Se eliminó CartaFormulario (PDF inexistente → ENOENT) y su import.
-//   • Se eliminó la doble renderización (PlantillasSection + TelegramaSelector
-//     mostraban lo mismo). Ahora el tab muestra DIRECTO el TelegramaSelector.
-//   • Scroll unificado: un solo contenedor con overflow en cada panel.
-// ═══════════════════════════════════════════════════════════════════════════
+import { NavegadorCarpetas } from "./NavegadorCarpetas"
 
 interface Caso {
   id: string
@@ -28,80 +13,38 @@ interface Caso {
   tipo: string
   estaCerrado: boolean
   _count: { documentos: number }
-  cliente: {
-    nombre: string
-    apellido: string | null
-  }
+  cliente: { nombre: string; apellido: string | null }
 }
 
 interface Props {
   casos: Caso[]
-  documentosPorCaso: Array<{
-    caso: Caso
-    grupos: DocumentosPorCarpeta[]
-  }>
   userId: string
   userRol: string
 }
 
-export type FiltroActivo = {
-  tipo: 'todos' | 'caso' | 'carpeta'
-  casoId?: string
-  carpeta?: CarpetaDocumento
-}
-
 type TabActiva = 'documentos' | 'plantillas'
 
-export function ExploradorDocumentos({ casos, documentosPorCaso, userId, userRol }: Props) {
+export function ExploradorDocumentos({ casos, userId, userRol }: Props) {
   const [tabActiva, setTabActiva] = useState<TabActiva>('documentos')
-  const [filtro, setFiltro] = useState<FiltroActivo>({ tipo: 'todos' })
-  const [vistaGrilla, setVistaGrilla] = useState(false)
+  const [casoSeleccionado, setCasoSeleccionado] = useState<Caso | null>(null)
   const [busqueda, setBusqueda] = useState('')
-  const [drawerAbierto, setDrawerAbierto] = useState(false)
 
-  const documentosFiltrados = useMemo(() => {
-    let docs: DocumentoListItem[] = []
+  const casosFiltrados = casos.filter(c => {
+    const q = busqueda.toLowerCase()
+    const cliente = `${c.cliente.nombre} ${c.cliente.apellido || ''}`.toLowerCase()
+    return (
+      c.numero.toLowerCase().includes(q) ||
+      c.titulo.toLowerCase().includes(q) ||
+      cliente.includes(q)
+    )
+  })
 
-    if (filtro.tipo === 'todos') {
-      docs = documentosPorCaso.flatMap(d => d.grupos.flatMap(g => g.documentos))
-    } else if (filtro.tipo === 'caso' && filtro.casoId) {
-      const datosCaso = documentosPorCaso.find(d => d.caso.id === filtro.casoId)
-      docs = datosCaso?.grupos.flatMap(g => g.documentos) || []
-    } else if (filtro.tipo === 'carpeta' && filtro.carpeta) {
-      docs = documentosPorCaso.flatMap(d =>
-        d.grupos.filter(g => g.carpeta === filtro.carpeta).flatMap(g => g.documentos)
-      )
-    }
-
-    if (busqueda.trim()) {
-      const q = busqueda.toLowerCase()
-      docs = docs.filter(d =>
-        d.nombre.toLowerCase().includes(q) ||
-        d.descripcion?.toLowerCase().includes(q)
-      )
-    }
-
-    return docs
-  }, [filtro, busqueda, documentosPorCaso])
-
-  const totalDocumentos = documentosPorCaso.reduce(
-    (sum, d) => sum + d.grupos.reduce((s, g) => s + g.cantidad, 0), 0
-  )
-
-  const tituloPanelDerecho = useMemo(() => {
-    if (filtro.tipo === 'todos') return 'Todos los documentos'
-    if (filtro.tipo === 'caso') {
-      const caso = casos.find(c => c.id === filtro.casoId)
-      return caso ? `${caso.numero} - ${caso.titulo}` : 'Caso'
-    }
-    if (filtro.tipo === 'carpeta') return CARPETA_LABELS[filtro.carpeta!]
-    return 'Documentos'
-  }, [filtro, casos])
+  const totalDocumentos = casos.reduce((sum, c) => sum + c._count.documentos, 0)
 
   return (
     <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
 
-      {/* ── Header del módulo ── */}
+      {/* ── Header ── */}
       <div className="flex items-center justify-between px-6 py-4 bg-white border-b border-slate-200 flex-shrink-0">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Documentos</h1>
@@ -109,13 +52,9 @@ export function ExploradorDocumentos({ casos, documentosPorCaso, userId, userRol
             {totalDocumentos} archivos en {casos.length} expedientes
           </p>
         </div>
-        <Button onClick={() => setDrawerAbierto(true)} className="bg-blue-600 hover:bg-blue-700 gap-2">
-          <Upload className="h-4 w-4" />
-          Subir documento
-        </Button>
       </div>
 
-      {/* ── Tabs principales ── */}
+      {/* ── Tabs ── */}
       <div className="px-6 pt-3 bg-white border-b border-slate-200 flex-shrink-0">
         <div className="flex gap-1">
           <button
@@ -143,91 +82,94 @@ export function ExploradorDocumentos({ casos, documentosPorCaso, userId, userRol
         </div>
       </div>
 
-      {/* ── Contenido dinámico ── */}
+      {/* ── Contenido ── */}
       <div className="flex-1 min-h-0 flex flex-col">
 
-        {/* 1. EXPLORADOR DE ARCHIVOS */}
+        {/* DOCUMENTOS: sidebar de expedientes + navegador de carpetas */}
         {tabActiva === 'documentos' && (
           <div className="flex flex-1 min-h-0">
 
-            {/* Panel izquierdo (navegación por expediente/carpeta) */}
-            <div className="w-80 border-r border-slate-200 bg-white overflow-y-auto flex-shrink-0">
-              <PanelNavegacion
-                casos={casos}
-                documentosPorCaso={documentosPorCaso}
-                filtroActivo={filtro}
-                onCambiarFiltro={setFiltro}
-                totalDocumentos={totalDocumentos}
-              />
-            </div>
-
-            {/* Panel derecho */}
-            <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-
-              {/* Barra de búsqueda/vista */}
-              <div className="flex items-center justify-between px-6 py-3 bg-white border-b border-slate-100 flex-shrink-0">
-                <div className="flex items-center gap-3">
-                  <h2 className="font-semibold text-slate-800 text-sm truncate max-w-[300px]">
-                    {tituloPanelDerecho}
-                  </h2>
-                  <Badge variant="outline" className="text-xs">
-                    {documentosFiltrados.length} archivos
-                  </Badge>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-                    <Input
-                      placeholder="Buscar archivos..."
-                      value={busqueda}
-                      onChange={e => setBusqueda(e.target.value)}
-                      className="pl-9 h-8 w-56 text-sm"
-                    />
-                  </div>
-                  <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden">
-                    <button
-                      onClick={() => setVistaGrilla(false)}
-                      className={`p-1.5 ${!vistaGrilla ? 'bg-slate-100 text-slate-800' : 'text-slate-400 hover:bg-slate-50'}`}
-                    >
-                      <List className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={() => setVistaGrilla(true)}
-                      className={`p-1.5 ${vistaGrilla ? 'bg-slate-100 text-slate-800' : 'text-slate-400 hover:bg-slate-50'}`}
-                    >
-                      <LayoutGrid className="h-4 w-4" />
-                    </button>
-                  </div>
+            {/* Sidebar de expedientes con buscador */}
+            <div className="w-80 border-r border-slate-200 bg-white flex flex-col flex-shrink-0">
+              <div className="p-3 border-b border-slate-100 flex-shrink-0">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                  <Input
+                    placeholder="Buscar expediente..."
+                    value={busqueda}
+                    onChange={e => setBusqueda(e.target.value)}
+                    className="pl-9 h-9 text-sm"
+                  />
                 </div>
               </div>
 
-              <PanelContenido
-                documentos={documentosFiltrados}
-                vistaGrilla={vistaGrilla}
-                filtro={filtro}
-                casos={casos}
-                userId={userId}
-                userRol={userRol}
-              />
+              <div className="flex-1 overflow-y-auto p-2">
+                {casosFiltrados.length > 0 ? (
+                  casosFiltrados.map(caso => {
+                    const activo = casoSeleccionado?.id === caso.id
+                    return (
+                      <button
+                        key={caso.id}
+                        onClick={() => setCasoSeleccionado(caso)}
+                        className={`w-full text-left p-3 rounded-lg mb-1 transition-colors ${
+                          activo ? 'bg-blue-50 border border-blue-200' : 'hover:bg-slate-50 border border-transparent'
+                        }`}
+                      >
+                        <div className="flex items-start gap-2">
+                          <div className={`p-1.5 rounded ${activo ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-500'}`}>
+                            <Briefcase className="h-3.5 w-3.5" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className={`text-xs font-mono font-semibold ${activo ? 'text-blue-700' : 'text-slate-500'}`}>
+                              {caso.numero}
+                            </p>
+                            <p className="text-sm font-medium text-slate-800 truncate">{caso.titulo}</p>
+                            <p className="text-xs text-slate-400 truncate">
+                              {caso.cliente.nombre} {caso.cliente.apellido || ''}
+                            </p>
+                          </div>
+                        </div>
+                      </button>
+                    )
+                  })
+                ) : (
+                  <p className="text-center text-xs text-slate-400 py-6">
+                    No se encontraron expedientes.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Panel derecho: navegador de carpetas del expediente elegido */}
+            <div className="flex-1 min-w-0 overflow-hidden">
+              {casoSeleccionado ? (
+                <NavegadorCarpetas
+                  caso={casoSeleccionado}
+                  userId={userId}
+                  userRol={userRol}
+                />
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full text-center p-12">
+                  <div className="p-4 bg-slate-100 rounded-full mb-4">
+                    <FolderClosed className="h-10 w-10 text-slate-300" />
+                  </div>
+                  <p className="text-slate-600 font-medium">Elegí un expediente</p>
+                  <p className="text-slate-400 text-sm mt-1">
+                    Seleccioná un expediente de la izquierda para ver y organizar sus documentos.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         )}
 
-        {/* 2. GENERADOR DE TELEGRAMAS — directo, sin tabs intermedios */}
+        {/* PLANTILLAS: directo al selector de telegramas */}
         {tabActiva === 'plantillas' && (
           <div className="flex-1 min-h-0 overflow-y-auto bg-slate-50/50">
             <TelegramaSelector casos={casos} />
           </div>
         )}
       </div>
-
-      {/* Drawer de carga de archivos */}
-      <SubirDocumentoDrawer
-        abierto={drawerAbierto}
-        onCerrar={() => setDrawerAbierto(false)}
-        casos={casos}
-        casoIdPreseleccionado={filtro.tipo === 'caso' ? filtro.casoId : undefined}
-      />
     </div>
   )
 }

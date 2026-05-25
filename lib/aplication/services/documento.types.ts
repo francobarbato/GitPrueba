@@ -1,7 +1,5 @@
 // src/lib/aplication/services/documento.types.ts
-// Solo tipos y constantes - seguro para usar en cliente y servidor
-
-import { CarpetaDocumento } from "@prisma/client"
+// Solo tipos - seguro para usar en cliente y servidor
 
 export type DocumentoListItem = {
   id: string
@@ -10,31 +8,34 @@ export type DocumentoListItem = {
   tipo: string
   extension: string
   tamanio: number
-  carpeta: CarpetaDocumento
   descripcion: string | null
   esInterno: boolean
   url: string
   storageKey: string
   casoId: string
+  carpetaId: string | null      // null = suelto en la raíz del expediente
   subidoPor: string
   subidoPorId: string
   createdAt: Date
   diasSubido: number
 }
 
-export type DocumentosPorCarpeta = {
-  carpeta: CarpetaDocumento
-  label: string
-  documentos: DocumentoListItem[]
-  cantidad: number
+// Una carpeta dentro de un expediente (puede estar anidada).
+export type CarpetaListItem = {
+  id: string
+  nombre: string
+  casoId: string
+  carpetaPadreId: string | null   // null = raíz del expediente
+  cantidadDocumentos: number      // documentos directos en esta carpeta
+  cantidadSubcarpetas: number     // subcarpetas directas
+  createdAt: Date
 }
 
-export const CARPETA_LABELS: Record<CarpetaDocumento, string> = {
-  DEMANDA_CONTESTACION: 'Demanda y Contestación',
-  ESCRITOS_JUDICIALES: 'Escritos Judiciales',
-  NOTIFICACIONES_CEDULAS: 'Notificaciones y Cédulas',
-  PRUEBA: 'Prueba',
-  DOCUMENTACION_CLIENTE: 'Documentación del Cliente',
-  NOTAS_INTERNOS: 'Notas y Documentos Internos',
-  OTROS: 'Otros'
+// Contenido de un nivel del explorador (una carpeta o la raíz):
+// las subcarpetas y los documentos que viven en ese nivel.
+export type ContenidoCarpeta = {
+  carpetaActual: CarpetaListItem | null   // null = estamos en la raíz del expediente
+  ruta: CarpetaListItem[]                 // breadcrumb desde la raíz hasta la actual
+  subcarpetas: CarpetaListItem[]
+  documentos: DocumentoListItem[]
 }

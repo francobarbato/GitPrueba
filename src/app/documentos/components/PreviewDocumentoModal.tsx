@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Download, FileText, Lock, Calendar, User, HardDrive } from "lucide-react"
-import { DocumentoListItem, CARPETA_LABELS } from "@/lib/aplication/services/documento.types"
+import { DocumentoListItem } from "@/lib/aplication/services/documento.types"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 
@@ -56,9 +56,6 @@ export function PreviewDocumentoModal({ documento, onCerrar }: Props) {
             <HardDrive className="h-3.5 w-3.5 text-slate-400" />
             {(documento.tamanio / (1024 * 1024)).toFixed(2)} MB
           </div>
-          <Badge variant="outline" className="text-xs">
-            {CARPETA_LABELS[documento.carpeta]}
-          </Badge>
         </div>
 
         {/* Preview o mensaje sin preview */}

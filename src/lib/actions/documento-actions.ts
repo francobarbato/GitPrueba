@@ -1,29 +1,68 @@
-"use server" // <-- ESTO ES LO MÁS IMPORTANTÉ: Obliga a todo este archivo a correr en el servidor
+"use server"
 
-import { DocumentoService, DocumentoUploadInput } from "../../../lib/aplication/services/documento.service"
-import { revalidatePath } from "next/cache"
+import { getUserSessionServer } from "@/auth/actions/auth-actions"
+import { DocumentoService } from "../../../lib/aplication/services/documento.service"
 
-// Instanciamos el servicio acá, donde es seguro porque estamos del lado del servidor
 const documentoService = new DocumentoService()
 
-// Action para obtener los documentos agrupados por carpeta
-export async function fetchDocumentosPorCaso(casoId: string, opciones?: { soloPublicos?: boolean }) {
+// ============================================================================
+// LECTURA DE DOCUMENTOS / CARPETAS
+// ============================================================================
+// Reemplaza al viejo fetchDocumentosPorCaso (que agrupaba por enum).
+// Ahora la navegación es por carpetas anidadas.
+
+// Contenido de un nivel: breadcrumb + subcarpetas + documentos.
+// carpetaId = null → raíz del expediente.
+export async function fetchContenidoCarpeta(
+  casoId: string,
+  carpetaId: string | null,
+  opciones?: { soloPublicos?: boolean }
+) {
+  const user = await getUserSessionServer()
+  if (!user?.id) throw new Error("No autorizado")
+
   try {
-    return await documentoService.getDocumentosPorCaso(casoId, opciones)
+    return await documentoService.getContenido(
+      casoId,
+      carpetaId,
+      opciones,
+      { usuarioId: user.id, rol: user.rol }
+    )
   } catch (error: any) {
-    console.error("Error en fetchDocumentosPorCaso:", error)
+    console.error("Error en fetchContenidoCarpeta:", error)
+    throw new Error(error.message || "Error al cargar el contenido")
+  }
+}
+
+// Todos los documentos de un caso (vista plana, sin navegar).
+export async function fetchTodosLosDocumentos(
+  casoId: string,
+  opciones?: { soloPublicos?: boolean }
+) {
+  const user = await getUserSessionServer()
+  if (!user?.id) throw new Error("No autorizado")
+
+  try {
+    return await documentoService.getTodosLosDocumentos(
+      casoId, opciones, { usuarioId: user.id, rol: user.rol }
+    )
+  } catch (error: any) {
+    console.error("Error en fetchTodosLosDocumentos:", error)
     throw new Error(error.message || "Error al cargar documentos")
   }
 }
 
-// Action para eliminar un documento
-export async function actionEliminarDocumento(documentoId: string, usuarioId: string, casoId: string) {
+// Lista de carpetas de un caso (para selectores).
+export async function fetchCarpetasDelCaso(casoId: string) {
+  const user = await getUserSessionServer()
+  if (!user?.id) throw new Error("No autorizado")
+
   try {
-    const result = await documentoService.eliminarDocumento(documentoId, usuarioId)
-    // Forzamos a Next.js a refrescar la pantalla para ver el cambio reflejado
-    revalidatePath(`/casos/${casoId}`) 
-    return result
+    return await documentoService.getCarpetasDelCaso(
+      casoId, { usuarioId: user.id, rol: user.rol }
+    )
   } catch (error: any) {
-    throw new Error(error.message || "Error al eliminar el documento")
+    console.error("Error en fetchCarpetasDelCaso:", error)
+    throw new Error(error.message || "Error al cargar carpetas")
   }
 }
