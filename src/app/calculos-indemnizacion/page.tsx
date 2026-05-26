@@ -31,7 +31,7 @@ const TABS = [
   { id: 'despido', name: 'Despido', icon: Briefcase, component: DespidoView },
   { id: 'lrt', name: 'Accidente - LRT', icon: Truck, component: LrtView },
   { id: 'capitalizacion', name: 'Accidente - Capitalización', icon: Scale, component: CapitalizacionView },
-  { id: 'sucesiones', name: 'Calculo de sucesiones', icon: Scale, component: CalculadoraSucesionPage },
+  // { id: 'sucesiones', name: 'Calculo de sucesiones', icon: Scale, component: CalculadoraSucesionPage },
 ];
 
 export default function CalculadoraIndemnizacionesPage() {
@@ -112,9 +112,7 @@ export default function CalculadoraIndemnizacionesPage() {
               {/* Le pasamos el setter del resultado y el clear global */}
               <ActiveComponent 
                 setCalculoResult={setCalculoResult}
-                handleClear={handleClearGlobal} handleCalculate={function (): void {
-                  throw new Error("Function not implemented.");
-                } }              />
+                handleClear={handleClearGlobal}              />
             </div>
 
             {/* DERECHA: PANEL DE RESULTADOS Y DESCARGA */}
