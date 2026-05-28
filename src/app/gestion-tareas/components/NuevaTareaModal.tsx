@@ -255,9 +255,9 @@ export function NuevaTareaModal({ usuarios, casos, clientes = [], currentUserId,
 
           {/* BLOQUE 1: Detalles */}
           <div className="space-y-4">
-            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-2"><Briefcase className="w-4 h-4" /> 1. Detalles de la Tarea</h3>
+            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-2"><Briefcase className="w-4 h-4" /> 1. Detalles del evento</h3>
             <div>
-              <Label className="text-xs font-semibold text-slate-600 mb-2 block">Tipo de tarea</Label>
+              <Label className="text-xs font-semibold text-slate-600 mb-2 block">Tipo de evento</Label>
               <div className="grid grid-cols-2 gap-3">
                 {TIPOS.map(t => (
                   <button key={t.value} onClick={() => handleTipoChange(t.value)}
@@ -294,7 +294,7 @@ export function NuevaTareaModal({ usuarios, casos, clientes = [], currentUserId,
                 <Label className="text-xs font-semibold text-slate-600">Descripción / Instrucciones</Label>
                 <span className={`text-[10px] font-medium ${descripcionRestante < 50 ? (descripcionRestante < 0 ? "text-red-600" : "text-amber-600") : "text-slate-400"}`}>{descripcion.length}/{MAX_DESCRIPCION}</span>
               </div>
-              <textarea value={descripcion} onChange={e => { if (e.target.value.length <= MAX_DESCRIPCION) setDescripcion(e.target.value) }} maxLength={MAX_DESCRIPCION} placeholder="Detallá acá todo lo que el responsable necesita saber para cumplir la tarea..." className="w-full border border-slate-200 rounded-lg p-3 text-sm min-h-[100px] resize-none focus:outline-none focus:ring-2 focus:ring-blue-300 bg-slate-50/50" />
+              <textarea value={descripcion} onChange={e => { if (e.target.value.length <= MAX_DESCRIPCION) setDescripcion(e.target.value) }} maxLength={MAX_DESCRIPCION} placeholder="Detallá acá todo lo que el responsable necesita saber para cumplir el evento..." className="w-full border border-slate-200 rounded-lg p-3 text-sm min-h-[100px] resize-none focus:outline-none focus:ring-2 focus:ring-blue-300 bg-slate-50/50" />
             </div>
           </div>
 

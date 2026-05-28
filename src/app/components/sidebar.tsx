@@ -25,6 +25,7 @@ const getMenuItems = (rol?: string) => {
     { name: "Gestión de Expedientes", href: "/casos", icon: FileText, roles: ['ABOGADO', 'ASISTENTE'] },
     { name: "Gestión de Clientes", href: "/clientes", icon: Users, roles: ['ABOGADO', 'ASISTENTE'] },
     { name: "Agenda y Seguimientos", href: "/gestion-tareas", icon: Calendar, roles: ['ABOGADO', 'ASISTENTE'] },
+    { name: "Cálculos de Indemnización", href: "/calculos-indemnizacion", icon: Calculator, roles: ['ABOGADO', 'ASISTENTE'] },
     { name: "Documentos y Plantillas", href: "/documentos", icon: FileCheck, roles: ['ABOGADO', 'ASISTENTE'] },
     { name: "Reportes", href: "/reportes", icon: PieChart, roles: ['ABOGADO', 'ASISTENTE'] },
   ]

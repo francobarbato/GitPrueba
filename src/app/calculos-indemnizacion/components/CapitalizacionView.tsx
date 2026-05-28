@@ -73,6 +73,16 @@ function calcularVergara(salario: number, edad: number, incapacidad: number): Re
  
 // ─── TOOLTIPS ─────────────────────────────────────────────────────────────────
  
+// ─── HELPERS DE FORMATO ───────────────────────────────────────────────────────
+
+// Muestra el número con separador de miles (1000000 → "1.000.000")
+const fmtMiles = (v: number | ''): string =>
+  v === '' ? '' : Number(v).toLocaleString('es-AR', { maximumFractionDigits: 0 });
+const parseMiles = (s: string): number | '' => {
+  const limpio = s.replace(/[^0-9]/g, '');
+  return limpio === '' ? '' : Number(limpio);
+};
+
 const TOOLTIPS: Record<string, Record<string, string>> = {
   vuotto: {
     vn: 'Vⁿ = 1 / (1 + i)ⁿ — Factor de descuento: cuánto vale hoy $1 dentro de n años.',
@@ -229,7 +239,7 @@ export default function CapitalizacionView({ setCalculoResult, handleClear }: Ca
   };
  
   // ── Calcular ──────────────────────────────────────────────────────────────────
-  const handleCalculate = () => {
+const handleCalculate = () => {
     if (!validar()) return;
  
     const sal  = Number(formData.remuneracion);
@@ -244,11 +254,41 @@ export default function CapitalizacionView({ setCalculoResult, handleClear }: Ca
     setHasCalculated(true);
  
     const mayorCapital = Math.max(vuotto.capital, mendez.capital, vergara.capital);
+    // Identificar qué fórmula dio el capital mayor (para mostrarlo en el detalle/PDF)
+    const formulaMayor =
+      vuotto.capital  === mayorCapital ? 'VUOTTO'  :
+      mendez.capital  === mayorCapital ? 'MENDEZ'  :
+                                          'VERGARA';
+
     setCalculoResult({
       indemnizacionBase: vuotto.capital,
       multas: 0,
       intereses: 0,
       total: mayorCapital,
+      // ── snapshot para guardar y para PDF futuro ─────────────────────────────
+      tipo: 'CAPITALIZACION',
+      detalle: {
+        // Parámetros de entrada
+        parametros: {
+          remuneracion: sal,
+          edad:         edad,
+          incapacidad:  inc,
+        },
+        // Resultado completo: las TRES fórmulas con sus componentes
+        resultados: {
+          vuotto,
+          mendez,
+          vergara,
+        },
+        // Resumen comparativo: cuál ganó y por cuánto
+        comparativa: {
+          mayorCapital,
+          formulaMayor,
+        },
+        // Metadata
+        calculadoEn: new Date().toISOString(),
+        version:     '1.0',
+      },
     });
   };
  
@@ -263,6 +303,10 @@ export default function CapitalizacionView({ setCalculoResult, handleClear }: Ca
  
   const setField = (field: keyof typeof formData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value === '' ? '' : Number(value) }));
+    if (errores[field]) setErrores(prev => ({ ...prev, [field]: '' }));
+  };
+    const setFieldNum = (field: keyof typeof formData, value: number | '') => {
+    setFormData(prev => ({ ...prev, [field]: value }));
     if (errores[field]) setErrores(prev => ({ ...prev, [field]: '' }));
   };
  
@@ -292,11 +336,11 @@ export default function CapitalizacionView({ setCalculoResult, handleClear }: Ca
                 Remuneración Mensual ($)
               </label>
               <Input
-                type="number"
-                min={0}
-                value={formData.remuneracion}
-                onChange={(e) => setField('remuneracion', e.target.value)}
-                placeholder="Ej: 300000"
+                type="text"
+                inputMode="numeric"
+                value={fmtMiles(formData.remuneracion)}
+                onChange={(e) => setFieldNum('remuneracion', parseMiles(e.target.value))}
+                placeholder="Ej: 1.000.000"
                 className={errores.remuneracion ? 'border-red-400 focus-visible:ring-red-400' : ''}
               />
               <FieldError campo="remuneracion" />

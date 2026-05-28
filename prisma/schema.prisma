@@ -48,6 +48,9 @@ model User {
   comentariosEscritos ComentarioTarea[] @relation("ComentariosAutor")
   lecturasTarea      TareaLectura[]
 
+  liquidacionesCreadas    Liquidacion[] @relation("LiquidacionesCreadas")
+  liquidacionesEliminadas Liquidacion[] @relation("LiquidacionesEliminadas")
+
   @@map("usuario")
 }
 
@@ -136,6 +139,7 @@ model Caso {
   documentos        Documento[] 
   contraparte       Contraparte?
   carpetas          Carpeta[]
+  liquidaciones     Liquidacion[]
 
   @@index([abogadoId], map: "Caso_abogadoId_fkey")
   @@index([clienteId], map: "Caso_clienteId_fkey")
@@ -195,6 +199,40 @@ model Contraparte {
   updatedAt   DateTime    @updatedAt
 
   @@map("contraparte")
+}
+
+model Liquidacion {
+  id          String          @id @default(cuid())
+  tipo        TipoLiquidacion
+  montoTotal  Decimal         @db.Decimal(15, 2)
+  detalle     Json            // snapshot completo: parámetros + desglose
+  descripcion String?
+
+  casoId      String?
+  caso        Caso?           @relation(fields: [casoId], references: [id], onDelete: SetNull)
+
+  creadoPorId String
+  creadoPor   User            @relation("LiquidacionesCreadas", fields: [creadoPorId], references: [id])
+
+  // Soft delete: nunca se borra físicamente
+  eliminadoEn      DateTime?
+  eliminadoPorId   String?
+  eliminadoPor     User?      @relation("LiquidacionesEliminadas", fields: [eliminadoPorId], references: [id])
+
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([casoId])
+  @@index([tipo])
+  @@index([creadoPorId])
+  @@index([eliminadoEn])
+  @@map("liquidacion")
+}
+
+enum TipoLiquidacion {
+  DESPIDO
+  LRT
+  CAPITALIZACION
 }
 
 model Tarea {

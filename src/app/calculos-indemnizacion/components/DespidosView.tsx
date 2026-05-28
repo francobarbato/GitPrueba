@@ -352,7 +352,7 @@ export default function DespidoView({ setCalculoResult, handleClear }: Calculato
     return Object.keys(errs).length === 0;
   };
 
-  const handleCalculate = () => {
+    const handleCalculate = () => {
     if (!validar()) return;
     const res = calcularDespido(
       Number(formData.salarioBruto), formData.fechaIngreso, formData.fechaEgreso,
@@ -368,6 +368,28 @@ export default function DespidoView({ setCalculoResult, handleClear }: Calculato
       multas: res.totalMultas,
       intereses: 0,
       total: res.total,
+      // ── snapshot para guardar y para PDF futuro ─────────────────────────────
+      tipo: 'DESPIDO',
+      detalle: {
+        // Parámetros de entrada (lo que el abogado cargó)
+        parametros: {
+          salarioBruto:          Number(formData.salarioBruto),
+          fechaIngreso:          formData.fechaIngreso,
+          fechaEgreso:           formData.fechaEgreso,
+          sinPreaviso:           formData.sinPreaviso,
+          diasVacNoGozadas:      Number(formData.diasVacNoGozadas),
+          sueldosAdeudados:      Number(formData.sueldosAdeudados),
+          aplicarDoble:          formData.aplicarDoble,
+          porcentajeAgravamiento: formData.porcentajeAgravamiento,
+          fechaFalsaIngreso:     formData.fechaFalsaIngreso || null,
+          multas:                { ...multas },
+        },
+        // Resultado completo del cálculo (todos los rubros)
+        resultado: res,
+        // Metadata: cuándo se calculó y con qué versión de fórmulas
+        calculadoEn: new Date().toISOString(),
+        version:     '1.0',
+      },
     });
   };
 

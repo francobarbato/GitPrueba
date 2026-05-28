@@ -7,7 +7,7 @@ import { Header } from "@/app/components/header"
 import { getUserSessionServer } from "@/auth/actions/auth-actions"
 import {
   ClipboardCheck, Briefcase, BarChart3, MapPinned, Timer,
-  TrendingUp, Target, PieChart, LineChart, FileText,
+  TrendingUp, Target, PieChart, LineChart, FileText, Wallet,
   ChevronRight, LayoutDashboard // Agregados para el Breadcrumb
 } from "lucide-react"
 
@@ -48,6 +48,7 @@ const BLOQUES: { reportes: Reporte[] }[] = [
     reportes: [
       { titulo: "Estado de expedientes por etapa", descripcion: "Dónde están trabados los expedientes y cuáles requieren atención", href: "/reportes/tiempo-por-etapa", icono: Timer, color: "amber" },
       { titulo: "Resultados de expedientes cerrados", descripcion: "Tasa de éxito, recupero y resultados por motivo de cierre", href: "/reportes/analisis-resultados", icono: Target, color: "rose" },
+      { titulo: "Cuantía y Liquidaciones", descripcion: "Capital en expectativa, distribución por tipo y top expedientes", href: "/reportes/cuantia-liquidaciones", icono: Wallet, color: "emerald" },
     ],
   },
   {

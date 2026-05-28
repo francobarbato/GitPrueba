@@ -5,11 +5,11 @@ import { getUserSessionServer } from "@/auth/actions/auth-actions"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import { CalendarClock, FileText, Scale, History, DollarSign, Briefcase, ArrowLeft } from 'lucide-react';
+import { CalendarClock, FileText, Scale, History, DollarSign, Briefcase, ArrowLeft, FolderOpen } from 'lucide-react';
 import prisma from "src/lib/db/prisma"
 import { TaskManager } from "./components/TaskManager"
 import { TimelineAuditoria } from "./components/TimelineAuditoria"
-import { PagosManager } from "./components/PagosManager"
+// import { PagosManager } from "./components/PagosManager"
 import { CasoHeader } from "./components/caso-header"
 import { Sidebar } from "@/app/components/sidebar"
 import { Header } from "@/app/components/header"
@@ -21,9 +21,11 @@ import {
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { obtenerColaboradores, obtenerAbogadosDisponibles } from "./colaborador.actions"
-import { ColaboradoresPanel } from "./components/ColaboradoresPanel"
+// import { ColaboradoresPanel } from "./components/ColaboradoresPanel"
 import { getTareasDeCaso } from "src/lib/actions/tarea-actions"
 import { redirect, notFound } from "next/navigation"
+import { getLiquidacionesDeCaso } from "src/lib/actions/liquidacion-actions"
+import SeccionCalculosCaso from "./components/SeccionCalculosCaso"
 
 // Helper para verificar roles
 const isAdmin = (rol: string) => rol?.toUpperCase() === 'ADMIN'
@@ -104,10 +106,11 @@ export default async function CasoDetailPage({ params }: { params: { id: string 
     bitacorasCampos.find(b => b.accion === accion)
 
   // Obtener colaboradores del caso
-  const colaboradores = await obtenerColaboradores(params.id)
-  const abogadosDisponibles = await obtenerAbogadosDisponibles(params.id)
+  // const colaboradores = await obtenerColaboradores(params.id)
+  // const abogadosDisponibles = await obtenerAbogadosDisponibles(params.id)
 
   const tareasDeCaso = await getTareasDeCaso(params.id)
+  const liquidacionesDelCaso = await getLiquidacionesDeCaso(params.id)
 
   const getPriorityColor = (priority: string) => {
     if (priority === "HIGH") return "bg-red-100 text-red-700"
@@ -224,15 +227,20 @@ const puedeVerMontoDisputa = isAbogado(userRol)
 
             <Tabs defaultValue="resumen" className="w-full space-y-6">
               
-              <TabsList className="grid w-full h-auto p-1 gap-1 grid-cols-2"> 
+              <TabsList className="grid w-full h-auto p-1 gap-1 grid-cols-3">
                 <TabsTrigger value="resumen" className="h-9 w-full">
                   <FileText className="w-4 h-4 mr-2 shrink-0" />
                   Resumen
                 </TabsTrigger>
-                
+              
                 <TabsTrigger value="agenda" className="h-9 w-full">
                   <CalendarClock className="w-4 h-4 mr-2 shrink-0" />
                   Agenda y seguimientos
+                </TabsTrigger>
+              
+                <TabsTrigger value="documentacion" className="h-9 w-full">
+                  <FolderOpen className="w-4 h-4 mr-2 shrink-0" />
+                  Documentación
                 </TabsTrigger>
               </TabsList>
 
@@ -647,38 +655,43 @@ const puedeVerMontoDisputa = isAbogado(userRol)
                 </Card>
               </TabsContent>
 
-              {/* TAB 3: EXPEDIENTE DIGITAL - Disponible para todos */}
-              {/* <TabsContent value="expediente" className="animate-in fade-in-50">
-                <Card>
-                  <CardHeader className="border-b bg-slate-50/50">
-                    <CardTitle>Documentos y Actuaciones</CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-6">
-                    <div className="text-center py-12 text-slate-500">
-                      <FileText className="w-12 h-12 mx-auto mb-3 text-slate-300" />
-                      <p className="font-medium">Sección en desarrollo</p>
-                      <p className="text-sm">Aquí se mostrarán los documentos adjuntos</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              </TabsContent> */}
-
-              {/* TAB 4: PAGOS - Solo Admin y Abogado */}
-              {/* {puedeVerPagos && (
-                <TabsContent value="pagos" className="animate-in fade-in-50">
-                  <Card>
-                    <CardHeader className="border-b bg-slate-50/50">
-                      <CardTitle>Gestión de Pagos y Gastos</CardTitle>
-                      <p className="text-sm text-slate-500 mt-1">
-                        Honorarios, tasas, sellados y gastos del expediente
-                      </p>
-                    </CardHeader>
-                    <CardContent className="p-6">
-                      <PagosManager casoId={caso.id} pagos={caso.pagos as any} />
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-              )} */}
+                    <TabsContent value="documentacion" className="animate-in fade-in-50 space-y-6">
+ 
+              {/* Sección 1: Documentos del expediente (carpetas + archivos subidos) */}
+              <Card>
+                <CardHeader className="border-b bg-slate-50/50">
+                  <CardTitle className="flex items-center gap-2">
+                    <FolderOpen className="h-5 w-5 text-blue-600" />
+                    Documentos del Expediente
+                  </CardTitle>
+                  <p className="text-sm text-slate-500 mt-1">
+                    Carpetas y archivos subidos al expediente.
+                  </p>
+                </CardHeader>
+                <CardContent className="p-6">
+                  <div className="text-center py-10 text-slate-400">
+                    <FolderOpen className="w-10 h-10 mx-auto mb-2 text-slate-300" />
+                    <p className="text-sm font-medium text-slate-500">
+                      Navegación de carpetas y documentos
+                    </p>
+                    <p className="text-xs mt-1">
+                      Esta sección replica la navegación de la sección global de Documentos, filtrada a este expediente.
+                    </p>
+                    <p className="text-[11px] text-slate-400 italic mt-3">
+                      (Próximamente — pendiente integrar el componente de navegación de documentos)
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            
+              {/* Sección 2: Cálculos de indemnización guardados */}
+              <SeccionCalculosCaso
+                casoId={caso.id}
+                liquidaciones={liquidacionesDelCaso}
+                puedeEliminar={puedeEditar}
+              />
+            
+            </TabsContent>
 
               {/* TAB 5: AUDITORÍA - Solo Admin */}
               {puedeVerAuditoria && (
