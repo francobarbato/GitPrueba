@@ -4,6 +4,7 @@ import React from "react";
 import { X, FileText, User, Calendar, Briefcase, Truck, Scale } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { LiquidacionConRelaciones } from "src/lib/actions/liquidacion-actions";
+import dynamic from "next/dynamic";
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 
@@ -28,6 +29,12 @@ const fmtFecha = (iso: string) => {
   }
   return new Date(iso).toLocaleDateString("es-AR");
 };
+
+const BotonGenerarPdfLiquidacion = dynamic(
+  () => import("src/lib/pdf/liquidacion/BotonGenerarPdfLiquidacion")
+    .then(m => m.BotonGenerarPdfLiquidacion),
+  { ssr: false }
+);
 
 // ─── FILA RUBRO ───────────────────────────────────────────────────────────────
 
@@ -358,13 +365,28 @@ export default function DetalleLiquidacionDialog({
 
         {/* Footer */}
         <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex justify-between items-center gap-2">
-          <p className="text-[11px] text-slate-400 italic">
-            Valores estimativos. Cálculo guardado de forma inmutable.
-          </p>
+        <p className="text-[11px] text-slate-400 italic">
+          Valores estimativos. Cálculo guardado de forma inmutable.
+        </p>
+        <div className="flex gap-2">
+          <BotonGenerarPdfLiquidacion
+            tipo={liquidacion.tipo}
+            detalle={liquidacion.detalle}
+            meta={{
+              liquidacionId: liquidacion.id,
+              createdAt:     liquidacion.createdAt,
+              creadoPor:     liquidacion.creadoPor,
+              caso:          liquidacion.caso
+                ? { numero: liquidacion.caso.numero, titulo: liquidacion.caso.titulo }
+                : undefined,
+            }}
+            label="Descargar PDF"
+          />
           <Button variant="outline" onClick={onClose} className="text-slate-600 border-slate-300">
             Cerrar
           </Button>
         </div>
+      </div>
       </div>
     </div>
   );

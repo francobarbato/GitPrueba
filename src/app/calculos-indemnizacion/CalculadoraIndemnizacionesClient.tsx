@@ -6,7 +6,7 @@ import {
   Calculator, Printer, ArrowLeft, Briefcase, Truck, Scale, RotateCcw, Save
 } from 'lucide-react';
 import { TipoLiquidacion } from "@prisma/client";
-
+import dynamic from "next/dynamic";
 // IMPORTACIONES REALES
 import { Sidebar } from "@/app/components/sidebar";
 import { Header } from "@/app/components/header";
@@ -54,13 +54,21 @@ export default function CalculadoraIndemnizacionesClient() {
     setCalculoResult(null);
   };
 
-  const handleDescargarPDF = () => {
-    if (calculoResult) {
-      alert(`Generando PDF para ${activeTab}. Total: $${calculoResult.total.toLocaleString('es-AR')}`);
-    } else {
-      alert("Realice un cálculo primero.");
-    }
-  };
+const BotonGenerarPdfLiquidacion = dynamic(
+  () => import("src/lib/pdf/liquidacion/BotonGenerarPdfLiquidacion")
+    .then(m => m.BotonGenerarPdfLiquidacion),
+  {
+    ssr: false,
+    loading: () => (
+      <button
+        disabled
+        className="w-full inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium px-4 py-2 bg-blue-600/50 text-white"
+      >
+        <Printer size={18} /> Cargando…
+      </button>
+    ),
+  }
+);
 
   const handleAbrirGuardar = () => {
     if (!calculoResult) return;
@@ -174,12 +182,22 @@ export default function CalculadoraIndemnizacionesClient() {
                         >
                           <Save size={16} /> Guardar Cálculo
                         </Button>
-                        <Button
-                          onClick={handleDescargarPDF}
-                          className="w-full bg-blue-600 hover:bg-blue-700 text-white gap-2 shadow-sm"
+                        {puedeGuardar ? (
+                        <BotonGenerarPdfLiquidacion
+                          tipo={calculoResult!.tipo!}
+                          detalle={calculoResult!.detalle}
+                          label="Generar PDF Final"
+                          fullWidth
+                        />
+                      ) : (
+                        <button
+                          disabled
+                          className="w-full inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium px-4 py-2 bg-blue-600/60 text-white"
+                          title="Realice un cálculo primero"
                         >
                           <Printer size={18} /> Generar PDF Final
-                        </Button>
+                        </button>
+                      )}
                       </div>
                     </>
                   ) : (

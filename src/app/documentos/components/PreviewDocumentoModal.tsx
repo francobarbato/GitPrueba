@@ -3,10 +3,11 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Download, FileText, Lock, Calendar, User, HardDrive } from "lucide-react"
+import { Download, FileText, Lock, Calendar, User, HardDrive, Loader2 } from "lucide-react"
 import { DocumentoListItem } from "@/lib/aplication/services/documento.types"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
+import { useEffect, useState } from "react"
 
 interface Props {
   documento: DocumentoListItem
@@ -16,8 +17,52 @@ interface Props {
 const EXTENSIONES_PREVIEW = ['pdf', 'jpg', 'jpeg', 'png', 'webp']
 
 export function PreviewDocumentoModal({ documento, onCerrar }: Props) {
-  const tienePreview = EXTENSIONES_PREVIEW.includes(documento.extension.toLowerCase())
-  const esImagen = ['jpg', 'jpeg', 'png', 'webp'].includes(documento.extension.toLowerCase())
+  // const tienePreview = EXTENSIONES_PREVIEW.includes(documento.extension.toLowerCase())
+  // const esImagen = ['jpg', 'jpeg', 'png', 'webp'].includes(documento.extension.toLowerCase())
+
+  const ext        = documento.extension.toLowerCase()
+const tienePreview = EXTENSIONES_PREVIEW.includes(ext)
+const esImagen   = ['jpg', 'jpeg', 'png', 'webp'].includes(ext)
+const esPdf      = ext === 'pdf'
+
+// PDFs: los traemos como blob para evitar problemas con Content-Disposition: attachment
+// del backend, que rompe el render inline en el iframe.
+const [pdfBlobUrl,   setPdfBlobUrl]   = useState<string | null>(null)
+const [pdfError,     setPdfError]     = useState<string | null>(null)
+const [cargandoPdf,  setCargandoPdf]  = useState(false)
+
+useEffect(() => {
+  if (!esPdf) return
+
+  let cancelado = false
+  let blobUrlLocal: string | null = null
+
+  setCargandoPdf(true)
+  setPdfError(null)
+
+  fetch(documento.url, { credentials: 'include' })
+    .then(async (res) => {
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const blob = await res.blob()
+      // Forzar Content-Type por si el backend devolvió octet-stream u otra cosa
+      const pdfBlob = blob.type === 'application/pdf'
+        ? blob
+        : new Blob([blob], { type: 'application/pdf' })
+      blobUrlLocal = URL.createObjectURL(pdfBlob)
+      if (!cancelado) setPdfBlobUrl(blobUrlLocal)
+    })
+    .catch((err) => {
+      if (!cancelado) setPdfError(err?.message ?? 'Error al cargar el PDF')
+    })
+    .finally(() => {
+      if (!cancelado) setCargandoPdf(false)
+    })
+
+  return () => {
+    cancelado = true
+    if (blobUrlLocal) URL.revokeObjectURL(blobUrlLocal)
+  }
+}, [documento.url, esPdf])
 
   const handleDescargar = () => {
     const link = document.createElement('a')
@@ -28,7 +73,7 @@ export function PreviewDocumentoModal({ documento, onCerrar }: Props) {
 
   return (
     <Dialog open onOpenChange={onCerrar}>
-      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+      <DialogContent className="max-w-6xl w-[95vw] h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-base pr-8">
             <FileText className="h-5 w-5 text-blue-600 flex-shrink-0" />
@@ -59,32 +104,46 @@ export function PreviewDocumentoModal({ documento, onCerrar }: Props) {
         </div>
 
         {/* Preview o mensaje sin preview */}
-        <div className="flex-1 overflow-auto min-h-[300px] bg-slate-50 rounded-lg">
+        <div className="flex-1 min-h-0 overflow-hidden bg-slate-50 rounded-lg">
           {tienePreview ? (
             esImagen ? (
+              <div className="w-full h-full overflow-auto">
               <img
                 src={documento.url}
                 alt={documento.nombre}
                 className="max-w-full h-auto mx-auto block"
               />
-            ) : (
-              // PDF
-              <iframe
-                src={`${documento.url}#toolbar=1`}
-                className="w-full h-full min-h-[400px] rounded-lg"
-                title={documento.nombre}
-              />
-            )
+              </div>
+            ) : esPdf ? (
+              cargandoPdf ? (
+                <div className="flex flex-col items-center justify-center h-full min-h-[400px] p-12 text-center text-slate-500">
+                  <Loader2 className="h-6 w-6 animate-spin mb-2" />
+                  <p className="text-sm">Cargando vista previa…</p>
+                </div>
+              ) : pdfError ? (
+                <div className="flex flex-col items-center justify-center h-full min-h-[400px] p-12 text-center">
+                  <FileText className="h-16 w-16 text-slate-300 mb-4" />
+                  <p className="text-slate-600 font-medium mb-1">
+                    No se pudo cargar la vista previa
+                  </p>
+                  <p className="text-slate-400 text-sm">
+                    {pdfError}. Probá descargar el archivo.
+                  </p>
+                </div>
+              ) : pdfBlobUrl ? (
+                <iframe
+                  src={`${pdfBlobUrl}#toolbar=1`}
+                  className="w-full h-full rounded-lg"
+                  title={documento.nombre}
+                />
+              ) : null
+            ) : null
           ) : (
-            // Sin preview
             <div className="flex flex-col items-center justify-center h-full p-12 text-center">
               <FileText className="h-16 w-16 text-slate-300 mb-4" />
-              <p className="text-slate-600 font-medium mb-1">
-                Vista previa no disponible
-              </p>
+              <p className="text-slate-600 font-medium mb-1">Vista previa no disponible</p>
               <p className="text-slate-400 text-sm">
-                Este tipo de archivo no se puede previsualizar directamente.
-                Descargalo para abrirlo.
+                Este tipo de archivo no se puede previsualizar directamente. Descargalo para abrirlo.
               </p>
             </div>
           )}
