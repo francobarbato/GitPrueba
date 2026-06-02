@@ -16,6 +16,8 @@ import { PanelProximasVencer } from "./components/PanelProximasVencer"
 import { TablaBloqueadasActivas } from "./components/TablaBloqueadasActivas"
 import { PanelInsightsCarga } from "./components/PanelInsightsCarga"
 import { ToggleVistaCarga } from "./components/ToggleVistaCarga"
+import { NotaContextoPeriodo } from "@/app/reportes/components/NotaContextoPeriodo"
+
 
 // ============================================================================
 // TIPOS
@@ -368,6 +370,12 @@ export default async function MatrizCargaPage({ searchParams }: PageProps) {
   const abogadoId = vistaGeneral ? undefined : user.id
   const datos = await getMatrizCarga(abogadoId)
 
+  const hoy = new Date()
+const hace90Dias = new Date()
+hace90Dias.setDate(hoy.getDate() - 90)
+const desdeISO = hace90Dias.toISOString()
+const hastaISO = hoy.toISOString()
+
   const tieneProximas = !vistaGeneral && datos.tareasProximas.length > 0
 
   return (
@@ -405,6 +413,12 @@ export default async function MatrizCargaPage({ searchParams }: PageProps) {
                 </div>
 
                 <div className="mb-6"><ToggleVistaCarga vistaActual={vistaGeneral ? "general" : "personal"} /></div>
+
+                <NotaContextoPeriodo
+                  desde={desdeISO}
+                  hasta={hastaISO}
+                  rangoLabel="últimos 90 días"
+                />
 
                 {vistaGeneral && <KPICardsCarga data={datos.kpis} />}
 

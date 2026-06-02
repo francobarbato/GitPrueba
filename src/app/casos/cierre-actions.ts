@@ -85,7 +85,7 @@ export async function cerrarCasoAction(
       'DESFAVORABLE': 'Sentencia Desfavorable (Perdido)',
       'ACUERDO': 'Acuerdo Extrajudicial',
       'DESISTIMIENTO': 'Desistimiento / Abandono',
-      'ARCHIVO': 'Archivo Administrativo'
+      'ARCHIVO': 'Archivo Administrativo',
     }
 
     // Registrar en auditoría

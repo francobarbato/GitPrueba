@@ -3,54 +3,30 @@
 import { getUserSessionServer } from "@/auth/actions/auth-actions"
 import prisma from "src/lib/db/prisma"
 import { revalidatePath } from "next/cache"
-import bcrypt from "bcryptjs"
-
-// Función para generar contraseña segura
-function generarPasswordSeguro(): string {
-  const mayusculas = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
-  const minusculas = 'abcdefghijklmnopqrstuvwxyz'
-  const numeros = '0123456789'
-  const especiales = '!@#$%&*'
-  
-  // Garantizar al menos uno de cada tipo
-  let password = ''
-  password += mayusculas.charAt(Math.floor(Math.random() * mayusculas.length))
-  password += minusculas.charAt(Math.floor(Math.random() * minusculas.length))
-  password += numeros.charAt(Math.floor(Math.random() * numeros.length))
-  password += especiales.charAt(Math.floor(Math.random() * especiales.length))
-  
-  // Completar con caracteres aleatorios hasta 10 caracteres
-  const todos = mayusculas + minusculas + numeros + especiales
-  for (let i = 0; i < 6; i++) {
-    password += todos.charAt(Math.floor(Math.random() * todos.length))
-  }
-  
-  // Mezclar los caracteres
-  return password.split('').sort(() => Math.random() - 0.5).join('')
-}
+import { generarToken, fechaDeVencimiento, TOKEN_TTL } from "src/lib/auth/tokens"
+import { sendActivationEmail } from "src/lib/email/send"
 
 // ============================================================================
-// CREAR USUARIO DE PORTAL PARA CLIENTE
+// ENVIAR INVITACIÓN AL PORTAL
 // ============================================================================
+// Crea un User CLIENTE con isActive=false y password=null + AccountActivationToken,
+// vincula al Cliente y manda email al cliente con el link de activación.
+// El cliente carga su propia contraseña en /auth/activate-account/{token}.
+// ============================================================================
+
 export async function crearUsuarioPortalAction(clienteId: string): Promise<{
   error?: string
-  credenciales?: { email: string; password: string }
+  success?: boolean
 }> {
   const user = await getUserSessionServer()
-
-  if (!user || !user.id) {
-    return { error: "No autorizado" }
-  }
+  if (!user?.id) return { error: "No autorizado" }
 
   const userRol = user.rol?.toUpperCase()
-
-  // Solo Admin y Abogado pueden crear usuarios de portal
   if (userRol !== 'ADMIN' && userRol !== 'ABOGADO') {
-    return { error: "No tienes permiso para crear usuarios de portal" }
+    return { error: "No tenés permiso para invitar al portal" }
   }
 
   try {
-    // Obtener cliente
     const cliente = await prisma.cliente.findUnique({
       where: { id: clienteId },
       select: {
@@ -59,108 +35,220 @@ export async function crearUsuarioPortalAction(clienteId: string): Promise<{
         apellido: true,
         email: true,
         usuarioPortalId: true,
-        abogadoId: true
+        abogadoId: true,
       }
     })
 
-    if (!cliente) {
-      return { error: "Cliente no encontrado" }
-    }
-
-    // Verificar que el cliente tenga email
+    if (!cliente) return { error: "Cliente no encontrado" }
     if (!cliente.email) {
-      return { error: "El cliente debe tener un email registrado para crear acceso al portal" }
+      return { error: "El cliente debe tener un email registrado para enviar la invitación" }
     }
-
-    // Verificar que no tenga ya un usuario de portal
     if (cliente.usuarioPortalId) {
-      return { error: "Este cliente ya tiene un usuario de acceso al portal" }
+      return { error: "Este cliente ya tiene un usuario de portal. Si querés reenviar el email, usá 'Reenviar invitación'." }
     }
 
-    // Verificar que el email no esté en uso por otro usuario
+    // Email no debe estar en uso por otro user
     const emailExistente = await prisma.user.findUnique({
-      where: { email: cliente.email }
+      where: { email: cliente.email },
+      select: { id: true, isActive: true }
     })
-
     if (emailExistente) {
-      return { error: `El email ${cliente.email} ya está registrado en el sistema. Use otro email para el cliente.` }
+      return {
+        error: emailExistente.isActive
+          ? `El email ${cliente.email} ya está registrado con otra cuenta activa.`
+          : `El email ${cliente.email} pertenece a un usuario desactivado. No se puede reutilizar.`
+      }
     }
 
-    // Si es Abogado, verificar que sea su cliente
     if (userRol === 'ABOGADO' && cliente.abogadoId !== user.id) {
-      return { error: "Solo puedes crear acceso para tus propios clientes" }
+      return { error: "Solo podés gestionar el portal de tus propios clientes" }
     }
 
-    // Generar contraseña temporal
-    const passwordTemporal = generarPasswordSeguro()
-    const hashedPassword = await bcrypt.hash(passwordTemporal, 12)
+    const token = generarToken()
+    const appUrl = process.env.NEXTAUTH_URL || "http://localhost:3000"
 
-    // Crear el usuario en una transacción
-    const nuevoUsuario = await prisma.$transaction(async (tx) => {
-      // 1. Crear el usuario
+    // Transacción: crear user inactivo + token + vincular al cliente + bitácora
+    await prisma.$transaction(async (tx) => {
       const usuario = await tx.user.create({
         data: {
           email: cliente.email!,
-          password: hashedPassword,
+          password: null,
           nombre: cliente.nombre,
           apellido: cliente.apellido,
+          name: `${cliente.nombre}${cliente.apellido ? ` ${cliente.apellido}` : ''}`.trim(),
           rol: 'CLIENTE',
-          isActive: true,
-          debeResetearPassword: true,
-          creadoPor: user.id
+          isActive: false,
+          creadoPor: user.id,
         }
       })
 
-      // 2. Vincular al cliente
+      await tx.accountActivationToken.create({
+        data: {
+          token,
+          userId: usuario.id,
+          expiresAt: fechaDeVencimiento(TOKEN_TTL.ACCOUNT_ACTIVATION),
+        }
+      })
+
       await tx.cliente.update({
         where: { id: clienteId },
-        data: {
-          usuarioPortalId: usuario.id
-        }
+        data: { usuarioPortalId: usuario.id }
       })
 
-      return usuario
+      await tx.bitacora.create({
+        data: {
+          texto: `Invitación al portal enviada al cliente ${cliente.nombre}${cliente.apellido ? ` ${cliente.apellido}` : ''} (${cliente.email})`,
+          tipo: "auto",
+          accion: "Invitación de Cliente al Portal",
+          usuarioId: user.id,
+        }
+      })
     })
 
-    console.log(`✅ Usuario de portal creado para cliente ${cliente.nombre} - Email: ${cliente.email} - Por: ${user.id}`)
+    // Email fuera de la transacción
+    const envio = await sendActivationEmail({
+      to: cliente.email,
+      nombre: cliente.nombre,
+      apellido: cliente.apellido ?? "",
+      token,
+      appUrl,
+    })
 
-    revalidatePath(`/clientes/${clienteId}`)
-
-    return {
-      credenciales: {
-        email: cliente.email,
-        password: passwordTemporal
+    if (!envio.ok) {
+      console.error(`Error enviando email al cliente ${clienteId}:`, envio.error)
+      revalidatePath(`/clientes/${clienteId}`)
+      return {
+        error: `Usuario creado y vinculado, pero falló el envío del email. Reenviá la invitación desde el panel. (${envio.error})`,
       }
     }
 
+    console.log(`✅ Invitación al portal enviada para cliente ${cliente.nombre} (${cliente.email}) por user ${user.id}`)
+    revalidatePath(`/clientes/${clienteId}`)
+    return { success: true }
+
   } catch (error: any) {
-    console.error("Error creando usuario de portal:", error)
-    return { error: error.message || "Error al crear usuario de portal" }
+    console.error("Error en crearUsuarioPortalAction:", error)
+    return { error: error.message || "Error al enviar la invitación" }
+  }
+}
+
+// ============================================================================
+// REENVIAR INVITACIÓN
+// ============================================================================
+// Para clientes que ya tienen usuarioPortalId pero todavía NO activaron
+// (password=null). Si el cliente ya activó alguna vez, se bloquea: en ese caso
+// hay que usar "Reactivar acceso" o que el cliente use "Olvidé contraseña".
+// ============================================================================
+
+export async function reenviarInvitacionPortalAction(clienteId: string): Promise<{
+  error?: string
+  success?: boolean
+}> {
+  const user = await getUserSessionServer()
+  if (!user?.id) return { error: "No autorizado" }
+
+  const userRol = user.rol?.toUpperCase()
+  if (userRol !== 'ADMIN' && userRol !== 'ABOGADO') {
+    return { error: "No tenés permiso para reenviar invitaciones" }
+  }
+
+  try {
+    const cliente = await prisma.cliente.findUnique({
+      where: { id: clienteId },
+      select: {
+        id: true,
+        nombre: true,
+        apellido: true,
+        email: true,
+        usuarioPortalId: true,
+        abogadoId: true,
+        usuarioPortal: {
+          select: { id: true, email: true, isActive: true, password: true }
+        }
+      }
+    })
+
+    if (!cliente) return { error: "Cliente no encontrado" }
+    if (!cliente.usuarioPortalId || !cliente.usuarioPortal) {
+      return { error: "Este cliente no tiene un usuario de portal vinculado. Usá 'Enviar invitación' en su lugar." }
+    }
+    if (cliente.usuarioPortal.password) {
+      return { error: "Este cliente ya activó su cuenta alguna vez. Si perdió la contraseña, debe usar 'Olvidé mi contraseña' desde el login." }
+    }
+
+    if (userRol === 'ABOGADO' && cliente.abogadoId !== user.id) {
+      return { error: "Solo podés gestionar tus propios clientes" }
+    }
+
+    const emailDestino = cliente.email ?? cliente.usuarioPortal.email
+    if (!emailDestino) return { error: "No hay email registrado para enviar la invitación" }
+
+    // Borramos tokens previos del usuario y creamos uno nuevo
+    await prisma.accountActivationToken.deleteMany({
+      where: { userId: cliente.usuarioPortalId }
+    })
+
+    const token = generarToken()
+    const appUrl = process.env.NEXTAUTH_URL || "http://localhost:3000"
+
+    await prisma.accountActivationToken.create({
+      data: {
+        token,
+        userId: cliente.usuarioPortalId,
+        expiresAt: fechaDeVencimiento(TOKEN_TTL.ACCOUNT_ACTIVATION),
+      }
+    })
+
+    await prisma.bitacora.create({
+      data: {
+        texto: `Reenvío de invitación al portal para cliente ${cliente.nombre}${cliente.apellido ? ` ${cliente.apellido}` : ''} (${emailDestino})`,
+        tipo: "auto",
+        accion: "Reenvío Invitación Cliente",
+        usuarioId: user.id,
+      }
+    })
+
+    const envio = await sendActivationEmail({
+      to: emailDestino,
+      nombre: cliente.nombre,
+      apellido: cliente.apellido ?? "",
+      token,
+      appUrl,
+    })
+
+    if (!envio.ok) {
+      return { error: `El token fue renovado pero falló el envío del email. (${envio.error})` }
+    }
+
+    revalidatePath(`/clientes/${clienteId}`)
+    return { success: true }
+
+  } catch (error: any) {
+    console.error("Error en reenviarInvitacionPortalAction:", error)
+    return { error: error.message || "Error al reenviar la invitación" }
   }
 }
 
 // ============================================================================
 // DESACTIVAR USUARIO DE PORTAL
 // ============================================================================
+// Pone isActive=false. Invalida también los tokens pendientes (para que un link
+// de invitación viejo no funcione después).
+// ============================================================================
+
 export async function desactivarUsuarioPortalAction(clienteId: string): Promise<{
   error?: string
   success?: boolean
 }> {
   const user = await getUserSessionServer()
-
-  if (!user || !user.id) {
-    return { error: "No autorizado" }
-  }
+  if (!user?.id) return { error: "No autorizado" }
 
   const userRol = user.rol?.toUpperCase()
-
-  // Solo Admin y Abogado pueden desactivar usuarios
   if (userRol !== 'ADMIN' && userRol !== 'ABOGADO') {
-    return { error: "No tienes permiso para desactivar usuarios de portal" }
+    return { error: "No tenés permiso para desactivar usuarios de portal" }
   }
 
   try {
-    // Obtener cliente con su usuario de portal
     const cliente = await prisma.cliente.findUnique({
       where: { id: clienteId },
       select: {
@@ -168,39 +256,44 @@ export async function desactivarUsuarioPortalAction(clienteId: string): Promise<
         nombre: true,
         usuarioPortalId: true,
         abogadoId: true,
-        usuarioPortal: {
-          select: { id: true, isActive: true }
-        }
+        usuarioPortal: { select: { id: true, isActive: true } }
       }
     })
 
-    if (!cliente) {
-      return { error: "Cliente no encontrado" }
-    }
-
+    if (!cliente) return { error: "Cliente no encontrado" }
     if (!cliente.usuarioPortalId || !cliente.usuarioPortal) {
       return { error: "Este cliente no tiene usuario de portal" }
     }
 
-    // Si es Abogado, verificar que sea su cliente
     if (userRol === 'ABOGADO' && cliente.abogadoId !== user.id) {
-      return { error: "Solo puedes gestionar usuarios de tus propios clientes" }
+      return { error: "Solo podés gestionar tus propios clientes" }
     }
 
-    // Desactivar el usuario
     await prisma.user.update({
       where: { id: cliente.usuarioPortalId },
       data: { isActive: false }
     })
 
-    console.log(`🔒 Usuario de portal desactivado para cliente ${cliente.nombre} - Por: ${user.id}`)
+    // Invalidamos también los tokens activos (importante para invitaciones pendientes que se cancelan)
+    await prisma.accountActivationToken.updateMany({
+      where: { userId: cliente.usuarioPortalId, usedAt: null },
+      data: { usedAt: new Date() }
+    })
+
+    await prisma.bitacora.create({
+      data: {
+        texto: `Acceso al portal desactivado para cliente ${cliente.nombre}`,
+        tipo: "auto",
+        accion: "Desactivación Portal Cliente",
+        usuarioId: user.id,
+      }
+    })
 
     revalidatePath(`/clientes/${clienteId}`)
-
     return { success: true }
 
   } catch (error: any) {
-    console.error("Error desactivando usuario de portal:", error)
+    console.error("Error en desactivarUsuarioPortalAction:", error)
     return { error: error.message || "Error al desactivar usuario" }
   }
 }
@@ -208,49 +301,20 @@ export async function desactivarUsuarioPortalAction(clienteId: string): Promise<
 // ============================================================================
 // REACTIVAR USUARIO DE PORTAL
 // ============================================================================
-export async function reactivarUsuarioPortalAction(clienteId: string) {
+// Solo aplica a usuarios que ya activaron (tienen password). Si el cliente
+// nunca activó, hay que reenviarle la invitación, no reactivarlo.
+// ============================================================================
+
+export async function reactivarUsuarioPortalAction(clienteId: string): Promise<{
+  error?: string
+  success?: boolean
+}> {
   const user = await getUserSessionServer()
   if (!user?.id) return { error: "No autorizado" }
 
-  try {
-    const cliente = await prisma.cliente.findUnique({
-      where: { id: clienteId },
-      select: { usuarioPortalId: true, nombre: true }
-    })
-    if (!cliente?.usuarioPortalId) return { error: "No hay usuario de portal asociado" }
-
-    await prisma.user.update({
-      where: { id: cliente.usuarioPortalId },
-      data: { isActive: true }
-    })
-
-    console.log(`✅ Usuario de portal reactivado para cliente ${cliente.nombre} - Por: ${user.id}`)
-    revalidatePath(`/clientes/${clienteId}`)
-    return { success: true }
-  } catch (error) {
-    console.error("Error reactivando usuario portal:", error)
-    return { error: "Error al reactivar el usuario" }
-  }
-}
-
-// ============================================================================
-// RESETEAR CONTRASEÑA DE USUARIO DE PORTAL
-// ============================================================================
-export async function resetearPasswordPortalAction(clienteId: string): Promise<{
-  error?: string
-  credenciales?: { email: string; password: string }
-}> {
-  const user = await getUserSessionServer()
-
-  if (!user || !user.id) {
-    return { error: "No autorizado" }
-  }
-
   const userRol = user.rol?.toUpperCase()
-
-  // Solo Admin y Abogado pueden resetear
   if (userRol !== 'ADMIN' && userRol !== 'ABOGADO') {
-    return { error: "No tienes permiso para resetear contraseñas" }
+    return { error: "No tenés permiso para reactivar usuarios" }
   }
 
   try {
@@ -261,46 +325,41 @@ export async function resetearPasswordPortalAction(clienteId: string): Promise<{
         nombre: true,
         usuarioPortalId: true,
         abogadoId: true,
-        usuarioPortal: {
-          select: { id: true, email: true }
-        }
+        usuarioPortal: { select: { id: true, password: true } }
       }
     })
 
-    if (!cliente || !cliente.usuarioPortalId || !cliente.usuarioPortal) {
-      return { error: "Cliente o usuario de portal no encontrado" }
+    if (!cliente) return { error: "Cliente no encontrado" }
+    if (!cliente.usuarioPortalId || !cliente.usuarioPortal) {
+      return { error: "No hay usuario de portal asociado" }
+    }
+    if (!cliente.usuarioPortal.password) {
+      return { error: "Este cliente nunca activó su cuenta. Reenviá la invitación en lugar de reactivar." }
     }
 
-    // Si es Abogado, verificar que sea su cliente
     if (userRol === 'ABOGADO' && cliente.abogadoId !== user.id) {
-      return { error: "Solo puedes gestionar usuarios de tus propios clientes" }
+      return { error: "Solo podés gestionar tus propios clientes" }
     }
-
-    // Generar nueva contraseña
-    const nuevaPassword = generarPasswordSeguro()
-    const hashedPassword = await bcrypt.hash(nuevaPassword, 12)
 
     await prisma.user.update({
       where: { id: cliente.usuarioPortalId },
+      data: { isActive: true }
+    })
+
+    await prisma.bitacora.create({
       data: {
-        password: hashedPassword,
-        debeResetearPassword: true
+        texto: `Acceso al portal reactivado para cliente ${cliente.nombre}`,
+        tipo: "auto",
+        accion: "Reactivación Portal Cliente",
+        usuarioId: user.id,
       }
     })
 
-    console.log(`🔑 Contraseña reseteada para usuario de portal de ${cliente.nombre} - Por: ${user.id}`)
-
     revalidatePath(`/clientes/${clienteId}`)
-
-    return {
-      credenciales: {
-        email: cliente.usuarioPortal.email,
-        password: nuevaPassword
-      }
-    }
+    return { success: true }
 
   } catch (error: any) {
-    console.error("Error reseteando contraseña:", error)
-    return { error: error.message || "Error al resetear contraseña" }
+    console.error("Error en reactivarUsuarioPortalAction:", error)
+    return { error: error.message || "Error al reactivar el usuario" }
   }
 }

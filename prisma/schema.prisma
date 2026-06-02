@@ -36,6 +36,9 @@ model User {
   clienteVinculado     Cliente?   @relation("ClienteUsuarioPortal")
   pagosValidados       Pago[]
   sessions             Session[]
+
+  passwordResetTokens     PasswordResetToken[]
+  activationToken         AccountActivationToken?
   
   tareasCreadas      Tarea[] @relation("TareasCreadas")
   tareasAsignadas    Tarea[] @relation("TareasAsignadas")
@@ -129,6 +132,14 @@ model Caso {
   observacionCierre String?       @db.Text
   provincia    String?
   ciudad       String?
+  esTraspasado    Boolean   @default(false)
+  fechaTraspaso   DateTime?
+  estudioDestino  String?           
+  motivoTraspaso  String?  @db.Text
+
+    // ── Buffer de "recibido por reasignación" ──────────────────────────
+  recibidoEnReasignacion  Boolean   @default(false)
+  fechaReasignacion       DateTime?
 
   bitacoras         Bitacora[]
   abogado           User          @relation("AbogadoCasos", fields: [abogadoId], references: [id])
@@ -452,6 +463,39 @@ model Account {
   @@unique([provider, providerAccountId])
   @@index([userId], map: "account_userId_fkey")
   @@map("account")
+}
+
+// ============================================================================
+// TOKENS DE AUTH (independientes del VerificationToken de NextAuth)
+// ============================================================================
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  token     String   @unique          // valor opaco que viaja en la URL
+  userId    String
+  expiresAt DateTime                  // 1 hora desde la creación
+  usedAt    DateTime?                 // null hasta que se consume; al consumirse, queda fijado
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("password_reset_token")
+}
+
+model AccountActivationToken {
+  id        String   @id @default(cuid())
+  token     String   @unique          // valor opaco que viaja en la URL
+  userId    String   @unique          // un usuario tiene UN solo token de activación activo
+  expiresAt DateTime                  // 48 horas desde la creación
+  usedAt    DateTime?                 // se setea cuando el usuario completa la activación
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+  @@map("account_activation_token")
 }
 
 model Session {

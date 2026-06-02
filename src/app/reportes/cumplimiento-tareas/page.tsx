@@ -17,6 +17,7 @@ import { DetalleTareasTabs } from "./components/Detalletareastabs"
 import { PanelInsightsTareas } from "./components/PanelInsightsTareas"
 import { FiltrosPeriodoTareas } from "./components/FiltrosPeriodoTareas"
 import { ToggleVistaTareas } from "./components/ToggleVistaTareas"
+import { NotaContextoPeriodo } from "@/app/reportes/components/NotaContextoPeriodo"
 
 // ============================================================================
 // TIPOS (sin cambios)
@@ -243,11 +244,22 @@ export default async function CumplimientoTareasPage({ searchParams }: PageProps
   // no hay supervisor concreto que mostrar (eso será otro reporte).
 const datos = await getCumplimientoTareas(periodoValido, abogadoId)
 
+
   const PERIODO_LABELS: Record<string, string> = { "90": "últimos 90 días", "180": "últimos 180 días", "365": "último año" }
   const subtitulo = vistaGeneral
     ? periodoParam && PERIODO_LABELS[periodoParam] ? `Desempeño del equipo — ${PERIODO_LABELS[periodoParam]}` : "Desempeño operativo del equipo completo"
     : periodoParam && PERIODO_LABELS[periodoParam] ? `Mis resultados — ${PERIODO_LABELS[periodoParam]}` : "Análisis de mis eventos completados y su cumplimiento"
-
+    // Rango para la nota contextual: solo si el usuario eligió un período.
+let desdeISO: string | null = null
+let hastaISO: string | null = null
+let rangoLabelNota: string | null = null
+if (periodoValido) {
+  const hoyDate = new Date()
+  const desdeDate = subDays(hoyDate, periodoValido)
+  desdeISO = desdeDate.toISOString()
+  hastaISO = hoyDate.toISOString()
+  rangoLabelNota = PERIODO_LABELS[String(periodoValido)] ?? `últimos ${periodoValido} días`
+}
   return (
     <div className="flex h-screen bg-slate-50">
       <Sidebar />
@@ -266,6 +278,14 @@ const datos = await getCumplimientoTareas(periodoValido, abogadoId)
             </div>
             <div className="mb-6"><ToggleVistaTareas vistaActual={vistaGeneral ? "general" : "personal"} /></div>
             <div className="flex items-center gap-3 mb-6 flex-wrap"><FiltrosPeriodoTareas /></div>
+
+            {desdeISO && hastaISO && rangoLabelNota && (
+              <NotaContextoPeriodo
+                desde={desdeISO}
+                hasta={hastaISO}
+                rangoLabel={rangoLabelNota}
+              />
+            )}
             <KPICardsTareas data={datos.kpis} />
 
             {!vistaGeneral && (datos.detalleTareas.enPlazo.length > 0 || datos.detalleTareas.conDemora.length > 0 || datos.detalleTareas.vencidas.length > 0) && (

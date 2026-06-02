@@ -16,6 +16,7 @@ import { TopCategorias } from "./components/TopCategorias"
 import { DistribucionPersona } from "./components/DistribucionPersona"
 import { DistribucionContexto } from "./components/DistribucionContexto"
 import { FiltrosComposicion } from "./components/FiltrosComposicion"
+import { NotaContextoPeriodo } from "@/app/reportes/components/NotaContextoPeriodo"
 
 // ============================================================================
 // TIPOS
@@ -189,10 +190,25 @@ export default async function ComposicionTareasPage({ searchParams }: PageProps)
 
   const datos = await getComposicionTareas(periodoValido, rolParam)
 
+  
+
   const PERIODO_LABELS: Record<string, string> = { "90": "últimos 90 días", "180": "últimos 180 días", "365": "último año" }
   const subtitulo = periodoParam && PERIODO_LABELS[periodoParam]
     ? `Perfil operativo del estudio — ${PERIODO_LABELS[periodoParam]}`
     : "Qué tipo de trabajo hace el estudio — todo el historial"
+
+  // Rango para la nota contextual: solo si el usuario eligió un período.
+// Si filtró "todo el historial", no mostramos la nota.
+let desdeISO: string | null = null
+let hastaISO: string | null = null
+let rangoLabelNota: string | null = null
+if (periodoValido) {
+  const hoyDate = new Date()
+  const desdeDate = subDays(hoyDate, periodoValido)
+  desdeISO = desdeDate.toISOString()
+  hastaISO = hoyDate.toISOString()
+  rangoLabelNota = PERIODO_LABELS[String(periodoValido)] ?? `últimos ${periodoValido} días`
+}
 
   return (
     <div className="flex h-screen bg-slate-50">
@@ -217,6 +233,14 @@ export default async function ComposicionTareasPage({ searchParams }: PageProps)
             <div className="flex items-center gap-3 mb-6 flex-wrap">
               <FiltrosComposicion />
             </div>
+
+              {desdeISO && hastaISO && rangoLabelNota && (
+                <NotaContextoPeriodo
+                  desde={desdeISO}
+                  hasta={hastaISO}
+                  rangoLabel={rangoLabelNota}
+                />
+              )}
 
             {datos.kpis.total === 0 ? (
               <div className="bg-white border border-slate-200 rounded-lg p-12 text-center">

@@ -162,19 +162,24 @@ const puedeVerMontoDisputa = isAbogado(userRol)
             {/* ===== Header con botones de Cierre/Reapertura ===== */}
               <CasoHeader 
                 caso={{
-                  id: caso.id,
-                  numero: caso.numero,
-                  titulo: caso.titulo,
-                  estado: caso.estado,
-                  priority: caso.priority,
-                  isFavorite: caso.isFavorite,
-                  montoDisputa: caso.montoDisputa ? Number(caso.montoDisputa) : null,
-                  estaCerrado: caso.estaCerrado,
-                  motivoCierre: caso.motivoCierre,
-                  fechaCierre: caso.fechaCierre?.toISOString() || null,
-                  observacionCierre: caso.observacionCierre,
-                  estadoAntesCierre: caso.estadoAntesCierre,
-                  abogadoId: caso.abogadoId, 
+                  id:                     caso.id,
+                  numero:                 caso.numero,
+                  titulo:                 caso.titulo,
+                  estado:                 caso.estado,
+                  priority:               caso.priority,
+                  isFavorite:             caso.isFavorite,
+                  montoDisputa:           caso.montoDisputa ? Number(caso.montoDisputa) : null,
+                  estaCerrado:            caso.estaCerrado,
+                  motivoCierre:           caso.motivoCierre,
+                  fechaCierre:            caso.fechaCierre?.toISOString() || null,
+                  observacionCierre:      caso.observacionCierre,
+                  estadoAntesCierre:      caso.estadoAntesCierre,
+                  abogadoId:              caso.abogadoId,
+                  recibidoEnReasignacion: caso.recibidoEnReasignacion, 
+                      esTraspasado:           caso.esTraspasado,
+                      fechaTraspaso:          caso.fechaTraspaso?.toISOString() || null,
+                      estudioDestino:         caso.estudioDestino,
+                      motivoTraspaso:         caso.motivoTraspaso,
                 }}
                 userRol={userRol}
                 userId={user.id}            

@@ -21,7 +21,7 @@ import {
   Ban, 
   Archive,
   AlertTriangle,
-  Loader2
+  Loader2,
 } from 'lucide-react'
 
 // Motivos de cierre con iconos y colores

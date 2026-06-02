@@ -39,11 +39,20 @@ export type TareaConRelaciones = {
   supervisorId: string | null
   createdAt: string
   updatedAt: string
-  caso: { id: string; numero: string; titulo: string } | null
+   caso: { 
+  id: string
+  numero: string
+  titulo: string
+  estaCerrado: boolean
+  esTraspasado: boolean
+  abogadoId: string
+} | null
   cliente: { id: string; nombre: string; apellido: string | null; usuarioPortalId: string | null } | null
-  creador: { id: string; nombre: string | null; apellido: string | null }
-  responsable: { id: string; nombre: string | null; apellido: string | null; rol: string }
-  supervisor: { id: string; nombre: string | null; apellido: string | null } | null
+
+  creador:     { id: string; nombre: string | null; apellido: string | null; isActive: boolean }
+  responsable: { id: string; nombre: string | null; apellido: string | null; rol: string; isActive: boolean }
+  supervisor:  { id: string; nombre: string | null; apellido: string | null; isActive: boolean } | null
+
 }
 
 export type TareaNotificacion = {
@@ -74,20 +83,44 @@ function mapearTarea(t: any): TareaConRelaciones {
     lugarFisico: t.lugarFisico, visibleCliente: t.visibleCliente,
     casoId: t.casoId, clienteId: t.clienteId, creadorId: t.creadorId, responsableId: t.responsableId, supervisorId: t.supervisorId,
     createdAt: t.createdAt.toISOString(), updatedAt: t.updatedAt.toISOString(),
-    caso: t.caso ? { id: t.caso.id, numero: t.caso.numero, titulo: t.caso.titulo } : null,
+    caso: t.caso ? {
+  id:           t.caso.id,
+  numero:       t.caso.numero,
+  titulo:       t.caso.titulo,
+  estaCerrado:  t.caso.estaCerrado,
+  esTraspasado: t.caso.esTraspasado,
+  abogadoId:    t.caso.abogadoId,
+} : null,
     cliente: t.cliente ? { id: t.cliente.id, nombre: t.cliente.nombre, apellido: t.cliente.apellido, usuarioPortalId: t.cliente.usuarioPortalId } : null,
-    creador: { id: t.creador.id, nombre: t.creador.nombre, apellido: t.creador.apellido },
-    responsable: { id: t.responsable.id, nombre: t.responsable.nombre, apellido: t.responsable.apellido, rol: t.responsable.rol },
-    supervisor: t.supervisor ? { id: t.supervisor.id, nombre: t.supervisor.nombre, apellido: t.supervisor.apellido } : null,
+
+    creador:     {
+      id:       t.creador.id,
+      nombre:   t.creador.nombre,
+      apellido: t.creador.apellido,
+      isActive: t.creador.isActive ?? true,
+    },
+    responsable: {
+      id:       t.responsable.id,
+      nombre:   t.responsable.nombre,
+      apellido: t.responsable.apellido,
+      rol:      t.responsable.rol,
+      isActive: t.responsable.isActive ?? true,
+    },
+    supervisor:  t.supervisor ? {
+      id:       t.supervisor.id,
+      nombre:   t.supervisor.nombre,
+      apellido: t.supervisor.apellido,
+      isActive: t.supervisor.isActive ?? true,
+    } : null,
   }
 }
 
 const includeRelaciones = {
-  caso: { select: { id: true, numero: true, titulo: true } },
-  cliente: { select: { id: true, nombre: true, apellido: true, usuarioPortalId: true } },
-  creador: { select: { id: true, nombre: true, apellido: true } },
-  responsable: { select: { id: true, nombre: true, apellido: true, rol: true } },
-  supervisor: { select: { id: true, nombre: true, apellido: true } },
+  caso:        { select: { id: true, numero: true, titulo: true, estaCerrado: true, esTraspasado: true, abogadoId: true } }, 
+  cliente:     { select: { id: true, nombre: true, apellido: true, usuarioPortalId: true } },
+  creador:     { select: { id: true, nombre: true, apellido: true, isActive: true } },           
+  responsable: { select: { id: true, nombre: true, apellido: true, rol: true, isActive: true } }, 
+  supervisor:  { select: { id: true, nombre: true, apellido: true, isActive: true } },           
 }
 
 // ============================================================================
@@ -134,8 +167,15 @@ export async function getUsuariosAsignables() {
 export async function getCasosDisponibles() {
   const user = await getUserSessionServer()
   if (!user) return []
-  const where = user.rol === "ABOGADO" ? { abogadoId: user.id, estaCerrado: false } : { estaCerrado: false }
-  return prisma.caso.findMany({ where, select: { id: true, numero: true, titulo: true, estaCerrado: true }, orderBy: { updatedAt: "desc" }, take: 100 })
+  const where = user.rol === "ABOGADO" 
+    ? { abogadoId: user.id, estaCerrado: false } 
+    : { estaCerrado: false }
+  return prisma.caso.findMany({ 
+    where, 
+    select: { id: true, numero: true, titulo: true, estaCerrado: true, abogadoId: true },   // ⬅ + abogadoId
+    orderBy: { updatedAt: "desc" }, 
+    take: 100 
+  })
 }
 
 export async function getClientesDisponibles() {
@@ -214,6 +254,56 @@ export async function marcarTareaComoLeidaAction(tareaId: string): Promise<{ suc
     return { error: "Error al marcar como leída" }
   }
 }
+
+// ============================================================================
+// HELPER: validar responsable/supervisor según acceso al caso
+// ============================================================================
+// Regla: si la tarea tiene caso, el responsable y supervisor solo pueden ser
+//   - El abogado titular del caso (Caso.abogadoId)
+//   - Un asistente activo (rol ASISTENTE + isActive)
+// Si la tarea no tiene caso, no se aplica esta validación.
+// Devuelve mensaje de error si algo es inválido, o null si todo OK.
+// ============================================================================
+
+async function validarAccesoAlCasoParaTarea(
+  casoId: string,
+  responsableId: string,
+  supervisorId?: string | null,
+): Promise<string | null> {
+  const caso = await prisma.caso.findUnique({
+    where: { id: casoId },
+    select: { abogadoId: true },
+  })
+  if (!caso) return "Caso no encontrado"
+
+  // Validar responsable
+  const respData = await prisma.user.findUnique({
+    where: { id: responsableId },
+    select: { rol: true, isActive: true },
+  })
+  if (!respData || !respData.isActive) {
+    return "El responsable no es válido o está inactivo"
+  }
+  if (responsableId !== caso.abogadoId && respData.rol !== "ASISTENTE") {
+    return "El responsable debe ser el titular del caso o un asistente"
+  }
+
+  // Validar supervisor si viene
+  if (supervisorId) {
+    const supData = await prisma.user.findUnique({
+      where: { id: supervisorId },
+      select: { rol: true, isActive: true },
+    })
+    if (!supData || !supData.isActive) {
+      return "El supervisor no es válido o está inactivo"
+    }
+    if (supervisorId !== caso.abogadoId && supData.rol !== "ASISTENTE") {
+      return "El supervisor debe ser el titular del caso o un asistente"
+    }
+  }
+
+  return null
+}
 // ============================================================================
 // NOTIFICACIONES PARA LA CAMPANITA (Header)
 // ============================================================================
@@ -290,6 +380,8 @@ const tareasFiltradas = tareasRaw.filter(t => {
   }
 }
 
+
+
 // ============================================================================
 // CREAR TAREA
 // ============================================================================
@@ -320,11 +412,22 @@ export async function crearTareaAction(data: {
     })
 
     if (caso?.estaCerrado) {
-      // 🔥 Auto-conversión inteligente
+      //Auto-conversión inteligente
       casoValidoId = null
       tipoFinal = "INTERNA"
     }
   }
+
+  // Validar acceso al caso si hay caso válido
+  if (casoValidoId) {
+    const errorAcceso = await validarAccesoAlCasoParaTarea(
+      casoValidoId,
+      data.responsableId,
+      data.supervisorId,
+    )
+    if (errorAcceso) return { error: errorAcceso }
+  }
+
 
   try {
     const tarea = await prisma.tarea.create({
@@ -546,8 +649,7 @@ export async function editarTareaAction(
   try {
     const tarea = await prisma.tarea.findUnique({
       where: { id: tareaId },
-      select: { creadorId: true, responsableId: true, supervisorId: true, casoId: true, estado: true, titulo: true },
-    })
+      select: { creadorId: true, responsableId: true, supervisorId: true, casoId: true, estado: true, titulo: true },    })
     if (!tarea) return { error: "Tarea no encontrada" }
     if (tarea.estado === "COMPLETADA" || tarea.estado === "VENCIDA") return { error: "No se puede editar una tarea finalizada" }
 
@@ -647,6 +749,104 @@ export async function eliminarTareaAction(tareaId: string): Promise<{ success?: 
     if (tarea.casoId) revalidatePath(`/casos/${tarea.casoId}`)
     return { success: true }
   } catch (error) { console.error("Error eliminando tarea:", error); return { error: "Error al eliminar la tarea" } }
+}
+
+// ============================================================================
+// CERRAR TAREA POR CASO FINALIZADO (traspasado o cerrado)
+// ============================================================================
+// Permite cerrar manualmente una tarea cuyo caso asociado quedó traspasado
+// o cerrado. La tarea pasa a VENCIDA + vencidaCerradaEn con motivo automático.
+// Disponible para responsable, supervisor o creador de la tarea (todos activos).
+// ============================================================================
+
+export async function cerrarTareaPorCasoFinalizadoAction(tareaId: string): Promise<{ success?: boolean; error?: string }> {
+  const user = await getUserSessionServer()
+  if (!user?.id) return { error: "No autorizado" }
+
+  try {
+    const tarea = await prisma.tarea.findUnique({
+      where: { id: tareaId },
+      select: {
+        casoId:        true,
+        responsableId: true,
+        creadorId:     true,
+        supervisorId:  true,
+        titulo:        true,
+        estado:        true,
+        vencidaCerradaEn: true,
+        caso: { 
+          select: { 
+            estaCerrado: true, 
+            esTraspasado: true, 
+            estudioDestino: true,
+            motivoCierre: true,
+          } 
+        },
+      },
+    })
+    if (!tarea) return { error: "Evento no encontrado" }
+
+    if (!tarea.casoId || !tarea.caso) {
+      return { error: "Esta acción solo aplica a eventos vinculados a un expediente" }
+    }
+    if (!tarea.caso.estaCerrado && !tarea.caso.esTraspasado) {
+      return { error: "El expediente asociado no está cerrado ni traspasado" }
+    }
+    if (tarea.estado === "COMPLETADA") {
+      return { error: "Este evento ya fue completado" }
+    }
+    if (tarea.vencidaCerradaEn) {
+      return { error: "Este evento ya fue cerrado" }
+    }
+
+    const tieneAcceso =
+      tarea.responsableId === user.id ||
+      tarea.supervisorId  === user.id ||
+      tarea.creadorId     === user.id
+    if (!tieneAcceso) {
+      return { error: "Solo el responsable, supervisor o creador pueden cerrar este evento" }
+    }
+
+    // Construir motivo automático
+    let motivoAuto = ""
+    if (tarea.caso.esTraspasado) {
+      motivoAuto = "Expediente traspasado a otro estudio"
+      if (tarea.caso.estudioDestino) motivoAuto += ` (${tarea.caso.estudioDestino})`
+      motivoAuto += ". Evento cerrado automáticamente."
+    } else if (tarea.caso.estaCerrado) {
+      motivoAuto = `Expediente cerrado${tarea.caso.motivoCierre ? ` (${tarea.caso.motivoCierre})` : ""}. Evento cerrado automáticamente.`
+    }
+
+    await prisma.tarea.update({
+      where: { id: tareaId },
+      data: {
+        estado: "VENCIDA",
+        vencidaCerradaEn: new Date(),
+        vencidaCerradaPorId: user.id,
+        motivoCierreVencida: motivoAuto,
+      },
+    })
+
+    await prisma.bitacora.create({
+      data: {
+        texto: `Evento "${tarea.titulo}" cerrado por finalización del expediente asociado`,
+        tipo: "auto",
+        accion: "TAREA_CERRADA_POR_CASO_FINALIZADO",
+        usuarioId: user.id,
+        casoId: tarea.casoId,
+        tareaId: tareaId,
+        detalle: motivoAuto,
+      },
+    })
+
+    revalidatePath("/gestion-tareas")
+    revalidatePath("/")
+    if (tarea.casoId) revalidatePath(`/casos/${tarea.casoId}`)
+    return { success: true }
+  } catch (error) {
+    console.error("Error cerrando evento por caso finalizado:", error)
+    return { error: "Error al cerrar el evento" }
+  }
 }
 
 // ============================================================================

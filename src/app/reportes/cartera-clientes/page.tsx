@@ -20,6 +20,7 @@ import { PanelClientesValiosos } from "./components/PanelClientesValiosos"
 import { PanelClientesEnRiesgo } from "./components/PanelClientesEnRiesgo"
 import { VistaGerencialClientes, type ClienteGerencial, type DistribucionAbogado } from "./components/VistaGerencialClientes"
 import { redirect, notFound } from "next/navigation"
+import { NotaContextoPeriodo } from "@/app/reportes/components/NotaContextoPeriodo"
 // ============================================================================
 // TIPOS
 // ============================================================================
@@ -395,6 +396,12 @@ export default async function CarteraClientesPage({ searchParams }: PageProps) {
     clientesInactivos: todosLosClientes.filter(c => !c.estaActivo && c.casosTotal > 0).length,
   } : datosGerencial!.kpis
 
+  const hoyDate = new Date()
+const desdeDate = new Date()
+desdeDate.setDate(hoyDate.getDate() - 90)
+const desdeISO = desdeDate.toISOString()
+const hastaISO = hoyDate.toISOString()
+
   return (
     <div className="flex h-screen bg-slate-50">
       <Sidebar />
@@ -434,7 +441,11 @@ export default async function CarteraClientesPage({ searchParams }: PageProps) {
             <div className="mb-6">
               <ToggleVistaClientes vistaActual={vistaGerencial ? 'gerencial' : 'personal'} />
             </div>
-
+                  <NotaContextoPeriodo
+                    desde={desdeISO}
+                    hasta={hastaISO}
+                    rangoLabel="últimos 90 días"
+                  />
             {/* ── VISTA PERSONAL ── */}
             {!vistaGerencial && datosPersonal && (
               <>

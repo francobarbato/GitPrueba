@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useRef, useEffect, useCallback } from "react"
+import { useState, useTransition, useRef, useEffect, useCallback, useMemo  } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -65,7 +65,7 @@ const ROL_LABEL: Record<string, string> = {
 const MAX_DESCRIPCION = 300
 
 type Usuario = { id: string; nombre: string | null; apellido: string | null; rol: string }
-type Caso    = { id: string; numero: string; titulo: string;  estaCerrado: boolean }
+type Caso = { id: string; numero: string; titulo: string; estaCerrado: boolean; abogadoId: string }
 type Cliente = { id: string; nombre: string; apellido: string | null; tipoPersona: string; tipoSociedad: string | null; usuarioPortalId: string | null }
 
 type Props = {
@@ -170,11 +170,36 @@ export function NuevaTareaModal({ usuarios, casos, clientes = [], currentUserId,
   const creadorEsResponsable = responsableId === currentUserId
   const haySupervisor = !creadorEsResponsable
 
+// Lista de usuarios disponibles para asignar como responsable según el caso seleccionado.
+// Regla: si hay caso activo, solo el titular del caso y los asistentes pueden ser responsables.
+// Si no hay caso (o está cerrado y se auto-convierte a interna), todos los usuarios disponibles.
+const usuariosFiltrados = useMemo(() => {
+  if (!casoObj || casoObj.estaCerrado) return usuarios
+  return usuarios.filter(u => u.id === casoObj.abogadoId || u.rol === "ASISTENTE")
+}, [casoObj, usuarios])
+
+const listaRestringidaPorCaso = !!casoObj && !casoObj.estaCerrado && usuariosFiltrados.length < usuarios.length
+
   useEffect(() => {
     if (casoObj?.estaCerrado) {
       setTipo("INTERNA")
     }
   }, [casoObj])
+
+  // Si el caso seleccionado restringe la lista y el responsable actual ya no es válido,
+// resetear al currentUser si es válido, o al primer disponible.
+useEffect(() => {
+  if (!casoObj || casoObj.estaCerrado) return
+  const responsableValido = usuariosFiltrados.some(u => u.id === responsableId)
+  if (responsableValido) return
+
+  const currentValido = usuariosFiltrados.find(u => u.id === currentUserId)
+  if (currentValido) {
+    setResponsableId(currentUserId)
+  } else {
+    setResponsableId(usuariosFiltrados[0]?.id ?? currentUserId)
+  }
+}, [casoObj, usuariosFiltrados, responsableId, currentUserId])
 
   // ═══ NUEVO: cargar la carga del responsable cuando cambia ═══
   // Solo se ejecuta si el modal está abierto, para evitar fetch innecesario.
@@ -374,7 +399,7 @@ export function NuevaTareaModal({ usuarios, casos, clientes = [], currentUserId,
                 <Select value={responsableId} onValueChange={setResponsableId}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {usuarios.map(u => {
+                    {usuariosFiltrados.map(u => {                                   
                       const rolLegible = ROL_LABEL[u.rol] ?? u.rol
                       const esYo = u.id === currentUserId
                       return (
@@ -387,7 +412,23 @@ export function NuevaTareaModal({ usuarios, casos, clientes = [], currentUserId,
                     })}
                   </SelectContent>
                 </Select>
-                {haySupervisor && <p className="text-xs text-slate-500 mt-1.5 flex items-center gap-1"><Eye className="w-3 h-3 text-slate-400" />Vas a supervisar esta tarea porque se la estás asignando a <span className="font-medium text-slate-700">{responsableObj?.nombre} {responsableObj?.apellido}</span></p>}
+                {listaRestringidaPorCaso && (
+                  <p className="text-xs text-amber-700 mt-1.5 flex items-start gap-1">
+                    <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" />
+                    <span>
+                      Lista limitada al titular del expediente y asistentes (los demás abogados no tienen acceso a este caso).
+                    </span>
+                  </p>
+                )}
+                {haySupervisor && (
+                  <p className="text-xs text-slate-500 mt-1.5 flex items-center gap-1">
+                    <Eye className="w-3 h-3 text-slate-400" />
+                    Vas a supervisar este evento porque se lo estás asignando a{" "}
+                    <span className="font-medium text-slate-700">
+                      {responsableObj?.nombre} {responsableObj?.apellido}
+                    </span>
+                  </p>
+                )}
               </div>
             </div>
             {clienteId && (

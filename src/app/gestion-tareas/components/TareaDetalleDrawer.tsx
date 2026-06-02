@@ -1,22 +1,24 @@
 'use client'
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle,
 } from "@/components/ui/sheet"
 import {
   X, Briefcase, User, MapPin, Calendar, Lock, Unlock,
   Scale, ShieldAlert, Pencil, Trash2, Eye, AlertTriangle,
-  CheckCircle2, CheckCheck, XCircle, ExternalLink, FileText,
+  CheckCircle2, CheckCheck, XCircle, ExternalLink, FileText, Loader2, ArrowRightLeft,
 } from "lucide-react"
 import Link from "next/link"
 import { format, isToday, isTomorrow, isBefore, differenceInDays } from "date-fns"
-import { es } from "date-fns/locale"
-import type { TareaConRelaciones } from "src/lib/actions/tarea-actions"
+import { es } from "date-fns/locale"                         
+import { useRouter } from "next/navigation" 
+import { cerrarTareaPorCasoFinalizadoAction, type TareaConRelaciones } from "src/lib/actions/tarea-actions"
 import type { EstadoTarea } from "@prisma/client"
 import { marcarTareaLeidaAction } from "src/lib/actions/comentario-actions"
 import { ComentariosSection } from "./ComentariosSection"
 import { dispatchNotificationsRefresh } from "@/app/components/header"
+import { UserName } from "../../components/UserName"
 
 const ESTADO_CONFIG: Record<string, { label: string; dot: string; text: string; bg: string; border: string }> = {
   PENDIENTE:  { label: "Pendiente",  dot: "bg-slate-400", text: "text-slate-600", bg: "bg-slate-100", border: "border-slate-200" },
@@ -126,10 +128,13 @@ export function TareaDetalleDrawer({
   onChangeEstado, onEdit, onDelete, onCerrarVencida,
   currentUserId, soloLectura = false,
 }: Props) {
+
+  // 1. PRIMERO TODOS LOS HOOKS (router y estados)
+  const router = useRouter()
+  const [cerrandoForzoso, setCerrandoForzoso] = useState(false)
+
+  // 2. EFECTOS (siguen siendo hooks, van antes del return temprano)
   // ═══ Marcar leída + disparar refresh del Header ═══
-  // Cuando el drawer se abre para una tarea donde sos responsable o supervisor,
-  // marcamos la lectura. Después disparamos el evento para que el Header recargue
-  // sus contadores (comentarios y umbrales de vencimiento).
   useEffect(() => {
     if (!open || !tarea) return
     const esResponsableOSupervisor =
@@ -144,8 +149,10 @@ export function TareaDetalleDrawer({
       .catch(err => console.error("Error marcando tarea como leída:", err))
   }, [open, tarea?.id, currentUserId])
 
+  // 3. CONDICIONALES / RETURNS TEMPRANOS
   if (!tarea) return null
 
+  // 4. LÓGICA Y CONSTANTES
   const estadoCfg = ESTADO_CONFIG[tarea.estado] ?? ESTADO_CONFIG.PENDIENTE
   const prioridadCfg = PRIORIDAD_CONFIG[tarea.prioridad] ?? PRIORIDAD_CONFIG.MEDIA
   const categoriaLabel = CATEGORIA_LABEL[tarea.categoria] ?? tarea.categoria
@@ -165,7 +172,30 @@ export function TareaDetalleDrawer({
   const esVencidaCerrada = tarea.estado === "VENCIDA" && !!tarea.vencidaCerradaEn
   const esVencidaAbierta = tarea.estado === "VENCIDA" && !tarea.vencidaCerradaEn
   const esTerminal = esCompletada || esVencidaCerrada
+  
+  const casoFinalizado = tarea.caso?.estaCerrado || tarea.caso?.esTraspasado
+  const puedeCerrarForzoso = casoFinalizado && !esTerminal && (esResponsable || esSupervisor || esCreador)
 
+  const handleCerrarPorCasoFinalizado = async () => {
+    if (!tarea) return
+    if (!confirm("¿Cerrar este evento porque el expediente fue traspasado o cerrado? Quedará registrado en la bitácora.")) return
+    
+    setCerrandoForzoso(true)
+    try {
+      const r = await cerrarTareaPorCasoFinalizadoAction(tarea.id)
+      if (r.error) {
+        alert(r.error)
+      } else {
+        onClose()
+        router.refresh()
+      }
+    } catch (e: any) {
+      alert(e.message || "Error al cerrar el evento")
+    } finally {
+      setCerrandoForzoso(false)
+    }
+  }
+    
   const handleEdit = () => { onEdit(tarea); onClose() }
   const handleDelete = () => { onDelete(tarea.id); onClose() }
   const handleCerrarVencida = () => {
@@ -260,10 +290,20 @@ export function TareaDetalleDrawer({
                   icon={Briefcase}
                   label="Expediente"
                   valor={
-                    <span className="flex items-center gap-1.5">
+                    <span className="flex items-center gap-1.5 flex-wrap">
                       <span className="font-mono text-xs text-blue-600 font-bold">{tarea.caso.numero}</span>
                       <span className="text-slate-400">—</span>
                       <span className="truncate">{tarea.caso.titulo}</span>
+                      {tarea.caso.esTraspasado && (
+                        <span className="inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700 border border-purple-200 font-semibold">
+                          <ArrowRightLeft className="w-2.5 h-2.5" /> Traspasado
+                        </span>
+                      )}
+                      {tarea.caso.estaCerrado && !tarea.caso.esTraspasado && (
+                        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-slate-200 text-slate-700 border border-slate-300 font-semibold">
+                          Expediente cerrado
+                        </span>
+                      )}
                     </span>
                   }
                   href={`/casos/${tarea.caso.id}`}
@@ -277,27 +317,27 @@ export function TareaDetalleDrawer({
                 />
               )}
               <FilaInfo
-                icon={User}
-                label="Solicitado por"
-                valor={<span>{tarea.creador.nombre} {tarea.creador.apellido}</span>}
-              />
-              <FilaInfo
-                icon={User}
-                label="Responsable"
-                valor={
-                  <span>
-                    {tarea.responsable.nombre} {tarea.responsable.apellido}
-                    {esResponsable && <span className="ml-1.5 text-[10px] text-slate-400">(Yo)</span>}
-                  </span>
-                }
-              />
-              {tarea.supervisor && (
-                <FilaInfo
-                  icon={Eye}
-                  label="Supervisor"
-                  valor={<span>{tarea.supervisor.nombre} {tarea.supervisor.apellido}</span>}
+                  icon={User}
+                  label="Solicitado por"
+                  valor={<UserName user={tarea.creador} />}
                 />
-              )}
+                <FilaInfo
+                  icon={User}
+                  label="Responsable"
+                  valor={
+                    <span className="inline-flex items-center">
+                      <UserName user={tarea.responsable} />
+                      {esResponsable && <span className="ml-1.5 text-[10px] text-slate-400">(Yo)</span>}
+                    </span>
+                  }
+                />
+                {tarea.supervisor && (
+                  <FilaInfo
+                    icon={Eye}
+                    label="Supervisor"
+                    valor={<UserName user={tarea.supervisor} />}
+                  />
+                )}
             </div>
           </section>
 
@@ -376,7 +416,7 @@ export function TareaDetalleDrawer({
 
         {!esTerminal && !soloLectura && (
           <div className="sticky bottom-0 bg-white border-t border-slate-100 px-6 py-4 flex flex-wrap items-center gap-2">
- 
+
             {/* ═══ Acciones de transición — SOLO el responsable ═══ */}
             {esResponsable && tarea.estado === "PENDIENTE" && (
               <>
@@ -436,7 +476,7 @@ export function TareaDetalleDrawer({
                 <CheckCheck className="w-3 h-3" /> Completar con demora
               </button>
             )}
- 
+
             {/* ═══ Cerrar vencida — responsable + supervisor + creador ═══ */}
             {esVencidaAbierta && onCerrarVencida && (esResponsable || esSupervisor || esCreador) && (
               <button
@@ -447,7 +487,7 @@ export function TareaDetalleDrawer({
                 <XCircle className="w-3 h-3" /> Cerrar sin cumplir
               </button>
             )}
- 
+
             {/* ═══ Pista visual cuando no sos responsable ═══ */}
             {!esResponsable && !esVencidaAbierta && (
               <div className="flex items-center gap-1.5 text-[11px] text-slate-400 italic">
@@ -455,7 +495,26 @@ export function TareaDetalleDrawer({
                 Solo el responsable puede gestionar el estado
               </div>
             )}
- 
+
+            {/* ═══ Cerrar por caso finalizado — cuando el caso está traspasado o cerrado ═══ */}
+            {puedeCerrarForzoso && (
+              <button
+                onClick={handleCerrarPorCasoFinalizado}
+                disabled={cerrandoForzoso}
+                className="text-xs px-3 py-2 bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 border border-purple-200 font-medium transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                title="El expediente asociado fue traspasado o cerrado. Esta acción cierra el evento automáticamente."
+              >
+                {cerrandoForzoso ? (
+                  <><Loader2 className="w-3 h-3 animate-spin" /> Cerrando...</>
+                ) : (
+                  <>
+                    {tarea.caso?.esTraspasado ? <ArrowRightLeft className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
+                    Cerrar por {tarea.caso?.esTraspasado ? "traspaso" : "caso finalizado"}
+                  </>
+                )}
+              </button>
+            )}
+
             {/* ═══ Editar / Eliminar — como estaban ═══ */}
             <div className="ml-auto flex items-center gap-2">
               {puedeEditar && !esVencidaAbierta && (

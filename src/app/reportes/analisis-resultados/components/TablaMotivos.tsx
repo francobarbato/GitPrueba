@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, Fragment  } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ChevronDown, ChevronRight, BarChart3, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
+import { getMotivoCierreLabel } from "src/lib/constants/motivos-cierre"
 
 // ============================================================================
 // TIPOS
@@ -45,6 +46,7 @@ const MOTIVO_COLORS: Record<string, { bg: string; text: string; border: string }
   "DESFAVORABLE": { bg: "bg-red-50",     text: "text-red-700",     border: "border-red-200" },
   "DESISTIMIENTO":{ bg: "bg-amber-50",   text: "text-amber-700",   border: "border-amber-200" },
   "ARCHIVO":      { bg: "bg-slate-50",   text: "text-slate-600",   border: "border-slate-200" },
+  "TRASPASADO_A_OTRO_ESTUDIO":  { bg: "bg-purple-50",  text: "text-purple-700",  border: "border-purple-200" },
 }
 
 const DEFAULT_COLOR = { bg: "bg-slate-50", text: "text-slate-600", border: "border-slate-200" }
@@ -204,7 +206,7 @@ export function TablaMotivos({ data }: { data: MotivoCierreRow[] }) {
                 const colors = MOTIVO_COLORS[row.motivo] || DEFAULT_COLOR
 
                 return (
-                  <>
+                  <Fragment key={row.motivo}>
                     {/* Fila principal */}
                     <tr
                       key={row.motivo}
@@ -218,7 +220,7 @@ export function TablaMotivos({ data }: { data: MotivoCierreRow[] }) {
                       </td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold border ${colors.bg} ${colors.text} ${colors.border}`}>
-                          {row.motivo}
+                          {getMotivoCierreLabel(row.motivo)}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-center font-medium text-slate-700">{row.cantidad}</td>
@@ -252,7 +254,7 @@ export function TablaMotivos({ data }: { data: MotivoCierreRow[] }) {
                         </td>
                       </tr>
                     )}
-                  </>
+                  </Fragment>
                 )
               })}
             </tbody>

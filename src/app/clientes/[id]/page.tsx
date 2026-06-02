@@ -65,7 +65,8 @@ export default async function ClienteDetallePage({
           email: true,
           isActive: true,
           createdAt: true,
-          ultimoAcceso: true
+          ultimoAcceso: true,
+          password: true,
         }
       }
       // =============================================
@@ -108,6 +109,13 @@ export default async function ClienteDetallePage({
       day: '2-digit'
     })
   }
+  // Hay invitación pendiente cuando el cliente tiene vinculación al portal
+// pero el usuario nunca activó (no tiene password).
+const tieneInvitacionPendiente = !!(
+  cliente.usuarioPortalId &&
+  cliente.usuarioPortal &&
+  !cliente.usuarioPortal.password
+)
 
   return (
     <div className="flex h-screen bg-gray-50">
@@ -156,9 +164,19 @@ export default async function ClienteDetallePage({
                     {cliente.usuarioPortalId && (
                       <>
                         <span className="text-slate-400">•</span>
-                        <Badge variant="outline" className="text-xs bg-indigo-50 text-indigo-700 border-indigo-200">
-                          🌐 Portal Habilitado
-                        </Badge>
+                        {cliente.usuarioPortal?.isActive ? (
+                          <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                            🌐 Portal habilitado
+                          </Badge>
+                        ) : tieneInvitacionPendiente ? (
+                          <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200">
+                            ⏳ Invitación pendiente
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-xs bg-red-50 text-red-700 border-red-200">
+                            🔒 Acceso desactivado
+                          </Badge>
+                        )}
                       </>
                     )}
                   </p>
@@ -490,8 +508,15 @@ export default async function ClienteDetallePage({
                     apellido: cliente.apellido,
                     email: cliente.email,
                     usuarioPortalId: cliente.usuarioPortalId,
-                    usuarioPortal: cliente.usuarioPortal
+                    usuarioPortal: cliente.usuarioPortal ? {
+                      id: cliente.usuarioPortal.id,
+                      email: cliente.usuarioPortal.email,
+                      isActive: cliente.usuarioPortal.isActive,
+                      createdAt: cliente.usuarioPortal.createdAt,
+                      ultimoAcceso: cliente.usuarioPortal.ultimoAcceso,
+                    } : null
                   }}
+                  tieneInvitacionPendiente={tieneInvitacionPendiente}
                   userRol={userRol}
                 />
                 {/* ============================================== */}

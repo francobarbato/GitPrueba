@@ -5,7 +5,7 @@ import { getUserSessionServer } from "@/auth/actions/auth-actions"
 import prisma from "src/lib/db/prisma"
 
 export async function POST(
-  req: NextRequest,
+  _req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
@@ -27,41 +27,40 @@ export async function POST(
       return NextResponse.json({ error: "El usuario ya está activo" }, { status: 400 })
     }
 
-    // Restaurar email original (quitar sufijo .deleted.timestamp si existe)
+    // Limpieza defensiva: si el email todavía tiene el sufijo .deleted.xxx
+    // de la versión anterior del DELETE, lo restauramos al original.
+    // Esto es solo para datos viejos en BD; los nuevos ya no tienen sufijo.
     let emailRestaurado = usuario.email
     if (usuario.email.includes('.deleted.')) {
       emailRestaurado = usuario.email.split('.deleted.')[0]
-    }
 
-    // Verificar que el email no esté en uso por otro usuario
-    const emailEnUso = await prisma.user.findFirst({
-      where: {
-        email: emailRestaurado,
-        id: { not: params.id }
+      const emailEnUso = await prisma.user.findFirst({
+        where: {
+          email: emailRestaurado,
+          id:    { not: params.id }
+        }
+      })
+
+      if (emailEnUso) {
+        return NextResponse.json({
+          error: "No se puede reactivar: el email original ya está en uso por otro usuario."
+        }, { status: 400 })
       }
-    })
-
-    if (emailEnUso) {
-      return NextResponse.json({ 
-        error: "No se puede reactivar: el email ya está en uso por otro usuario" 
-      }, { status: 400 })
     }
 
-    // Reactivar usuario
     const actualizado = await prisma.user.update({
       where: { id: params.id },
       data: {
         isActive: true,
-        email: emailRestaurado
+        email:    emailRestaurado,
       }
     })
 
-    // Registrar en bitácora
     await prisma.bitacora.create({
       data: {
-        texto: `Usuario reactivado: ${emailRestaurado}`,
-        tipo: 'auto',
-        accion: 'Reactivación de Usuario',
+        texto:     `Usuario reactivado: ${emailRestaurado}`,
+        tipo:      'auto',
+        accion:    'Reactivación de Usuario',
         usuarioId: user.id
       }
     })
@@ -69,10 +68,10 @@ export async function POST(
     return NextResponse.json({
       success: true,
       usuario: {
-        id: actualizado.id,
-        nombre: actualizado.nombre,
+        id:       actualizado.id,
+        nombre:   actualizado.nombre,
         apellido: actualizado.apellido,
-        email: actualizado.email,
+        email:    actualizado.email,
         isActive: actualizado.isActive
       }
     })

@@ -3,8 +3,10 @@
 import './globals.css';
 import { Inter } from 'next/font/google';
 import type { Metadata } from 'next';
+import { ConfirmacionProvider } from "@/components/confirmacion/ConfirmacionProvider"
 
-import AuthProvider from '@/auth/components/AuthProvider'; // <- IMPORTANTE
+
+import AuthProvider from '@/auth/components/AuthProvider'; 
 
 const inter = Inter({ subsets: ['latin'] });
 

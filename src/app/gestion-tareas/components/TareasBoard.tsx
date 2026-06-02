@@ -7,11 +7,12 @@ import {
   Clock, AlertTriangle, ChevronRight, Scale,
   MapPin, Filter, MoreVertical, Pencil, Trash2,
   History, X, Eye, Sparkles, CheckCheck, Lock as LockIcon, Search,
-  CheckCircle2, XCircle
+  CheckCircle2, XCircle, ArrowRightLeft, Loader2 
 } from "lucide-react"
-import {
+import { 
   cambiarEstadoTareaAction, eliminarTareaAction, editarTareaAction,
-  marcarTareasComoVistasAction, getTareaDetalle, cerrarVencidaAction, marcarTareaComoLeidaAction, 
+  marcarTareasComoVistasAction, getTareaDetalle, cerrarVencidaAction, marcarTareaComoLeidaAction,
+  cerrarTareaPorCasoFinalizadoAction,                                                      
 } from "src/lib/actions/tarea-actions"
 import type { TareaConRelaciones } from "src/lib/actions/tarea-actions"
 import type { EstadoTarea, PrioridadTarea } from "@prisma/client"
@@ -25,6 +26,7 @@ import { Info } from "lucide-react"
 import { ABRIR_TAREA_DRAWER_EVENT } from "@/app/components/header"
 import { dispatchNotificationsRefresh } from "@/app/components/header"
 import { useFeriados } from "../../hooks/useFeriados"
+import { UserName } from "../../components/UserName"
 
 // ============================================================================
 // TIME-BOXING — Configuración
@@ -496,12 +498,38 @@ function TareaCard({ tarea, onChange, onEdit, onDelete, onOpenDrawer, onCerrarVe
   const esResponsable = tarea.responsableId === currentUserId
   const puedeEditar = esCreador || esSupervisor || esResponsable
   const puedeEliminar = esCreador
+  
 
   const esCompletada = tarea.estado === "COMPLETADA"
   const esVencidaCerrada = tarea.estado === "VENCIDA" && !!tarea.vencidaCerradaEn
   const esVencidaAbandonada = esVencidaHistorica(tarea) && !tarea.vencidaCerradaEn
   const esVencidaAbierta = tarea.estado === "VENCIDA" && !tarea.vencidaCerradaEn && esVencidaActiva(tarea)
   const esTerminal = esCompletada || esVencidaCerrada || esVencidaAbandonada
+
+  const router = useRouter()
+const [cerrandoForzoso, setCerrandoForzoso] = useState(false)
+
+const casoFinalizado = tarea.caso?.estaCerrado || tarea.caso?.esTraspasado
+const puedeCerrarForzoso = casoFinalizado && !esTerminal && (esResponsable || esSupervisor || esCreador)
+
+const handleCerrarPorCasoFinalizado = async (e: React.MouseEvent) => {
+  e.stopPropagation()
+  if (!confirm("¿Cerrar este evento porque el expediente fue traspasado o cerrado?")) return
+  
+  setCerrandoForzoso(true)
+  try {
+    const r = await cerrarTareaPorCasoFinalizadoAction(tarea.id)
+    if (r.error) {
+      alert(r.error)
+    } else {
+      router.refresh()
+    }
+  } catch (e: any) {
+    alert(e.message || "Error")
+  } finally {
+    setCerrandoForzoso(false)
+  }
+}
 
   const bordeIzq =
     urgencia === "vencida" || urgencia === "hoy" ? "border-l-4 border-l-red-500" :
@@ -555,12 +583,44 @@ function TareaCard({ tarea, onChange, onEdit, onDelete, onOpenDrawer, onCerrarVe
         </p>
 
         {lugarLimpio && lugarLimpio !== "Estudio Jurídico" && <div className="flex items-center gap-1 mb-1.5"><MapPin className="w-3 h-3 text-slate-400 shrink-0" /><span className="text-xs text-slate-600 font-medium truncate">{lugarLimpio}</span></div>}
-        {tarea.caso && <div className="flex items-center gap-1 mb-1.5"><Briefcase className="w-3 h-3 text-slate-400 shrink-0" /><span className="font-mono text-xs font-bold text-blue-600">{tarea.caso.numero}</span><span className="text-slate-300">—</span><span className="text-xs text-slate-500 truncate">{tarea.caso.titulo.slice(0, 35)}</span></div>}
+        {tarea.caso && (
+        <div className="flex items-center gap-1 mb-1.5 flex-wrap">
+          <Briefcase className="w-3 h-3 text-slate-400 shrink-0" />
+          <span className="font-mono text-xs font-bold text-blue-600">{tarea.caso.numero}</span>
+          <span className="text-slate-300">—</span>
+          <span className="text-xs text-slate-500 truncate">{tarea.caso.titulo.slice(0, 35)}</span>
+          {tarea.caso.esTraspasado && (
+            <span className="inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700 border border-purple-200 font-semibold">
+              <ArrowRightLeft className="w-2.5 h-2.5" /> Traspasado
+            </span>
+          )}
+          {tarea.caso.estaCerrado && !tarea.caso.esTraspasado && (
+            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-slate-200 text-slate-700 border border-slate-300 font-semibold">
+              Cerrado
+            </span>
+          )}
+        </div>
+      )}
         {tarea.descripcion && <p className="text-xs text-slate-500 mb-2 leading-relaxed line-clamp-3">{tarea.descripcion}</p>}
         <div className="flex flex-col gap-0.5 mb-2">
-          {!esMia && <p className="text-xs text-slate-500 flex items-center gap-1"><User className="w-3 h-3 text-slate-400 shrink-0" />Solicitado por: <span className="font-medium text-slate-700">{tarea.creador.nombre} {tarea.creador.apellido}</span></p>}
-          {tarea.supervisor && <p className="text-xs text-slate-500 flex items-center gap-1"><User className="w-3 h-3 text-slate-400 shrink-0" />Supervisor: <span className="font-medium text-slate-700">{tarea.supervisor.nombre} {tarea.supervisor.apellido}</span></p>}
-          {tarea.cliente && <p className="text-xs text-slate-500 flex items-center gap-1"><User className="w-3 h-3 text-slate-400 shrink-0" /><span className="truncate">{tarea.cliente.nombre} {tarea.cliente.apellido}</span></p>}
+          {!esMia && (
+            <p className="text-xs text-slate-500 flex items-center gap-1">
+              <User className="w-3 h-3 text-slate-400 shrink-0" />
+              Solicitado por: <UserName user={tarea.creador} className="font-medium text-slate-700" />
+            </p>
+          )}
+          {tarea.supervisor && (
+            <p className="text-xs text-slate-500 flex items-center gap-1">
+              <User className="w-3 h-3 text-slate-400 shrink-0" />
+              Supervisor: <UserName user={tarea.supervisor} className="font-medium text-slate-700" />
+            </p>
+          )}
+          {tarea.cliente && (
+            <p className="text-xs text-slate-500 flex items-center gap-1">
+              <User className="w-3 h-3 text-slate-400 shrink-0" />
+              <span className="truncate">{tarea.cliente.nombre} {tarea.cliente.apellido}</span>
+            </p>
+          )}
         </div>
           {tarea.estado === "BLOQUEADA" && tarea.motivoBloqueo && <div className="mb-2 p-2 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-1.5"><Lock className="w-3 h-3 text-amber-600 mt-0.5 shrink-0" /><p className="text-xs text-amber-700">{tarea.motivoBloqueo.slice(0, 150)}{tarea.motivoBloqueo.length > 150 ? "..." : ""}</p></div>}        {tarea.motivoDesbloqueo && tarea.estado !== "BLOQUEADA" && <div className="mb-2 p-2 bg-green-50 border border-green-200 rounded-lg flex items-start gap-1.5"><Unlock className="w-3 h-3 text-green-500 mt-0.5 shrink-0" /><div className="text-xs"><span className="text-green-700 font-medium">Desbloqueada: </span><span className="text-green-600">{tarea.motivoDesbloqueo.slice(0, 150)}{tarea.motivoDesbloqueo.length > 150 ? "..." : ""}</span></div></div>}
 
@@ -574,7 +634,7 @@ function TareaCard({ tarea, onChange, onEdit, onDelete, onOpenDrawer, onCerrarVe
           </div>
         )}
 
-        {!soloLectura && !esTerminal && (esResponsable || (esVencidaAbierta && (esSupervisor || esCreador))) && (
+        {!soloLectura && !esTerminal && (esResponsable || (esVencidaAbierta && (esSupervisor || esCreador)) || puedeCerrarForzoso) && (
           <div className="flex flex-wrap gap-1 pt-2 border-t border-slate-100" onClick={e => e.stopPropagation()}>
 
             {/* Acciones SOLO del responsable */}
@@ -615,6 +675,25 @@ function TareaCard({ tarea, onChange, onEdit, onDelete, onOpenDrawer, onCerrarVe
                 title="Archivar como vencida no cumplida"
               >
                 <XCircle className="w-3 h-3" /> Cerrar sin cumplir
+              </button>
+              
+            )}
+            {/* Cerrar por caso finalizado */}
+            {puedeCerrarForzoso && (
+              <button
+                onClick={handleCerrarPorCasoFinalizado}
+                disabled={cerrandoForzoso}
+                className="text-[10px] px-2 py-1 bg-purple-50 text-purple-700 rounded-md hover:bg-purple-100 border border-purple-200 transition-colors flex items-center gap-1 disabled:opacity-50"
+                title="El expediente asociado fue traspasado o cerrado. Cerrar el evento automáticamente."
+              >
+                {cerrandoForzoso ? (
+                  <><Loader2 className="w-3 h-3 animate-spin" /> Cerrando...</>
+                ) : (
+                  <>
+                    {tarea.caso?.esTraspasado ? <ArrowRightLeft className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
+                    Cerrar por {tarea.caso?.esTraspasado ? "traspaso" : "caso finalizado"}
+                  </>
+                )}
               </button>
             )}
           </div>

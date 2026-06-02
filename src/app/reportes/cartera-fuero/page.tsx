@@ -18,6 +18,7 @@ import { PanelLitigiosidad } from "./components/Panellitigiosidad"
 import { FiltrosCartera } from "./components/FiltrosCartera"
 import { ToggleVista } from "./components/ToggleVista"
 import { redirect, notFound } from "next/navigation"
+import { NotaContextoPeriodo } from "@/app/reportes/components/NotaContextoPeriodo"
 // ============================================================================
 // MAPEO Y CONSTANTES
 // ============================================================================
@@ -337,6 +338,11 @@ if (userRol === 'CLIENTE' || userRol === 'ADMIN') notFound()
   // Etiqueta del colega seleccionado (para subtítulo)
   const colegaSeleccionado = colegasConNombre.find(c => c.id === filtroColega)
 
+  const hoyDate = new Date()
+const desdeDate = subDays(hoyDate, 90)
+const desdeISO = desdeDate.toISOString()
+const hastaISO = hoyDate.toISOString()
+
   return (
     <div className="flex h-screen bg-slate-50">
       <Sidebar />
@@ -383,6 +389,12 @@ if (userRol === 'CLIENTE' || userRol === 'ADMIN') notFound()
             <div className="mb-5">
               <ToggleVista vistaActual={vista} />
             </div>
+
+            <NotaContextoPeriodo
+              desde={desdeISO}
+              hasta={hastaISO}
+              rangoLabel="últimos 90 días"
+            />
 
             {/* Filtros — cambian según la vista */}
             <div className="mb-6">

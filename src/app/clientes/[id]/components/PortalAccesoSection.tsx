@@ -3,35 +3,20 @@
 import { useState } from 'react'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+  Dialog, DialogContent, DialogDescription, DialogFooter,
+  DialogHeader, DialogTitle,
 } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { 
-  Globe, 
-  UserPlus, 
-  CheckCircle2, 
-  XCircle, 
-  Mail, 
-  Key, 
-  Copy, 
-  Eye, 
-  EyeOff,
-  AlertTriangle,
-  Loader2,
-  Shield,
-  Calendar,
-  Lock,
-  Unlock
+import {
+  Globe, CheckCircle2, XCircle, Mail, Send,
+  AlertTriangle, Loader2, Shield, Calendar, Lock, Unlock, RefreshCw, Clock,
 } from 'lucide-react'
-import { crearUsuarioPortalAction, desactivarUsuarioPortalAction, reactivarUsuarioPortalAction  } from 'src/app/clientes/actions/portal-actions'
+import {
+  crearUsuarioPortalAction,
+  desactivarUsuarioPortalAction,
+  reactivarUsuarioPortalAction,
+  reenviarInvitacionPortalAction,
+} from 'src/app/clientes/actions/portal-actions'
 import { useRouter } from 'next/navigation'
 
 interface PortalAccesoSectionProps {
@@ -49,120 +34,112 @@ interface PortalAccesoSectionProps {
       ultimoAcceso: Date | null
     } | null
   }
+  tieneInvitacionPendiente: boolean
   userRol: string
 }
 
-export function PortalAccesoSection({ cliente, userRol }: PortalAccesoSectionProps) {
+export function PortalAccesoSection({
+  cliente,
+  tieneInvitacionPendiente,
+  userRol,
+}: PortalAccesoSectionProps) {
   const router = useRouter()
-  const [showCrearModal, setShowCrearModal] = useState(false)
-  const [showCredencialesModal, setShowCredencialesModal] = useState(false)
+  const [showConfirmarEnvioModal, setShowConfirmarEnvioModal] = useState(false)
   const [showDesactivarModal, setShowDesactivarModal] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
-  const [credenciales, setCredenciales] = useState<{ email: string; password: string } | null>(null)
-  const [showPassword, setShowPassword] = useState(false)
-  const [copiado, setCopiado] = useState<'email' | 'password' | null>(null)
 
-  const [isPortalActive, setIsPortalActive] = useState(cliente.usuarioPortal?.isActive === true)
-
-
-  const tieneAccesoPortal = cliente.usuarioPortalId !== null && cliente.usuarioPortal !== null
-  const usuarioActivo = isPortalActive
-  
-  // Solo Admin y Abogado pueden gestionar acceso al portal
   const puedeGestionarPortal = userRol === 'ADMIN' || userRol === 'ABOGADO'
 
-  // Crear usuario de acceso
-  const handleCrearUsuario = async () => {
-      if (!cliente.email) {
-        setError('El cliente debe tener un email registrado para crear acceso al portal')
-        return
-      }
+  // === ESTADOS ===
+  // A) Sin acceso: nunca se creó usuario portal
+  // B) Invitación pendiente: usuario creado pero todavía no activó (password null)
+  // C) Acceso activo: usuario activado e isActive=true
+  // D) Acceso desactivado: usuario activado en el pasado pero hoy isActive=false
+  const sinAcceso = !cliente.usuarioPortalId
+  const invitacionPendiente = !sinAcceso && tieneInvitacionPendiente
+  const accesoActivo = !sinAcceso && !invitacionPendiente && cliente.usuarioPortal?.isActive === true
+  const accesoDesactivado = !sinAcceso && !invitacionPendiente && cliente.usuarioPortal?.isActive === false
 
-      setError('')
-      setIsLoading(true)
-
-      try {
-        const result = await crearUsuarioPortalAction(cliente.id)
-        
-        if (result.error) {
-          setError(result.error)
-        } else if (result.credenciales) {
-          setCredenciales(result.credenciales)
-          setIsPortalActive(true) // 🌟 Sincroniza estado local
-          setShowCrearModal(false)
-          setShowCredencialesModal(true)
-          router.refresh()
-        }
-      } catch (err: any) {
-        setError(err.message || 'Error al crear usuario')
-      } finally {
-        setIsLoading(false)
-      }
-  }
-
-  // Desactivar usuario
-  const handleDesactivarUsuario = async () => {
+  const handleEnviarInvitacion = async () => {
+    if (!cliente.email) {
+      setError('El cliente debe tener un email registrado')
+      return
+    }
     setError('')
-        setIsLoading(true)
-
-        try {
-          const result = await desactivarUsuarioPortalAction(cliente.id)
-          
-          if (result.error) {
-            setError(result.error)
-          } else {
-            setIsPortalActive(false) // 🌟 Forzamos a falso al desactivar exitosamente
-            setShowDesactivarModal(false)
-            router.refresh()
-          }
-        } catch (err: any) {
-          setError(err.message || 'Error al desactivar usuario')
-        } finally {
-          setIsLoading(false)
-        }
-  }
-
-  const handleReactivarUsuario = async () => {
-    setError('')
-        setIsLoading(true)
-
-        try {
-          const result = await reactivarUsuarioPortalAction(cliente.id)
-          
-          if (result.error) {
-            setError(result.error)
-          } else {
-            setIsPortalActive(true) // 🌟 Forzamos a verdadero al reactivar exitosamente
-            router.refresh()
-          }
-        } catch (err: any) {
-          setError(err.message || 'Error al reactivar usuario')
-        } finally {
-          setIsLoading(false)
-        }
-}
-
-  // Copiar al portapapeles
-  const copiarAlPortapapeles = async (texto: string, tipo: 'email' | 'password') => {
+    setIsLoading(true)
     try {
-      await navigator.clipboard.writeText(texto)
-      setCopiado(tipo)
-      setTimeout(() => setCopiado(null), 2000)
-    } catch (err) {
-      console.error('Error al copiar:', err)
+      const result = await crearUsuarioPortalAction(cliente.id)
+      if (result.error) {
+        setError(result.error)
+      } else {
+        setShowConfirmarEnvioModal(false)
+        router.refresh()
+      }
+    } catch (err: any) {
+      setError(err.message || 'Error al enviar invitación')
+    } finally {
+      setIsLoading(false)
     }
   }
 
-  // Formatear fecha
+  const handleReenviarInvitacion = async () => {
+    setError('')
+    setIsLoading(true)
+    try {
+      const result = await reenviarInvitacionPortalAction(cliente.id)
+      if (result.error) {
+        setError(result.error)
+      } else {
+        router.refresh()
+      }
+    } catch (err: any) {
+      setError(err.message || 'Error al reenviar')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleDesactivar = async () => {
+    setError('')
+    setIsLoading(true)
+    try {
+      const result = await desactivarUsuarioPortalAction(cliente.id)
+      if (result.error) {
+        setError(result.error)
+      } else {
+        setShowDesactivarModal(false)
+        router.refresh()
+      }
+    } catch (err: any) {
+      setError(err.message || 'Error al desactivar')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleReactivar = async () => {
+    setError('')
+    setIsLoading(true)
+    try {
+      const result = await reactivarUsuarioPortalAction(cliente.id)
+      if (result.error) {
+        setError(result.error)
+      } else {
+        router.refresh()
+      }
+    } catch (err: any) {
+      setError(err.message || 'Error al reactivar')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   const formatearFecha = (fecha: Date | string | null) => {
     if (!fecha) return 'Nunca'
     return new Date(fecha).toLocaleDateString('es-AR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+      day: '2-digit', month: '2-digit', year: 'numeric',
+      hour: '2-digit', minute: '2-digit'
     })
   }
 
@@ -175,54 +152,132 @@ export function PortalAccesoSection({ cliente, userRol }: PortalAccesoSectionPro
             Acceso al Portal
           </CardTitle>
           <CardDescription>
-            Gestión del acceso web del cliente para consultar sus casos
+            Gestión del acceso del cliente al portal web
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-6">
-          
-          {/* Estado del acceso */}
-          {tieneAccesoPortal ? (
-            // ✅ Cliente CON acceso al portal
+
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm flex items-start gap-2">
+              <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          {/* ── ESTADO A: SIN ACCESO ──────────────────────────────────────── */}
+          {sinAcceso && (
             <div className="space-y-4">
-              <div className={`p-4 rounded-lg border-2 ${
-                usuarioActivo 
-                  ? 'bg-green-50 border-green-200' 
-                  : 'bg-red-50 border-red-200'
-              }`}>
-                <div className="flex items-center gap-3 mb-3">
-                  {usuarioActivo ? (
-                    <>
-                      <CheckCircle2 className="h-6 w-6 text-green-600" />
-                      <div>
-                        <p className="font-semibold text-green-800">Portal Habilitado</p>
-                        <p className="text-sm text-green-600">El cliente puede acceder al sistema</p>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <XCircle className="h-6 w-6 text-red-600" />
-                      <div>
-                        <p className="font-semibold text-red-800">Acceso Desactivado</p>
-                        <p className="text-sm text-red-600">El usuario fue desactivado</p>
-                      </div>
-                    </>
-                  )}
+              <div className="p-4 bg-slate-50 border-2 border-dashed border-slate-300 rounded-lg text-center">
+                <Globe className="h-10 w-10 text-slate-400 mx-auto mb-3" />
+                <p className="font-medium text-slate-700">Sin acceso al portal</p>
+                <p className="text-sm text-slate-500 mt-1">
+                  Este cliente todavía no fue invitado al portal
+                </p>
+              </div>
+
+              {!cliente.email ? (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm flex items-start gap-2">
+                  <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="font-medium">Email requerido</p>
+                    <p className="text-xs mt-1">
+                      Para invitar al portal, primero registrá un email para este cliente.
+                    </p>
+                  </div>
+                </div>
+              ) : puedeGestionarPortal && (
+                <Button
+                  onClick={() => setShowConfirmarEnvioModal(true)}
+                  className="w-full gap-2 bg-indigo-600 hover:bg-indigo-700"
+                >
+                  <Send className="h-4 w-4" />
+                  Enviar invitación al portal
+                </Button>
+              )}
+            </div>
+          )}
+
+          {/* ── ESTADO B: INVITACIÓN PENDIENTE ────────────────────────────── */}
+          {invitacionPendiente && (
+            <div className="space-y-4">
+              <div className="p-4 rounded-lg border-2 bg-amber-50 border-amber-200">
+                <div className="flex items-start gap-3 mb-3">
+                  <Clock className="h-6 w-6 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-semibold text-amber-800">Invitación pendiente</p>
+                    <p className="text-sm text-amber-700 mt-0.5">
+                      Le mandamos un email al cliente para que active su cuenta. Cuando lo haga, va a poder ingresar al portal.
+                    </p>
+                  </div>
                 </div>
 
-                {/* Info del usuario */}
-                <div className="space-y-2 mt-4 pt-4 border-t border-current/10">
+                <div className="space-y-2 mt-4 pt-4 border-t border-amber-200">
+                  <div className="flex items-center gap-2 text-sm">
+                    <Mail className="h-4 w-4 text-amber-700" />
+                    <span className="text-amber-800">Email destino:</span>
+                    <span className="font-mono font-medium text-amber-900">{cliente.usuarioPortal?.email}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <Calendar className="h-4 w-4 text-amber-700" />
+                    <span className="text-amber-800">Invitación creada:</span>
+                    <span className="text-amber-900">{formatearFecha(cliente.usuarioPortal?.createdAt || null)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {puedeGestionarPortal && (
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleReenviarInvitacion}
+                    disabled={isLoading}
+                    className="flex-1"
+                  >
+                    {isLoading ? (
+                      <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Enviando...</>
+                    ) : (
+                      <><RefreshCw className="h-4 w-4 mr-2" /> Reenviar invitación</>
+                    )}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowDesactivarModal(true)}
+                    disabled={isLoading}
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50 flex-1"
+                  >
+                    <Lock className="h-4 w-4 mr-2" />
+                    Cancelar invitación
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── ESTADO C: ACCESO ACTIVO ───────────────────────────────────── */}
+          {accesoActivo && (
+            <div className="space-y-4">
+              <div className="p-4 rounded-lg border-2 bg-green-50 border-green-200">
+                <div className="flex items-center gap-3 mb-3">
+                  <CheckCircle2 className="h-6 w-6 text-green-600" />
+                  <div>
+                    <p className="font-semibold text-green-800">Portal Habilitado</p>
+                    <p className="text-sm text-green-600">El cliente puede acceder al sistema</p>
+                  </div>
+                </div>
+
+                <div className="space-y-2 mt-4 pt-4 border-t border-green-200">
                   <div className="flex items-center gap-2 text-sm">
                     <Mail className="h-4 w-4 text-slate-500" />
                     <span className="text-slate-600">Email de acceso:</span>
                     <span className="font-mono font-medium">{cliente.usuarioPortal?.email}</span>
                   </div>
-                  
                   <div className="flex items-center gap-2 text-sm">
                     <Calendar className="h-4 w-4 text-slate-500" />
-                    <span className="text-slate-600">Creado:</span>
+                    <span className="text-slate-600">Cuenta creada:</span>
                     <span>{formatearFecha(cliente.usuarioPortal?.createdAt || null)}</span>
                   </div>
-                  
                   <div className="flex items-center gap-2 text-sm">
                     <Shield className="h-4 w-4 text-slate-500" />
                     <span className="text-slate-600">Último acceso:</span>
@@ -231,62 +286,54 @@ export function PortalAccesoSection({ cliente, userRol }: PortalAccesoSectionPro
                 </div>
               </div>
 
-              {/* Acciones */}
               {puedeGestionarPortal && (
-              <div className="flex gap-2">
-                {usuarioActivo ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowDesactivarModal(true)}
-                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                  >
-                    <Lock className="h-4 w-4 mr-2" />
-                    Desactivar Acceso
-                  </Button>
-                ) : (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleReactivarUsuario()}
-                    className="text-green-600 hover:text-green-700 hover:bg-green-50"
-                  >
-                    <Unlock className="h-4 w-4 mr-2" />
-                    Reactivar Acceso
-                  </Button>
-                )}
-              </div>
-            )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowDesactivarModal(true)}
+                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                >
+                  <Lock className="h-4 w-4 mr-2" />
+                  Desactivar acceso
+                </Button>
+              )}
             </div>
-          ) : (
-            // ❌ Cliente SIN acceso al portal
-            <div className="space-y-4">
-              <div className="p-4 bg-slate-50 border-2 border-dashed border-slate-300 rounded-lg text-center">
-                <Globe className="h-10 w-10 text-slate-400 mx-auto mb-3" />
-                <p className="font-medium text-slate-700">Sin acceso al portal</p>
-                <p className="text-sm text-slate-500 mt-1">
-                  Este cliente no tiene usuario para acceder al sistema web
-                </p>
-              </div>
+          )}
 
-              {/* Verificar si tiene email */}
-              {!cliente.email ? (
-                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm flex items-start gap-2">
-                  <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+          {/* ── ESTADO D: ACCESO DESACTIVADO ──────────────────────────────── */}
+          {accesoDesactivado && (
+            <div className="space-y-4">
+              <div className="p-4 rounded-lg border-2 bg-red-50 border-red-200">
+                <div className="flex items-center gap-3 mb-3">
+                  <XCircle className="h-6 w-6 text-red-600" />
                   <div>
-                    <p className="font-medium">Email requerido</p>
-                    <p className="text-xs mt-1">
-                      Para crear acceso al portal, primero debe registrar un email para este cliente.
-                    </p>
+                    <p className="font-semibold text-red-800">Acceso desactivado</p>
+                    <p className="text-sm text-red-600">El cliente activó su cuenta pero hoy no puede ingresar</p>
                   </div>
                 </div>
-              ) : puedeGestionarPortal && (
-                <Button 
-                  onClick={() => setShowCrearModal(true)}
-                  className="w-full gap-2 bg-indigo-600 hover:bg-indigo-700"
+
+                <div className="space-y-2 mt-4 pt-4 border-t border-red-200">
+                  <div className="flex items-center gap-2 text-sm">
+                    <Mail className="h-4 w-4 text-slate-500" />
+                    <span className="text-slate-600">Email de acceso:</span>
+                    <span className="font-mono font-medium">{cliente.usuarioPortal?.email}</span>
+                  </div>
+                </div>
+              </div>
+
+              {puedeGestionarPortal && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleReactivar}
+                  disabled={isLoading}
+                  className="text-green-600 hover:text-green-700 hover:bg-green-50"
                 >
-                  <UserPlus className="h-4 w-4" />
-                  Crear Usuario de Acceso
+                  {isLoading ? (
+                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Reactivando...</>
+                  ) : (
+                    <><Unlock className="h-4 w-4 mr-2" /> Reactivar acceso</>
+                  )}
                 </Button>
               )}
             </div>
@@ -294,237 +341,104 @@ export function PortalAccesoSection({ cliente, userRol }: PortalAccesoSectionPro
         </CardContent>
       </Card>
 
-      {/* Modal: Confirmar creación de usuario */}
-      <Dialog open={showCrearModal} onOpenChange={setShowCrearModal}>
+      {/* Modal: confirmar envío de invitación */}
+      <Dialog open={showConfirmarEnvioModal} onOpenChange={setShowConfirmarEnvioModal}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <UserPlus className="h-5 w-5 text-indigo-600" />
-              Crear Usuario de Acceso
+              <Send className="h-5 w-5 text-indigo-600" />
+              Enviar invitación al portal
             </DialogTitle>
             <DialogDescription>
-              Se creará un usuario para que {cliente.nombre} {cliente.apellido} pueda acceder al portal
+              Se va a enviar un email a {cliente.nombre}{cliente.apellido ? ` ${cliente.apellido}` : ''} para que active su cuenta.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-4">
-            {error && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4" />
-                {error}
-              </div>
-            )}
-
-            <div className="p-4 bg-slate-50 rounded-lg space-y-3">
-              <div className="flex items-center gap-2">
+          <div className="space-y-3 py-2">
+            <div className="p-3 bg-slate-50 rounded-lg">
+              <div className="flex items-center gap-2 text-sm">
                 <Mail className="h-4 w-4 text-slate-500" />
-                <span className="text-sm text-slate-600">Email de acceso:</span>
+                <span className="text-slate-600">Email destino:</span>
                 <span className="font-medium">{cliente.email}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Key className="h-4 w-4 text-slate-500" />
-                <span className="text-sm text-slate-600">Contraseña:</span>
-                <span className="font-medium text-amber-600">Se generará automáticamente</span>
               </div>
             </div>
 
             <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-blue-800 text-sm">
               <p className="font-medium mb-1">¿Qué sucederá?</p>
               <ul className="text-xs space-y-1 list-disc list-inside">
-                <li>Se creará un usuario con rol "Cliente"</li>
-                <li>El cliente podrá ver sus casos desde el portal</li>
-                <li>Deberá cambiar su contraseña en el primer acceso</li>
-                <li>Las credenciales se mostrarán una sola vez</li>
+                <li>Le llega al cliente un email con un link de activación</li>
+                <li>El cliente carga su propia contraseña en ese link</li>
+                <li>Cuando active, puede ingresar al portal y ver sus expedientes</li>
+                <li>El enlace de activación vence en 48 horas</li>
               </ul>
             </div>
           </div>
 
           <DialogFooter className="gap-2">
-            <Button 
-              variant="outline" 
-              onClick={() => setShowCrearModal(false)}
+            <Button
+              variant="outline"
+              onClick={() => setShowConfirmarEnvioModal(false)}
               disabled={isLoading}
             >
               Cancelar
             </Button>
-            <Button 
-              onClick={handleCrearUsuario}
+            <Button
+              onClick={handleEnviarInvitacion}
               disabled={isLoading}
               className="bg-indigo-600 hover:bg-indigo-700"
             >
               {isLoading ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Creando...
-                </>
+                <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Enviando...</>
               ) : (
-                <>
-                  <UserPlus className="h-4 w-4 mr-2" />
-                  Crear Usuario
-                </>
+                <><Send className="h-4 w-4 mr-2" /> Enviar invitación</>
               )}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Modal: Mostrar credenciales */}
-      <Dialog open={showCredencialesModal} onOpenChange={setShowCredencialesModal}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-green-700">
-              <CheckCircle2 className="h-5 w-5" />
-              ¡Usuario Creado Exitosamente!
-            </DialogTitle>
-            <DialogDescription>
-              Comparta estas credenciales con el cliente. La contraseña solo se muestra esta vez.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            <div className="p-4 bg-green-50 border border-green-200 rounded-lg space-y-4">
-              {/* Email */}
-              <div className="space-y-2">
-                <Label className="text-sm font-medium text-slate-700">Email de acceso</Label>
-                <div className="flex gap-2">
-                  <Input 
-                    value={credenciales?.email || ''} 
-                    readOnly 
-                    className="font-mono bg-white"
-                  />
-                  <Button 
-                    variant="outline" 
-                    size="icon"
-                    onClick={() => copiarAlPortapapeles(credenciales?.email || '', 'email')}
-                  >
-                    {copiado === 'email' ? (
-                      <CheckCircle2 className="h-4 w-4 text-green-600" />
-                    ) : (
-                      <Copy className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
-              </div>
-
-              {/* Contraseña */}
-              <div className="space-y-2">
-                <Label className="text-sm font-medium text-slate-700">Contraseña temporal</Label>
-                <div className="flex gap-2">
-                  <div className="relative flex-1">
-                    <Input 
-                      type={showPassword ? 'text' : 'password'}
-                      value={credenciales?.password || ''} 
-                      readOnly 
-                      className="font-mono bg-white pr-10"
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="absolute right-0 top-0 h-full px-3"
-                      onClick={() => setShowPassword(!showPassword)}
-                    >
-                      {showPassword ? (
-                        <EyeOff className="h-4 w-4" />
-                      ) : (
-                        <Eye className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </div>
-                  <Button 
-                    variant="outline" 
-                    size="icon"
-                    onClick={() => copiarAlPortapapeles(credenciales?.password || '', 'password')}
-                  >
-                    {copiado === 'password' ? (
-                      <CheckCircle2 className="h-4 w-4 text-green-600" />
-                    ) : (
-                      <Copy className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
-              </div>
-            </div>
-
-            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm flex items-start gap-2">
-              <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
-              <div>
-                <p className="font-medium">¡Importante!</p>
-                <p className="text-xs mt-1">
-                  Esta contraseña solo se muestra una vez. El cliente deberá cambiarla en su primer ingreso.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button 
-              onClick={() => {
-                setShowCredencialesModal(false)
-                setCredenciales(null)
-              }}
-              className="w-full"
-            >
-              Entendido, cerrar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Modal: Confirmar desactivación */}
+      {/* Modal: confirmar desactivación / cancelación */}
       <Dialog open={showDesactivarModal} onOpenChange={setShowDesactivarModal}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-red-700">
               <Lock className="h-5 w-5" />
-              Desactivar Acceso al Portal
+              {invitacionPendiente ? 'Cancelar invitación' : 'Desactivar acceso al portal'}
             </DialogTitle>
             <DialogDescription>
-              El cliente ya no podrá acceder al sistema con sus credenciales
+              {invitacionPendiente
+                ? `El link enviado a ${cliente.usuarioPortal?.email} dejará de funcionar.`
+                : 'El cliente ya no podrá acceder al portal.'}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-4">
-            {error && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4" />
-                {error}
-              </div>
-            )}
-
-            <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-red-800 text-sm">
-                ¿Está seguro que desea desactivar el acceso de <strong>{cliente.nombre} {cliente.apellido}</strong> al portal?
-              </p>
-              <p className="text-red-600 text-xs mt-2">
-                El usuario quedará inactivo y no podrá iniciar sesión. Esta acción puede revertirse reactivando el usuario.
-              </p>
+          <div className="py-2">
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-800 text-sm">
+              {invitacionPendiente
+                ? 'La invitación quedará cancelada. Podés volver a invitar al cliente más adelante.'
+                : 'Esta acción puede revertirse después con "Reactivar acceso".'}
             </div>
           </div>
 
           <DialogFooter className="gap-2">
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => setShowDesactivarModal(false)}
               disabled={isLoading}
             >
               Cancelar
             </Button>
-            <Button 
-              onClick={handleDesactivarUsuario}
+            <Button
+              onClick={handleDesactivar}
               disabled={isLoading}
               variant="destructive"
             >
               {isLoading ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Desactivando...
-                </>
+                <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Procesando...</>
+              ) : invitacionPendiente ? (
+                <><Lock className="h-4 w-4 mr-2" /> Cancelar invitación</>
               ) : (
-                <>
-                  <Lock className="h-4 w-4 mr-2" />
-                  Desactivar Acceso
-                </>
+                <><Lock className="h-4 w-4 mr-2" /> Desactivar acceso</>
               )}
             </Button>
           </DialogFooter>

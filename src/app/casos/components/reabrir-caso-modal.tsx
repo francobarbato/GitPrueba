@@ -85,7 +85,8 @@ export function ReabrirCasoModal({ isOpen, onClose, onConfirm, caso }: ReabrirCa
     'DESFAVORABLE': 'Sentencia Desfavorable',
     'ACUERDO': 'Acuerdo Extrajudicial',
     'DESISTIMIENTO': 'Desistimiento / Abandono',
-    'ARCHIVO': 'Archivo Administrativo'
+    'ARCHIVO': 'Archivo Administrativo',
+    'TRASPASADO_A_OTRO_ESTUDIO':  'Traspasado a Otro Estudio',
   }
 
   return (

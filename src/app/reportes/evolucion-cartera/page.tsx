@@ -25,6 +25,7 @@ import { TablaFlujo } from "./components/Tablaflujo"
 import { TablaComposicion } from "./components/Tablacomposicion"
 import { ToggleVistaEvolucion } from "./components/ToggleVistaEvolucion"
 import { redirect, notFound } from "next/navigation"
+import { NotaContextoPeriodo } from "@/app/reportes/components/NotaContextoPeriodo"
 
 // ============================================================================
 // TIPOS
@@ -338,6 +339,12 @@ export default async function EvolucionCarteraPage({
   const periodoConfig = PERIODOS_DISPONIBLES.find(p => p.key === periodoKey) || PERIODOS_DISPONIBLES[3]
   const diasFiltro = periodoConfig.dias
 
+  // Rango para la nota contextual: usa el período que eligió el usuario
+const hoyDate = new Date()
+const desdeDate = subDays(hoyDate, diasFiltro)
+const desdeISO = desdeDate.toISOString()
+const hastaISO = hoyDate.toISOString()
+
   const esAbogado = userRol === 'ABOGADO'
   const vistaParam = params?.vista
   const vistaPersonal = esAbogado && vistaParam !== 'gerencial'
@@ -410,6 +417,11 @@ export default async function EvolucionCarteraPage({
               </div>
             )}
 
+            <NotaContextoPeriodo
+              desde={desdeISO}
+              hasta={hastaISO}
+              rangoLabel={periodoConfig.label.toLowerCase()}
+            />
             {/* ═══ KPIs ESTANDARIZADOS ═══
                 Mismo patrón que cartera-fuero: card blanca neutra, color contenido en el ícono.
                 La variación porcentual sí mantiene color (verde/rojo) porque comunica un cambio

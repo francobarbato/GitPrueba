@@ -3,12 +3,14 @@ import { CasoService } from "@/lib/aplication/services/caso.service"
 import Link from "next/link"
 import { Sidebar } from "@/app/components/sidebar"
 import { Header } from "@/app/components/header"
-import { Star, FolderOpen, Plus, AlertTriangle, ChevronRight, LayoutDashboard, Eye } from "lucide-react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card" // <-- Agregado para el buscador
+import {   Star, FolderOpen, Plus, AlertTriangle, ChevronRight, 
+  LayoutDashboard, Eye, Sparkles, X  } from "lucide-react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card" 
 import { Buscador } from "../components/buscador" 
 import { FiltrosCasos } from "./components/filtros"
 import { Button } from "@/components/ui/button"
 import { redirect, notFound } from "next/navigation"
+import { getMotivoCierreLabel, getMotivoCierreColors } from "src/lib/constants/motivos-cierre"
 
 const casoService = new CasoService()
 
@@ -28,7 +30,7 @@ const isAsistente = (rol: string) => rol?.toUpperCase() === 'ASISTENTE'
 export default async function CasosPage({
   searchParams,
 }: {
-  searchParams?: { buscar?: string; tipo?: string; etapa?: string }
+  searchParams?: { buscar?: string; tipo?: string; etapa?: string; recientes?: string }
 }) {
   const user = await getUserSessionServer()
 
@@ -68,6 +70,16 @@ export default async function CasosPage({
   const terminoBusqueda = searchParams?.buscar?.toLowerCase() || ""
   const terminoTipo = searchParams?.tipo || ""
   const terminoEtapa = searchParams?.etapa || ""
+
+  const filtroRecientes = searchParams?.recientes === "1"
+
+  // Contar casos recibidos por reasignación ANTES de aplicar el filtro
+const totalRecientes = casos.filter(c => c.recibidoEnReasignacion).length
+
+// Aplicar filtro si está activo
+if (filtroRecientes) {
+  casos = casos.filter(c => c.recibidoEnReasignacion)
+}
 
   if (terminoBusqueda) {
     casos = casos.filter(c => 
@@ -143,6 +155,24 @@ if (terminoEtapa) {
             </div>
           )}
 
+          {/* Filtro: Recientemente recibidos*/}
+          {totalRecientes > 0 && (
+            <div className="mb-4">
+              <Link
+                href={filtroRecientes ? "/casos" : "/casos?recientes=1"}
+                className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition ${
+                  filtroRecientes
+                    ? "bg-amber-100 text-amber-800 border border-amber-300 shadow-sm"
+                    : "bg-white text-slate-700 border border-slate-200 hover:bg-amber-50 hover:border-amber-200"
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                Recientemente recibidos ({totalRecientes})
+                {filtroRecientes && <X className="w-3 h-3 ml-1" />}
+              </Link>
+            </div>
+          )}
+
           {/* Bloque del Buscador */}
           <Card className="mb-6 shadow-sm border-slate-200">
             <CardHeader>
@@ -205,10 +235,16 @@ if (terminoEtapa) {
                       </td>
                       
                       <td className="p-4 text-sm font-medium text-slate-800">
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="line-clamp-1" title={caso.titulo}>
                             {caso.titulo}
                           </span>
+                          {caso.recibidoEnReasignacion && (
+                            <span className="shrink-0 inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-semibold border border-amber-200">
+                              <Sparkles className="w-2.5 h-2.5" />
+                              Nuevo
+                            </span>
+                          )}
                           {isAbogado(userRol) && caso.abogadoId !== user.id && (
                             <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-600 font-semibold border border-violet-200">
                               Colaborador
@@ -243,9 +279,15 @@ if (terminoEtapa) {
                               {caso.estado}
                             </span>
                             {caso.estaCerrado && (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-50 text-red-600 border border-red-200">
-                                {caso.motivoCierre || 'Cerrado'}
-                              </span>
+                              caso.esTraspasado ? (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border bg-purple-50 text-purple-700 border-purple-200">
+                                  Traspasado a Otro Estudio
+                                </span>
+                              ) : (
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${getMotivoCierreColors(caso.motivoCierre).bg} ${getMotivoCierreColors(caso.motivoCierre).text} ${getMotivoCierreColors(caso.motivoCierre).border}`}>
+                                  {caso.motivoCierre ? getMotivoCierreLabel(caso.motivoCierre) : 'Cerrado'}
+                                </span>
+                              )
                             )}
                           </div>
                       </td>

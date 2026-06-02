@@ -280,30 +280,65 @@ export class UserService {
     return { success: true }
   }
 
-  async obtenerEstadisticas() {
-    const [total, activos, porRol] = await Promise.all([
-      prisma.user.count({
-        where: { rol: { in: ['ADMIN', 'ABOGADO', 'ASISTENTE'] } }
-      }),
-      prisma.user.count({
-        where: { rol: { in: ['ADMIN', 'ABOGADO', 'ASISTENTE'] }, isActive: true }
-      }),
-      prisma.user.groupBy({
-        by: ['rol'],
-        where: { isActive: true, rol: { in: ['ADMIN', 'ABOGADO', 'ASISTENTE'] } },
-        _count: true
-      })
-    ])
+async obtenerEstadisticas() {
+  // Primero buscamos los IDs de usuarios con invitación pendiente
+  // (isActive=false pero tienen token de activación válido).
+  // Estos cuentan como "vigentes" en el total del sistema.
+  const tokensActivos = await prisma.accountActivationToken.findMany({
+    where: {
+      usedAt:    null,
+      expiresAt: { gt: new Date() },
+    },
+    select: { userId: true },
+  })
+  const invitadosIds = tokensActivos.map(t => t.userId)
 
-    return {
-      total,
-      activos,
-      inactivos: total - activos,
-      porRol: {
-        admins: porRol.find(r => r.rol === 'ADMIN')?._count || 0,
-        abogados: porRol.find(r => r.rol === 'ABOGADO')?._count || 0,
-        asistentes: porRol.find(r => r.rol === 'ASISTENTE')?._count || 0
-      }
-    }
+  const [activos, invitadosPendientes, inactivosReales, porRol] = await Promise.all([
+    // ACTIVOS: usuarios isActive=true
+    prisma.user.count({
+      where: {
+        rol:      { in: ['ADMIN', 'ABOGADO', 'ASISTENTE'] },
+        isActive: true,
+      },
+    }),
+    // INVITADOS: isActive=false pero con token de activación válido
+    prisma.user.count({
+      where: {
+        rol:      { in: ['ADMIN', 'ABOGADO', 'ASISTENTE'] },
+        isActive: false,
+        id:       { in: invitadosIds },
+      },
+    }),
+    // INACTIVOS REALES: desactivados (excluyendo invitaciones pendientes)
+    prisma.user.count({
+      where: {
+        rol:      { in: ['ADMIN', 'ABOGADO', 'ASISTENTE'] },
+        isActive: false,
+        id:       { notIn: invitadosIds },
+      },
+    }),
+    // Conteo por rol (solo activos)
+    prisma.user.groupBy({
+      by:    ['rol'],
+      where: { isActive: true, rol: { in: ['ADMIN', 'ABOGADO', 'ASISTENTE'] } },
+      _count: true,
+    }),
+  ])
+
+  // TOTAL = "usuarios vivos" del sistema: activos + invitaciones pendientes.
+  // Los desactivados ya no cuentan al total (son históricos).
+  const total = activos + invitadosPendientes
+
+  return {
+    total,
+    activos,
+    inactivos: inactivosReales,
+    invitadosPendientes,
+    porRol: {
+      admins:     porRol.find(r => r.rol === 'ADMIN')?._count     || 0,
+      abogados:   porRol.find(r => r.rol === 'ABOGADO')?._count   || 0,
+      asistentes: porRol.find(r => r.rol === 'ASISTENTE')?._count || 0,
+    },
   }
+}
 }

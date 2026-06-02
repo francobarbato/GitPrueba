@@ -1,9 +1,9 @@
 'use client'
 
 import { useState, useEffect, useMemo } from "react"
-import { 
-  Trash2, UserPlus, Shield, AlertCircle, CheckCircle2, Eye, EyeOff, 
-  Loader2, Check, X, RotateCcw, AlertTriangle, Users, Key
+import {
+  Trash2, UserPlus, Shield, AlertCircle, CheckCircle2,
+  Loader2, X, RotateCcw, AlertTriangle, Users, Key, Mail
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -32,12 +32,22 @@ type Usuario = {
   email: string
   rol: 'ADMIN' | 'ABOGADO' | 'ASISTENTE'
   isActive: boolean
+  estaInvitado: boolean       
   createdAt: Date
   ultimoAcceso: Date | null
   _count?: {
     casos: number
     clientes: number
   }
+}
+
+type CasoMini = {
+  id:       string
+  numero:   string
+  titulo:   string
+  tipo:     string
+  priority: string
+  cliente?: { nombre: string | null; apellido: string | null } | null
 }
 
 type Estadisticas = {
@@ -51,86 +61,6 @@ type Estadisticas = {
   }
 }
 
-// ===== VALIDACIÓN DE CONTRASEÑA =====
-const PASSWORD_REQUIREMENTS = {
-  minLength: 8,
-  hasUppercase: /[A-Z]/,
-  hasLowercase: /[a-z]/,
-  hasNumber: /[0-9]/,
-  hasSpecial: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/
-}
-
-function validatePassword(password: string) {
-  return {
-    minLength: password.length >= PASSWORD_REQUIREMENTS.minLength,
-    hasUppercase: PASSWORD_REQUIREMENTS.hasUppercase.test(password),
-    hasLowercase: PASSWORD_REQUIREMENTS.hasLowercase.test(password),
-    hasNumber: PASSWORD_REQUIREMENTS.hasNumber.test(password),
-    hasSpecial: PASSWORD_REQUIREMENTS.hasSpecial.test(password),
-  }
-}
-
-function getPasswordStrength(validation: ReturnType<typeof validatePassword>) {
-  const passed = Object.values(validation).filter(Boolean).length
-  if (passed <= 2) return { label: 'Débil', color: 'bg-red-500', width: '20%' }
-  if (passed <= 3) return { label: 'Regular', color: 'bg-orange-500', width: '40%' }
-  if (passed <= 4) return { label: 'Buena', color: 'bg-yellow-500', width: '70%' }
-  return { label: 'Fuerte', color: 'bg-green-500', width: '100%' }
-}
-
-function PasswordRequirements({ password }: { password: string }) {
-  const validation = validatePassword(password)
-  const strength = getPasswordStrength(validation)
-
-  const requirements = [
-    { key: 'minLength', label: 'Mínimo 8 caracteres', met: validation.minLength },
-    { key: 'hasUppercase', label: 'Al menos una mayúscula', met: validation.hasUppercase },
-    { key: 'hasLowercase', label: 'Al menos una minúscula', met: validation.hasLowercase },
-    { key: 'hasNumber', label: 'Al menos un número', met: validation.hasNumber },
-    { key: 'hasSpecial', label: 'Al menos un carácter especial (!@#$%...)', met: validation.hasSpecial },
-  ]
-
-  if (!password) return null
-
-  return (
-    <div className="mt-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
-      <div className="mb-3">
-        <div className="flex justify-between text-xs mb-1">
-          <span className="text-slate-600">Fortaleza:</span>
-          <span className={`font-medium ${
-            strength.label === 'Fuerte' ? 'text-green-600' :
-            strength.label === 'Buena' ? 'text-yellow-600' :
-            strength.label === 'Regular' ? 'text-orange-600' : 'text-red-600'
-          }`}>
-            {strength.label}
-          </span>
-        </div>
-        <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
-          <div 
-            className={`h-full ${strength.color} transition-all duration-300`}
-            style={{ width: strength.width }}
-          />
-        </div>
-      </div>
-
-      <ul className="space-y-1">
-        {requirements.map(req => (
-          <li key={req.key} className="flex items-center gap-2 text-xs">
-            {req.met ? (
-              <Check className="w-3.5 h-3.5 text-green-600" />
-            ) : (
-              <X className="w-3.5 h-3.5 text-slate-400" />
-            )}
-            <span className={req.met ? 'text-green-700' : 'text-slate-500'}>
-              {req.label}
-            </span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  )
-}
-
 export function AdminConfigView() {
   const [usuarios, setUsuarios] = useState<Usuario[]>([])
   const [estadisticas, setEstadisticas] = useState<Estadisticas | null>(null)
@@ -139,47 +69,52 @@ export function AdminConfigView() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
-  // ===== NUEVO: Toggle para mostrar inactivos =====
+  // Toggle para mostrar inactivos
   const [mostrarInactivos, setMostrarInactivos] = useState(false)
 
-  // ===== NUEVO: Modal de reasignación =====
+  // Modal de reasignación de casos
   const [modalReasignar, setModalReasignar] = useState<Usuario | null>(null)
   const [abogadoDestino, setAbogadoDestino] = useState<string>("")
   const [procesandoEliminacion, setProcesandoEliminacion] = useState(false)
 
-  // ===== NUEVO: Modal de confirmación de reactivación =====
+  const [casosUsuario, setCasosUsuario] = useState<CasoMini[]>([])
+  const [loadingCasos, setLoadingCasos] = useState(false)
+
+  const [tareasInfo, setTareasInfo] = useState<{ total: number; comoResponsable: number; comoSupervisor: number } | null>(null)
+
+  // Decisiones por caso. Formato del value:
+  //   - "reasignar:<abogadoId>"
+  //   - "traspasar"
+  const [decisionesPorCaso, setDecisionesPorCaso] = useState<Record<string, string>>({})
+
+
+  const [modoGestion, setModoGestion] = useState<'reasignar' | 'traspasar'>('reasignar')
+  const [estudioDestino, setEstudioDestino] = useState<string>("")
+  const [motivoTraspaso, setMotivoTraspaso] = useState<string>("")
+
+  // Modal de confirmación de reactivación
   const [modalReactivar, setModalReactivar] = useState<Usuario | null>(null)
 
-  // Estado del formulario
+  // Estado del formulario (sin password — el usuario la elige al activar)
   const [formData, setFormData] = useState({
     nombre: '',
     apellido: '',
     email: '',
-    password: '',
-    confirmPassword: '',
-    rol: 'ABOGADO' as 'ADMIN' | 'ABOGADO' | 'ASISTENTE'
+    rol: 'ABOGADO' as 'ADMIN' | 'ABOGADO' | 'ASISTENTE',
   })
 
-  const [showPassword, setShowPassword] = useState(false)
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-
-  const passwordValidation = useMemo(() => validatePassword(formData.password), [formData.password])
-  const isPasswordValid = useMemo(() => Object.values(passwordValidation).every(Boolean), [passwordValidation])
-  const passwordsMatch = formData.password === formData.confirmPassword && formData.confirmPassword !== ''
-
-  // Filtrar usuarios según toggle
+  // Filtrar usuarios según toggle. "Mostrar inactivos" muestra
+  // tanto invitaciones pendientes como desactivados reales.
   const usuariosFiltrados = useMemo(() => {
-    if (mostrarInactivos) {
-      return usuarios
-    }
+    if (mostrarInactivos) return usuarios
     return usuarios.filter(u => u.isActive)
   }, [usuarios, mostrarInactivos])
 
-  // Obtener abogados activos para reasignación (excluyendo al que se va a eliminar)
+  // Abogados activos disponibles para reasignar casos
   const abogadosParaReasignar = useMemo(() => {
-    return usuarios.filter(u => 
-      u.rol === 'ABOGADO' && 
-      u.isActive && 
+    return usuarios.filter(u =>
+      u.rol === 'ABOGADO' &&
+      u.isActive &&
       u.id !== modalReasignar?.id
     )
   }, [usuarios, modalReasignar])
@@ -190,16 +125,57 @@ export function AdminConfigView() {
 
   useEffect(() => {
     if (success) {
-      const timer = setTimeout(() => setSuccess(null), 5000)
+      const timer = setTimeout(() => setSuccess(null), 6000)
       return () => clearTimeout(timer)
     }
   }, [success])
+
+  // Cuando se abre el modal de gestión, cargamos los casos del usuario.
+// Al cerrarlo, limpiamos.
+useEffect(() => {
+  if (!modalReasignar) {
+    setCasosUsuario([])
+    setDecisionesPorCaso({})
+    setEstudioDestino("")
+    setMotivoTraspaso("")
+    setTareasInfo(null)
+    return
+  }
+
+  let cancelled = false
+  setLoadingCasos(true)
+
+  Promise.all([
+    fetch(`/api/admin/usuarios/${modalReasignar.id}/casos-activos`).then(r => r.json()),
+    fetch(`/api/admin/usuarios/${modalReasignar.id}/tareas-activas`).then(r => r.json()),
+  ])
+    .then(([casosData, tareasData]) => {
+      if (cancelled) return
+      setCasosUsuario(casosData.casos || [])
+      const inicial: Record<string, string> = {}
+      ;(casosData.casos || []).forEach((c: CasoMini) => { inicial[c.id] = "" })
+      setDecisionesPorCaso(inicial)
+      setTareasInfo({
+        total:           tareasData.total           || 0,
+        comoResponsable: tareasData.comoResponsable || 0,
+        comoSupervisor:  tareasData.comoSupervisor  || 0,
+      })
+    })
+    .catch(err => {
+      if (cancelled) return
+      setError(`No se pudo cargar la información del usuario: ${err.message}`)
+    })
+    .finally(() => {
+      if (!cancelled) setLoadingCasos(false)
+    })
+
+  return () => { cancelled = true }
+}, [modalReasignar])
 
   const cargarUsuarios = async () => {
     try {
       const response = await fetch('/api/admin/usuarios')
       if (!response.ok) throw new Error('Error al cargar usuarios')
-      
       const data = await response.json()
       setUsuarios(data.usuarios)
       setEstadisticas(data.estadisticas)
@@ -210,51 +186,33 @@ export function AdminConfigView() {
     }
   }
 
+  // ───── Crear usuario por invitación ────────────────────────────────────
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
     setSuccess(null)
-
-    if (!isPasswordValid) {
-      setError('La contraseña no cumple con todos los requisitos de seguridad')
-      return
-    }
-
-    if (!passwordsMatch) {
-      setError('Las contraseñas no coinciden')
-      return
-    }
-
     setSubmitting(true)
 
     try {
       const response = await fetch('/api/admin/usuarios', {
-        method: 'POST',
+        method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          nombre: formData.nombre,
+          nombre:   formData.nombre,
           apellido: formData.apellido,
-          email: formData.email,
-          password: formData.password,
-          rol: formData.rol
-        })
+          email:    formData.email,
+          rol:      formData.rol,
+        }),
       })
 
       const data = await response.json()
-
       if (!response.ok) {
         throw new Error(data.error || 'Error al crear usuario')
       }
 
-      setSuccess(`Usuario ${data.nombre} ${data.apellido} creado correctamente. Deberá cambiar su contraseña en el primer inicio de sesión.`)
-      setFormData({
-        nombre: '',
-        apellido: '',
-        email: '',
-        password: '',
-        confirmPassword: '',
-        rol: 'ABOGADO'
-      })
+      setSuccess(data.mensaje || `Invitación enviada a ${formData.email}.`)
+      setFormData({ nombre: '', apellido: '', email: '', rol: 'ABOGADO' })
       cargarUsuarios()
     } catch (err: any) {
       setError(err.message)
@@ -263,76 +221,163 @@ export function AdminConfigView() {
     }
   }
 
-  // ===== MEJORADO: Eliminar usuario con verificación de casos =====
-  const handleDelete = async (usuario: Usuario) => {
-    // Verificar si tiene casos activos
-    const casosActivos = usuario._count?.casos || 0
-    
-    if (casosActivos > 0) {
-      // Mostrar modal de reasignación
-      setModalReasignar(usuario)
-      setAbogadoDestino("")
-      return
-    }
+  // ───── Desactivar usuario (con o sin reasignación de casos) ────────────
 
-    // Si no tiene casos, confirmar eliminación simple
-    if (!confirm(`¿Estás seguro de desactivar a ${usuario.nombre} ${usuario.apellido}? El usuario no podrá acceder al sistema.`)) {
-      return
-    }
+const handleDelete = async (usuario: Usuario) => {
+  const casosActivos = usuario._count?.casos || 0
 
-    await ejecutarEliminacion(usuario.id)
+  // Si tiene casos activos, abre el modal pesado (igual que antes)
+  if (casosActivos > 0) {
+    setModalReasignar(usuario)
+    return
   }
 
-  // ===== NUEVO: Ejecutar eliminación (con o sin reasignación) =====
-  const ejecutarEliminacion = async (usuarioId: string, reasignarA?: string) => {
-    setProcesandoEliminacion(true)
-    try {
-      const response = await fetch(`/api/admin/usuarios/${usuarioId}`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reasignarA })
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Error al eliminar usuario')
+  // Sin casos: consultar primero las tareas activas para informarle al admin
+  let advertenciaTareas = ""
+  try {
+    const r = await fetch(`/api/admin/usuarios/${usuario.id}/tareas-activas`)
+    if (r.ok) {
+      const data = await r.json()
+      const total = data.total || 0
+      if (total > 0) {
+        advertenciaTareas = `\n\nAtención: el usuario tiene ${total} tarea(s) activa(s) (${data.comoResponsable || 0} como responsable, ${data.comoSupervisor || 0} como supervisor). Se reasignarán automáticamente al titular del caso correspondiente o al administrador si no tienen caso.`
       }
-
-      setSuccess(reasignarA 
-        ? 'Usuario desactivado y casos reasignados correctamente' 
-        : 'Usuario desactivado correctamente'
-      )
-      setModalReasignar(null)
-      cargarUsuarios()
-    } catch (err: any) {
-      setError(err.message)
-    } finally {
-      setProcesandoEliminacion(false)
     }
+  } catch { /* si falla el fetch, seguimos con la confirmación sin info de tareas */ }
+
+  const mensaje = usuario.estaInvitado
+    ? `¿Cancelar la invitación enviada a ${usuario.email}?`
+    : `¿Estás seguro de desactivar a ${usuario.nombre} ${usuario.apellido}?${advertenciaTareas}\n\nEl usuario no podrá acceder al sistema.`
+
+  if (!confirm(mensaje)) return
+
+  setProcesandoEliminacion(true)
+  try {
+    const response = await fetch(`/api/admin/usuarios/${usuario.id}`, {
+      method:  'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ decisiones: [] }),
+    })
+    const data = await response.json()
+    if (!response.ok) throw new Error(data.error || 'Error al desactivar usuario')
+
+    setSuccess(usuario.estaInvitado
+      ? 'Invitación cancelada correctamente.'
+      : 'Usuario desactivado correctamente.')
+    cargarUsuarios()
+  } catch (err: any) {
+    setError(err.message)
+  } finally {
+    setProcesandoEliminacion(false)
+  }
+}
+
+const aplicarGestionCasos = async () => {
+  if (!modalReasignar) return
+
+  // Construir el array de decisiones a partir del state
+  const decisiones = Object.entries(decisionesPorCaso).map(([casoId, valor]) => {
+    if (valor === 'traspasar') {
+      return { casoId, accion: 'traspasar' as const }
+    }
+    if (valor.startsWith('reasignar:')) {
+      return { casoId, accion: 'reasignar' as const, abogadoDestino: valor.split(':')[1] }
+    }
+    return null
+  }).filter(Boolean) as Array<{ casoId: string; accion: 'reasignar' | 'traspasar'; abogadoDestino?: string }>
+
+  if (decisiones.length !== casosUsuario.length) {
+    setError("Tenés que indicar qué hacer con cada caso.")
+    return
   }
 
-  // ===== NUEVO: Reactivar usuario =====
-  const handleReactivar = async (usuario: Usuario) => {
+  setProcesandoEliminacion(true)
+  try {
+    const response = await fetch(`/api/admin/usuarios/${modalReasignar.id}`, {
+      method:  'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({
+        decisiones,
+        estudioDestino,
+        motivoTraspaso,
+      }),
+    })
+    const data = await response.json()
+    if (!response.ok) throw new Error(data.error || 'Error al procesar')
+
+    setSuccess(data.message || 'Usuario desactivado correctamente.')
+    setModalReasignar(null)
+    cargarUsuarios()
+  } catch (err: any) {
+    setError(err.message)
+  } finally {
+    setProcesandoEliminacion(false)
+  }
+}
+
+const ejecutarEliminacion = async (
+  usuarioId: string,
+  opciones?: {
+    accion?:         'reasignar' | 'traspasar',
+    reasignarA?:     string,
+    estudioDestino?: string,
+    motivoTraspaso?: string,
+    eraInvitacion?:  boolean,
+  },
+) => {
+  setProcesandoEliminacion(true)
+  try {
+    const response = await fetch(`/api/admin/usuarios/${usuarioId}`, {
+      method:  'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({
+        accion:         opciones?.accion,
+        reasignarA:     opciones?.reasignarA,
+        estudioDestino: opciones?.estudioDestino,
+        motivoTraspaso: opciones?.motivoTraspaso,
+      }),
+    })
+
+    const data = await response.json()
+    if (!response.ok) {
+      throw new Error(data.error || 'Error al eliminar usuario')
+    }
+
+    setSuccess(data.message || 'Usuario desactivado correctamente.')
+    setModalReasignar(null)
+    // Reset estados del modal
+    setAbogadoDestino("")
+    setModoGestion('reasignar')
+    setEstudioDestino("")
+    setMotivoTraspaso("")
+    cargarUsuarios()
+  } catch (err: any) {
+    setError(err.message)
+  } finally {
+    setProcesandoEliminacion(false)
+  }
+}
+
+  // ───── Reactivar usuario ───────────────────────────────────────────────
+
+  const handleReactivar = (usuario: Usuario) => {
     setModalReactivar(usuario)
   }
 
   const confirmarReactivacion = async () => {
     if (!modalReactivar) return
-
     setProcesandoEliminacion(true)
     try {
       const response = await fetch(`/api/admin/usuarios/${modalReactivar.id}/reactivar`, {
-        method: 'POST'
+        method: 'POST',
       })
 
       const data = await response.json()
-
       if (!response.ok) {
         throw new Error(data.error || 'Error al reactivar usuario')
       }
 
-      setSuccess(`Usuario ${modalReactivar.nombre} ${modalReactivar.apellido} reactivado correctamente`)
+      setSuccess(`Usuario ${modalReactivar.nombre} ${modalReactivar.apellido} reactivado correctamente.`)
       setModalReactivar(null)
       cargarUsuarios()
     } catch (err: any) {
@@ -342,62 +387,88 @@ export function AdminConfigView() {
     }
   }
 
-  // ===== NUEVO: Resetear contraseña =====
+  // ───── Disparar reset de contraseña (manda email) ──────────────────────
+
   const handleResetPassword = async (usuario: Usuario) => {
-    if (!confirm(`¿Generar nueva contraseña temporal para ${usuario.nombre} ${usuario.apellido}?`)) {
-      return
-    }
+    const ok = confirm(
+      `Se enviará un email a ${usuario.email} con un enlace para que el usuario elija una nueva contraseña.\n\n¿Continuar?`
+    )
+    if (!ok) return
 
     try {
-      const response = await fetch(`/api/admin/usuarios/${usuario.id}/reset-password`, {
-        method: 'POST'
+      const response = await fetch(`/api/admin/usuarios/${usuario.id}/cambiar-password`, {
+        method: 'POST',
       })
 
       const data = await response.json()
-
       if (!response.ok) {
         throw new Error(data.error || 'Error al resetear contraseña')
       }
 
-      setSuccess(`Nueva contraseña temporal: ${data.tempPassword} - El usuario deberá cambiarla al iniciar sesión`)
+      setSuccess(data.mensaje || `Email de recuperación enviado a ${usuario.email}.`)
     } catch (err: any) {
       setError(err.message)
     }
   }
 
-  const getRolBadge = (rol: string) => {
-    const config = {
-      ADMIN: { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200', label: 'Administrador' },
-      ABOGADO: { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', label: 'Abogado' },
-      ASISTENTE: { bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-200', label: 'Asistente' }
-    }
-    const c = config[rol as keyof typeof config] || config.ABOGADO
-    return (
-      <Badge className={`${c.bg} ${c.text} ${c.border} border`}>
-        {c.label}
-      </Badge>
+  // ───── Reenviar invitación ─────────────────────────────────────────────
+
+  const handleReenviarInvitacion = async (usuario: Usuario) => {
+    const ok = confirm(
+      `Se reenviará la invitación a ${usuario.email} con un nuevo enlace de activación (48 hs de validez).\n\n¿Continuar?`
     )
+    if (!ok) return
+
+    try {
+      const response = await fetch(`/api/admin/usuarios/${usuario.id}/reenviar-invitacion`, {
+        method: 'POST',
+      })
+
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error || 'Error al reenviar invitación')
+      }
+
+      setSuccess(data.mensaje || `Invitación reenviada a ${usuario.email}.`)
+    } catch (err: any) {
+      setError(err.message)
+    }
   }
 
-  const limpiarFormulario = () => {
-    setFormData({ 
-      nombre: '', 
-      apellido: '', 
-      email: '', 
-      password: '', 
-      confirmPassword: '',
-      rol: 'ABOGADO' 
-    })
-    setError(null)
+  // ───── Helpers visuales ────────────────────────────────────────────────
+
+  const getRolBadge = (rol: string) => {
+    const config = {
+      ADMIN:     { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200', label: 'Administrador' },
+      ABOGADO:   { bg: 'bg-blue-50',   text: 'text-blue-700',   border: 'border-blue-200',   label: 'Abogado' },
+      ASISTENTE: { bg: 'bg-green-50',  text: 'text-green-700',  border: 'border-green-200',  label: 'Asistente' },
+    }
+    const c = config[rol as keyof typeof config] || config.ABOGADO
+    return <Badge className={`${c.bg} ${c.text} ${c.border} border`}>{c.label}</Badge>
+  }
+
+  const getEstadoBadge = (user: Usuario) => {
+    if (user.isActive) {
+      return <Badge className="bg-green-100 text-green-700 border-green-200">Activo</Badge>
+    }
+    if (user.estaInvitado) {
+      return <Badge className="bg-amber-100 text-amber-700 border-amber-200">Invitación pendiente</Badge>
+    }
+    return <Badge className="bg-red-100 text-red-700 border-red-200">Inactivo</Badge>
   }
 
   const formatearFecha = (fecha: Date | null) => {
     if (!fecha) return 'Nunca'
     return new Date(fecha).toLocaleDateString('es-AR', {
-      day: '2-digit',
+      day:   '2-digit',
       month: 'short',
-      year: 'numeric'
+      year:  'numeric',
     })
+  }
+
+  const limpiarFormulario = () => {
+    setFormData({ nombre: '', apellido: '', email: '', rol: 'ABOGADO' })
+    setError(null)
   }
 
   if (loading) {
@@ -410,15 +481,15 @@ export function AdminConfigView() {
 
   return (
     <div className="space-y-10 animate-in fade-in duration-500">
-      
-      {/* Header Admin */}
+
+      {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <div className="p-3 bg-purple-100 rounded-lg text-purple-700">
           <Shield className="w-6 h-6" />
         </div>
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Panel de Administración</h1>
-          <p className="text-slate-500">Gestiona los accesos y usuarios del sistema.</p>
+          <p className="text-slate-500">Gestioná los accesos y usuarios del sistema.</p>
         </div>
       </div>
 
@@ -485,12 +556,15 @@ export function AdminConfigView() {
         </div>
       )}
 
-      {/* PANEL 1 — CREAR NUEVO USUARIO */}
+      {/* PANEL 1 — INVITAR NUEVO USUARIO */}
       <div className="bg-white rounded-2xl shadow-sm p-6 border border-slate-200">
-        <h2 className="text-lg font-semibold text-slate-800 mb-6 flex items-center gap-2">
+        <h2 className="text-lg font-semibold text-slate-800 mb-2 flex items-center gap-2">
           <UserPlus className="w-5 h-5 text-blue-600" />
-          Dar de Alta Usuario
+          Invitar Usuario al Sistema
         </h2>
+        <p className="text-sm text-slate-500 mb-6">
+          Se enviará un email a la dirección indicada con un enlace para que el usuario active su cuenta y elija su contraseña.
+        </p>
 
         <form onSubmit={handleSubmit}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -498,13 +572,13 @@ export function AdminConfigView() {
               <label className="text-sm font-medium text-slate-700">
                 Nombre <span className="text-red-500">*</span>
               </label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 required
                 value={formData.nombre}
-                onChange={(e) => setFormData({...formData, nombre: e.target.value})}
-                className="mt-1 w-full p-2.5 border border-slate-300 rounded-lg bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                placeholder="Ej: Carlos" 
+                onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
+                className="mt-1 w-full p-2.5 border border-slate-300 rounded-lg bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Ej: Carlos"
               />
             </div>
 
@@ -512,37 +586,40 @@ export function AdminConfigView() {
               <label className="text-sm font-medium text-slate-700">
                 Apellido <span className="text-red-500">*</span>
               </label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 required
                 value={formData.apellido}
-                onChange={(e) => setFormData({...formData, apellido: e.target.value})}
-                className="mt-1 w-full p-2.5 border border-slate-300 rounded-lg bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                placeholder="Ej: Rodríguez" 
+                onChange={(e) => setFormData({ ...formData, apellido: e.target.value })}
+                className="mt-1 w-full p-2.5 border border-slate-300 rounded-lg bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Ej: Rodríguez"
               />
             </div>
 
             <div className="md:col-span-2">
               <label className="text-sm font-medium text-slate-700">
-                Email Corporativo <span className="text-red-500">*</span>
+                Email <span className="text-red-500">*</span>
               </label>
-              <input 
-                type="email" 
+              <input
+                type="email"
                 required
                 value={formData.email}
-                onChange={(e) => setFormData({...formData, email: e.target.value})}
-                className="mt-1 w-full p-2.5 border border-slate-300 rounded-lg bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                placeholder="usuario@estudio.com" 
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                className="mt-1 w-full p-2.5 border border-slate-300 rounded-lg bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="usuario@estudio.com"
               />
+              <p className="text-xs text-slate-500 mt-1">
+                El usuario recibirá el enlace de activación en esta dirección. Asegurate de tipearlo correctamente.
+              </p>
             </div>
 
-            <div>
+            <div className="md:col-span-2">
               <label className="text-sm font-medium text-slate-700">
                 Rol Inicial <span className="text-red-500">*</span>
               </label>
-              <select 
-                value={formData.rol} 
-                onChange={(e) => setFormData({...formData, rol: e.target.value as any})}
+              <select
+                value={formData.rol}
+                onChange={(e) => setFormData({ ...formData, rol: e.target.value as any })}
                 className="mt-1 w-full p-2.5 border border-slate-300 rounded-lg bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="ABOGADO">Abogado</option>
@@ -550,92 +627,28 @@ export function AdminConfigView() {
                 <option value="ADMIN">Administrador</option>
               </select>
               <p className="text-xs text-slate-500 mt-1">
-                {formData.rol === 'ADMIN' && '⚠️ Tendrá acceso completo al sistema'}
-                {formData.rol === 'ABOGADO' && 'Puede gestionar casos y clientes'}
-                {formData.rol === 'ASISTENTE' && 'Acceso limitado, solo apoyo'}
+                {formData.rol === 'ADMIN'     && 'Acceso técnico al sistema (gestión de usuarios). No accede a datos jurídicos.'}
+                {formData.rol === 'ABOGADO'   && 'Puede gestionar expedientes, clientes y reportes.'}
+                {formData.rol === 'ASISTENTE' && 'Acceso de apoyo limitado, sin permisos de cierre de expediente ni reportes.'}
               </p>
-            </div>
-
-            <div className="hidden md:block" />
-
-            <div>
-              <label className="text-sm font-medium text-slate-700">
-                Contraseña Temporal <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <input 
-                  type={showPassword ? "text" : "password"}
-                  required
-                  value={formData.password}
-                  onChange={(e) => setFormData({...formData, password: e.target.value})}
-                  className={`mt-1 w-full p-2.5 pr-10 border rounded-lg bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                    formData.password && !isPasswordValid ? 'border-orange-300' : 'border-slate-300'
-                  }`}
-                  placeholder="Ingrese contraseña segura" 
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-              <PasswordRequirements password={formData.password} />
-            </div>
-
-            <div>
-              <label className="text-sm font-medium text-slate-700">
-                Confirmar Contraseña <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <input 
-                  type={showConfirmPassword ? "text" : "password"}
-                  required
-                  value={formData.confirmPassword}
-                  onChange={(e) => setFormData({...formData, confirmPassword: e.target.value})}
-                  className={`mt-1 w-full p-2.5 pr-10 border rounded-lg bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                    formData.confirmPassword && !passwordsMatch ? 'border-red-300 bg-red-50' : 
-                    formData.confirmPassword && passwordsMatch ? 'border-green-300 bg-green-50' : 'border-slate-300'
-                  }`}
-                  placeholder="Repita la contraseña" 
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                >
-                  {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-              
-              {formData.confirmPassword && (
-                <p className={`text-xs mt-2 flex items-center gap-1 ${passwordsMatch ? 'text-green-600' : 'text-red-600'}`}>
-                  {passwordsMatch ? (
-                    <><Check className="w-3.5 h-3.5" /> Las contraseñas coinciden</>
-                  ) : (
-                    <><X className="w-3.5 h-3.5" /> Las contraseñas no coinciden</>
-                  )}
-                </p>
-              )}
             </div>
           </div>
 
           <div className="mt-8 flex justify-end gap-3">
-            <button 
+            <button
               type="button"
               onClick={limpiarFormulario}
               className="px-6 py-2.5 border border-slate-300 rounded-lg hover:bg-slate-50 transition font-medium text-slate-700"
             >
               Limpiar
             </button>
-            <button 
+            <button
               type="submit"
-              disabled={submitting || !isPasswordValid || !passwordsMatch}
+              disabled={submitting}
               className="bg-slate-900 text-white px-6 py-2.5 rounded-lg hover:bg-slate-800 transition font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
               {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
-              {submitting ? 'Creando...' : 'Crear Usuario'}
+              {submitting ? 'Enviando invitación...' : 'Enviar Invitación'}
             </button>
           </div>
         </form>
@@ -648,11 +661,10 @@ export function AdminConfigView() {
             <Users className="w-5 h-5 text-slate-600" />
             Usuarios Registrados ({usuariosFiltrados.length})
           </h2>
-          
-          {/* Toggle mostrar inactivos */}
+
           <div className="flex items-center gap-3">
             <span className="text-sm text-slate-600">Mostrar inactivos</span>
-            <Switch 
+            <Switch
               checked={mostrarInactivos}
               onCheckedChange={setMostrarInactivos}
             />
@@ -663,7 +675,7 @@ export function AdminConfigView() {
             )}
           </div>
         </div>
-        
+
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-slate-50">
@@ -678,16 +690,18 @@ export function AdminConfigView() {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {usuariosFiltrados.map((user) => (
-                <tr 
-                  key={user.id} 
-                  className={`hover:bg-slate-50 transition ${!user.isActive ? 'opacity-60 bg-slate-50' : ''}`}
+                <tr
+                  key={user.id}
+                  className={`hover:bg-slate-50 transition ${!user.isActive ? 'opacity-70 bg-slate-50/50' : ''}`}
                 >
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
                       <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm ${
-                        user.isActive 
-                          ? 'bg-gradient-to-br from-blue-400 to-purple-500' 
-                          : 'bg-slate-400'
+                        user.isActive
+                          ? 'bg-gradient-to-br from-blue-400 to-purple-500'
+                          : user.estaInvitado
+                            ? 'bg-gradient-to-br from-amber-400 to-orange-400'
+                            : 'bg-slate-400'
                       }`}>
                         {user.nombre?.[0]}{user.apellido?.[0]}
                       </div>
@@ -699,9 +713,7 @@ export function AdminConfigView() {
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4">
-                    {getRolBadge(user.rol)}
-                  </td>
+                  <td className="px-6 py-4">{getRolBadge(user.rol)}</td>
                   <td className="px-6 py-4">
                     <div className="text-sm text-slate-600">
                       {user._count?.casos || 0} casos
@@ -712,45 +724,61 @@ export function AdminConfigView() {
                       {formatearFecha(user.ultimoAcceso)}
                     </div>
                   </td>
-                  <td className="px-6 py-4">
-                    <Badge className={user.isActive 
-                      ? 'bg-green-100 text-green-700 border-green-200' 
-                      : 'bg-red-100 text-red-700 border-red-200'
-                    }>
-                      {user.isActive ? 'Activo' : 'Inactivo'}
-                    </Badge>
-                  </td>
+                  <td className="px-6 py-4">{getEstadoBadge(user)}</td>
                   <td className="px-6 py-4 text-right">
                     <div className="flex justify-end gap-1">
-                      {user.isActive ? (
+
+                      {/* Usuario activo: cambiar password + desactivar */}
+                      {user.isActive && (
                         <>
-                          {/* Reset Password */}
-                          <button 
+                          <button
                             className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
                             onClick={() => handleResetPassword(user)}
-                            title="Resetear contraseña"
+                            title="Enviar email de recuperación de contraseña"
                           >
-                            <Key className="w-4 h-4"/>
+                            <Key className="w-4 h-4" />
                           </button>
-                          {/* Eliminar/Desactivar */}
-                          <button 
+                          <button
                             className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
                             onClick={() => handleDelete(user)}
                             title="Desactivar usuario"
                           >
-                            <Trash2 className="w-4 h-4"/>
+                            <Trash2 className="w-4 h-4" />
                           </button>
                         </>
-                      ) : (
-                        /* Reactivar */
-                        <button 
+                      )}
+
+                      {/* Invitación pendiente: reenviar + cancelar */}
+                      {!user.isActive && user.estaInvitado && (
+                        <>
+                          <button
+                            className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                            onClick={() => handleReenviarInvitacion(user)}
+                            title="Reenviar invitación"
+                          >
+                            <Mail className="w-4 h-4" />
+                          </button>
+                          <button
+                            className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                            onClick={() => handleDelete(user)}
+                            title="Cancelar invitación"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </>
+                      )}
+
+                      {/* Inactivo (ex-activo): reactivar */}
+                      {!user.isActive && !user.estaInvitado && (
+                        <button
                           className="p-2 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition"
                           onClick={() => handleReactivar(user)}
                           title="Reactivar usuario"
                         >
-                          <RotateCcw className="w-4 h-4"/>
+                          <RotateCcw className="w-4 h-4" />
                         </button>
                       )}
+
                     </div>
                   </td>
                 </tr>
@@ -764,7 +792,7 @@ export function AdminConfigView() {
               <p>No hay usuarios para mostrar</p>
               {!mostrarInactivos && (
                 <p className="text-sm mt-1">
-                  Activá "Mostrar inactivos" para ver usuarios desactivados
+                  Activá "Mostrar inactivos" para ver invitaciones pendientes y usuarios desactivados.
                 </p>
               )}
             </div>
@@ -772,69 +800,180 @@ export function AdminConfigView() {
         </div>
       </div>
 
-      {/* ===== MODAL: REASIGNAR CASOS ===== */}
-      <Dialog open={!!modalReasignar} onOpenChange={() => setModalReasignar(null)}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-amber-600">
-              <AlertTriangle className="w-5 h-5" />
-              Reasignar Casos
-            </DialogTitle>
-            <DialogDescription>
-              {modalReasignar?.nombre} {modalReasignar?.apellido} tiene{' '}
-              <strong>{modalReasignar?._count?.casos || 0} expedientes activos</strong>.
-              Debés reasignarlos antes de desactivar el usuario.
-            </DialogDescription>
-          </DialogHeader>
+{/* MODAL: GESTIONAR CASOS AL DESACTIVAR */}
+<Dialog open={!!modalReasignar} onOpenChange={() => setModalReasignar(null)}>
+  <DialogContent className="sm:max-w-3xl max-h-[85vh] overflow-y-auto">
+    <DialogHeader>
+      <DialogTitle className="flex items-center gap-2 text-amber-600">
+        <AlertTriangle className="w-5 h-5" />
+        Gestionar Casos Activos
+      </DialogTitle>
+      <DialogDescription>
+        <strong>{modalReasignar?.nombre} {modalReasignar?.apellido}</strong> tiene{' '}
+        <strong>{modalReasignar?._count?.casos || 0} expediente(s) activo(s)</strong>.
+        Para cada uno, indicá qué corresponde hacer antes de desactivar el usuario.
+      </DialogDescription>
+    </DialogHeader>
+    {/* Aviso de tareas activas */}
+    {tareasInfo && tareasInfo.total > 0 && (
+      <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+        <div className="flex gap-2">
+          <AlertTriangle className="w-4 h-4 text-amber-700 mt-0.5 shrink-0" />
+          <div className="text-sm text-amber-900">
+            <p className="font-semibold">Atención: tareas activas pendientes</p>
+            <p className="mt-1">
+              Este usuario tiene <strong>{tareasInfo.total} tarea(s) activa(s)</strong>
+              {tareasInfo.comoResponsable > 0 && ` — ${tareasInfo.comoResponsable} como responsable`}
+              {tareasInfo.comoSupervisor  > 0 && `${tareasInfo.comoResponsable > 0 ? ' y ' : ' — '}${tareasInfo.comoSupervisor} como supervisor`}.
+              Lo ideal es que las complete o reasigne antes de la desactivación.
+            </p>
+            <p className="mt-1 text-xs text-amber-700">
+              Si proceds igual, se aplica una política automática: responsables y supervisores pasan al
+              titular del caso correspondiente. Las tareas sin caso pasan al administrador que ejecuta.
+            </p>
+          </div>
+        </div>
+      </div>
+    )}
 
-          <div className="py-4">
-            <label className="text-sm font-medium text-slate-700 mb-2 block">
-              Reasignar todos los casos a:
-            </label>
-            <Select value={abogadoDestino} onValueChange={setAbogadoDestino}>
-              <SelectTrigger>
-                <SelectValue placeholder="Seleccionar abogado..." />
-              </SelectTrigger>
-              <SelectContent>
-                {abogadosParaReasignar.map((abogado) => (
-                  <SelectItem key={abogado.id} value={abogado.id}>
-                    {abogado.nombre} {abogado.apellido}
-                  </SelectItem>
+    <div className="py-4">
+      {loadingCasos ? (
+        <div className="flex items-center justify-center py-12 text-slate-500">
+          <Loader2 className="w-5 h-5 animate-spin mr-2" />
+          Cargando casos...
+        </div>
+      ) : casosUsuario.length === 0 ? (
+        <p className="text-sm text-slate-500 py-6 text-center">
+          No se encontraron casos activos.
+        </p>
+      ) : (
+        <>
+          {/* Tabla de casos con select por fila */}
+          <div className="border border-slate-200 rounded-lg overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 border-b border-slate-200">
+                <tr>
+                  <th className="text-left px-3 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                    Expediente
+                  </th>
+                  <th className="text-left px-3 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                    Carátula
+                  </th>
+                  <th className="text-left px-3 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider w-[220px]">
+                    Acción
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {casosUsuario.map((c) => (
+                  <tr key={c.id} className="hover:bg-slate-50/60">
+                    <td className="px-3 py-2 font-mono text-xs text-slate-700">{c.numero}</td>
+                    <td className="px-3 py-2 text-slate-800">
+                      <p className="line-clamp-1" title={c.titulo}>{c.titulo}</p>
+                      {c.cliente && (
+                        <p className="text-xs text-slate-500">
+                          {c.cliente.nombre} {c.cliente.apellido || ''}
+                        </p>
+                      )}
+                    </td>
+                    <td className="px-3 py-2">
+                      <Select
+                        value={decisionesPorCaso[c.id] || ""}
+                        onValueChange={(v) =>
+                          setDecisionesPorCaso(prev => ({ ...prev, [c.id]: v }))
+                        }
+                      >
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue placeholder="Elegir acción..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {abogadosParaReasignar.length === 0 && (
+                            <div className="px-2 py-1.5 text-xs text-slate-400 italic">
+                              No hay otros abogados activos
+                            </div>
+                          )}
+                          {abogadosParaReasignar.map((abogado) => (
+                            <SelectItem key={abogado.id} value={`reasignar:${abogado.id}`}>
+                              Reasignar a {abogado.nombre} {abogado.apellido}
+                            </SelectItem>
+                          ))}
+                          <SelectItem value="traspasar">
+                            Traspasar a otro estudio
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </td>
+                  </tr>
                 ))}
-              </SelectContent>
-            </Select>
-
-            {abogadosParaReasignar.length === 0 && (
-              <p className="text-sm text-red-600 mt-2">
-                No hay otros abogados activos disponibles para reasignar los casos.
-              </p>
-            )}
+              </tbody>
+            </table>
           </div>
 
-          <DialogFooter>
-            <Button 
-              variant="outline" 
-              onClick={() => setModalReasignar(null)}
-              disabled={procesandoEliminacion}
-            >
-              Cancelar
-            </Button>
-            <Button 
-              variant="destructive"
-              onClick={() => modalReasignar && ejecutarEliminacion(modalReasignar.id, abogadoDestino)}
-              disabled={!abogadoDestino || procesandoEliminacion}
-            >
-              {procesandoEliminacion ? (
-                <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Procesando...</>
-              ) : (
-                'Reasignar y Desactivar'
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          {/* Campos extra si hay al menos un traspaso */}
+          {Object.values(decisionesPorCaso).includes('traspasar') && (
+            <div className="mt-4 p-4 bg-purple-50 border border-purple-200 rounded-lg space-y-3">
+              <p className="text-sm font-semibold text-purple-800">
+                Datos del traspaso (se aplican a los casos marcados como traspasados)
+              </p>
+              <div>
+                <label className="text-xs font-medium text-slate-700">
+                  Estudio destino <span className="text-slate-400 font-normal">(opcional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={estudioDestino}
+                  onChange={(e) => setEstudioDestino(e.target.value)}
+                  placeholder="Ej: Estudio Pérez & Asociados"
+                  className="mt-1 w-full p-2 border border-purple-200 rounded bg-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-400"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-700">
+                  Motivo del traspaso <span className="text-slate-400 font-normal">(opcional)</span>
+                </label>
+                <textarea
+                  value={motivoTraspaso}
+                  onChange={(e) => setMotivoTraspaso(e.target.value)}
+                  placeholder="Ej: El cliente decidió continuar con otro estudio..."
+                  rows={2}
+                  className="mt-1 w-full p-2 border border-purple-200 rounded bg-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-400"
+                />
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
 
-      {/* ===== MODAL: REACTIVAR USUARIO ===== */}
+    <DialogFooter>
+      <Button
+        variant="outline"
+        onClick={() => setModalReasignar(null)}
+        disabled={procesandoEliminacion}
+      >
+        Cancelar
+      </Button>
+      <Button
+        onClick={aplicarGestionCasos}
+        disabled={
+          procesandoEliminacion ||
+          loadingCasos ||
+          casosUsuario.length === 0 ||
+          Object.values(decisionesPorCaso).some(v => !v)   // hay casos sin decisión
+        }
+        className="bg-slate-900 hover:bg-slate-800"
+      >
+        {procesandoEliminacion ? (
+          <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Procesando...</>
+        ) : (
+          'Aplicar y desactivar'
+        )}
+      </Button>
+    </DialogFooter>
+  </DialogContent>
+</Dialog>
+
+      {/* MODAL: REACTIVAR USUARIO */}
       <Dialog open={!!modalReactivar} onOpenChange={() => setModalReactivar(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -846,19 +985,19 @@ export function AdminConfigView() {
               ¿Estás seguro de reactivar a{' '}
               <strong>{modalReactivar?.nombre} {modalReactivar?.apellido}</strong>?
               <br />
-              El usuario podrá volver a acceder al sistema.
+              El usuario podrá volver a acceder al sistema con su contraseña anterior.
             </DialogDescription>
           </DialogHeader>
 
           <DialogFooter>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => setModalReactivar(null)}
               disabled={procesandoEliminacion}
             >
               Cancelar
             </Button>
-            <Button 
+            <Button
               onClick={confirmarReactivacion}
               disabled={procesandoEliminacion}
               className="bg-green-600 hover:bg-green-700"
