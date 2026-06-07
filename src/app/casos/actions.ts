@@ -1,3 +1,4 @@
+// src/app/casos/actions.ts
 'use server'
 
 import { getUserSessionServer } from "@/auth/actions/auth-actions"
@@ -7,6 +8,11 @@ import { redirect } from "next/navigation"
 import prisma from "src/lib/db/prisma" 
 import { Priority, TipoCaso } from "@prisma/client"
 import { registrarAuditoria } from "../../lib/actions/auditoria"
+import {
+  TIPO_CASO_LABELS,
+  PRIORIDAD_CASO_LABELS,
+  ROL_LABELS,
+} from "src/lib/utils/labels"
 
 const casoService = new CasoService()
 
@@ -147,23 +153,9 @@ export async function crearCasoAction(prevState: State, formData: FormData): Pro
     // 6. Crear el caso con el abogadoId correcto
     const nuevoCaso = await casoService.createCaso(dataToCreate, abogadoId)
     
-    // 7. REGISTRAR ESTADO INICIAL EN BITÁCORA ⭐ NUEVO
-    await prisma.bitacora.create({
-      data: {
-        casoId: nuevoCaso.id,
-        usuarioId: user.id,
-        accion: "CREATE",
-        estadoNuevo: dataToCreate.estado,
-        estadoAnterior: null,
-        texto: `Caso creado en estado: ${dataToCreate.estado}`,
-        detalle: `Tipo: ${dataToCreate.tipo}, Prioridad: ${dataToCreate.priority}`,
-        tipo: "sistema"
-      }
-    })
-    
-    // 7. AUDITORÍA AUTOMÁTICA
-    const creadoPorTexto = userRol === 'ASISTENTE' 
-      ? `Caso creado por Asistente y asignado a abogado`
+        // 7. REGISTRAR EN BITÁCORA 
+    const creadoPorTexto = userRol === 'ASISTENTE'
+      ? `Caso creado por Asistente y asignado a abogado: ${dataToCreate.titulo}`
       : `Caso creado: ${dataToCreate.titulo}`
 
     await registrarAuditoria({
@@ -171,11 +163,11 @@ export async function crearCasoAction(prevState: State, formData: FormData): Pro
       usuarioId: user.id,
       accion: "CREATE",
       texto: creadoPorTexto,
-      detalle: `Estado inicial: ${dataToCreate.estado}, Prioridad: ${dataToCreate.priority}, Creado por: ${userRol}`,
-      estadoNuevo: dataToCreate.estado
+      detalle: `Tipo: ${TIPO_CASO_LABELS[dataToCreate.tipo] ?? dataToCreate.tipo} | Estado inicial: ${dataToCreate.estado} | Prioridad: ${PRIORIDAD_CASO_LABELS[dataToCreate.priority] ?? dataToCreate.priority} | Creado por: ${ROL_LABELS[userRol ?? ''] ?? userRol}`,
+      estadoNuevo: dataToCreate.estado,
     })
 
-    console.log(`✅ Caso creado: ${nuevoCaso.id} - Abogado: ${abogadoId} - Creado por: ${user.id} (${userRol})`)
+    console.log(`✅ Expediente creado: ${nuevoCaso.id} - Abogado: ${abogadoId} - Creado por: ${user.id} (${userRol})`)
 
   } catch (error: any) {
     console.error("Error en crearCasoAction:", error)
@@ -183,7 +175,7 @@ export async function crearCasoAction(prevState: State, formData: FormData): Pro
     // Manejo genérico de unicidad
     if (error.code === 'P2002') {
       const campo = error.meta?.target?.replace('Caso_', '').replace('_key', '') || 'campo'
-      return { error: `Ya existe un caso con ese ${campo}. Verificá el número de expediente.` }
+      return { error: `Ya existe un expediente con ese ${campo}. Verificá el número de expediente.` }
     }
     
     return { error: error.message || "Error al crear el caso" }
@@ -207,7 +199,7 @@ export async function actualizarCasoAction(prevState: State, formData: FormData)
   const userRol = user.rol?.toUpperCase()
 
   if (userRol === 'ADMIN') {
-  return { error: "El administrador no puede crear casos." }
+  return { error: "El administrador no puede crear expedientes." }
   }
 
   // Solo ABOGADO y ASISTENTE pueden editar
@@ -225,7 +217,7 @@ export async function actualizarCasoAction(prevState: State, formData: FormData)
       select: { abogadoId: true }
     })
     if (!caso || caso.abogadoId !== user.id) {
-      return { error: "No puedes editar un caso que no te pertenece." }
+      return { error: "No puedes editar un expediente que no te pertenece." }
     }
   }
 
@@ -243,7 +235,7 @@ export async function actualizarCasoAction(prevState: State, formData: FormData)
   // 2. Validar Tipo de Caso (incluyendo legacy)
   const tipoRaw = formData.get("tipo") as string
   if (!tipoRaw || !TIPOS_CASO_VALIDOS.includes(tipoRaw)) {
-    return { error: "El tipo de caso no es válido" }
+    return { error: "El tipo de expediente no es válido" }
   }
 
   // 3. Validar Prioridad
@@ -277,7 +269,7 @@ const casoActual = await prisma.caso.findUnique({
   }
 })
 
-if (!casoActual) return { error: "Caso no encontrado" }
+if (!casoActual) return { error: "Expediente no encontrado" }
 
 // Campos con justificación — solo se actualizan si vienen con motivo
 
@@ -362,7 +354,7 @@ if (cambioEstado) {
         casoId: casoId,
         usuarioId: user.id,
         accion: "PRIORIDAD_CHANGE",
-        texto: `Cambio de prioridad: ${casoActual.priority} → ${priorityEnum}`,
+        texto: `Cambio de prioridad: ${PRIORIDAD_CASO_LABELS[casoActual.priority] ?? casoActual.priority} → ${PRIORIDAD_CASO_LABELS[priorityEnum] ?? priorityEnum}`,
         detalle: `Nuevo estado: ${nuevoEstado}`
       })
     }

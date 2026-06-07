@@ -2,8 +2,14 @@
 
 // app/reportes/auditoria/components/DetalleCasoAuditoria.tsx
 //
-// CAMBIO: agrega visualización de hitos de tareas (badge "EVENTO" + ícono
-// distintivo + título de la tarea + categoría + acción destacada).
+// CAMBIO en esta versión:
+// - Agrega visualización de hitos de DOCUMENTOS (badge azul "DOCUMENTO") y
+//   CÁLCULOS / LIQUIDACIONES (badge violeta "CÁLCULO").
+// - Para documentos: muestra nombre del archivo y datos del detalle.
+// - Para cálculos: muestra tipo, monto y descripción (incluso si fue eliminado,
+//   porque liquidaciones usan soft delete).
+// - KPIs del header amplían con conteo de documentos y cálculos.
+// - Filtros del select incluyen "Solo documentos" y "Solo cálculos".
 
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
@@ -13,6 +19,9 @@ import {
   MapPin, DollarSign, Scale, Lock, RotateCcw,
   User, History, ShieldAlert, ArrowLeft, Calendar,
   ClipboardCheck, ClipboardX, Unlock, Sparkles,
+  FileUp, FileX, FolderInput, FilePen,
+  FolderPlus, FolderPen, FolderX,
+  Calculator, Edit3, Trash2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from "@/components/ui/select"
@@ -29,6 +38,22 @@ const ACCIONES_TAREA = [
   "TAREA_COMPLETADA_CON_DEMORA",
   "TAREA_DESBLOQUEADA",
   "TAREA_VENCIDA_CERRADA_MANUAL",
+]
+
+const ACCIONES_DOCUMENTO = [
+  "DOCUMENTO_SUBIDO",
+  "DOCUMENTO_ELIMINADO",
+  "DOCUMENTO_MOVIDO",
+  "DOCUMENTO_ACTUALIZADO",
+  "CARPETA_CREADA",
+  "CARPETA_RENOMBRADA",
+  "CARPETA_ELIMINADA",
+]
+
+const ACCIONES_LIQUIDACION = [
+  "LIQUIDACION_CREADA",
+  "LIQUIDACION_EDITADA",
+  "LIQUIDACION_ELIMINADA",
 ]
 
 const ACCIONES_CRITICAS = ["MONTO_CHANGE", "JUZGADO_CHANGE", "UBICACION_CHANGE", "CIERRE", "REAPERTURA"]
@@ -49,12 +74,26 @@ const CATEGORIA_LABELS: Record<string, string> = {
   VENCIMIENTO_PLAZO: "Vencimiento / Plazo",
 }
 
-function esDeTarea(accion: string) {
-  return ACCIONES_TAREA.includes(accion)
+const TIPO_LIQUIDACION_LABELS: Record<string, string> = {
+  DESPIDO: "Indemnización por despido",
+  LRT: "LRT",
+  CAPITALIZACION: "Capitalización",
 }
 
-function esCritico(accion: string) {
-  return ACCIONES_CRITICAS.includes(accion)
+function esDeTarea(accion: string)        { return ACCIONES_TAREA.includes(accion) }
+function esDeDocumento(accion: string)    { return ACCIONES_DOCUMENTO.includes(accion) }
+function esDeLiquidacion(accion: string)  { return ACCIONES_LIQUIDACION.includes(accion) }
+function esCritico(accion: string)        { return ACCIONES_CRITICAS.includes(accion) }
+
+function formatearMonto(monto: string): string {
+  return Number(monto).toLocaleString("es-AR")
+}
+
+// Fallback cuando documentoId quedó null tras el delete físico:
+// parseamos el nombre del documento desde el texto de la bitácora.
+function extraerNombreDelTexto(texto: string): string | null {
+  const m = texto.match(/:\s*(.+)$/)
+  return m ? m[1].trim() : null
 }
 
 function getIcono(accion: string, estadoNuevo?: string | null) {
@@ -76,14 +115,27 @@ function getIcono(accion: string, estadoNuevo?: string | null) {
     case "TAREA_COMPLETADA_CON_DEMORA":   return <ClipboardCheck className="h-4 w-4 text-indigo-600" />
     case "TAREA_DESBLOQUEADA":            return <Unlock className="h-4 w-4 text-indigo-600" />
     case "TAREA_VENCIDA_CERRADA_MANUAL":  return <ClipboardX className="h-4 w-4 text-indigo-600" />
+    // Documento
+    case "DOCUMENTO_SUBIDO":      return <FileUp className="h-4 w-4 text-blue-600" />
+    case "DOCUMENTO_ELIMINADO":   return <FileX className="h-4 w-4 text-blue-600" />
+    case "DOCUMENTO_MOVIDO":      return <FolderInput className="h-4 w-4 text-blue-600" />
+    case "DOCUMENTO_ACTUALIZADO": return <FilePen className="h-4 w-4 text-blue-600" />
+    case "CARPETA_CREADA":        return <FolderPlus className="h-4 w-4 text-blue-600" />
+    case "CARPETA_RENOMBRADA":    return <FolderPen className="h-4 w-4 text-blue-600" />
+    case "CARPETA_ELIMINADA":     return <FolderX className="h-4 w-4 text-blue-600" />
+    // Liquidación
+    case "LIQUIDACION_CREADA":    return <Calculator className="h-4 w-4 text-violet-600" />
+    case "LIQUIDACION_EDITADA":   return <Edit3 className="h-4 w-4 text-violet-600" />
+    case "LIQUIDACION_ELIMINADA": return <Trash2 className="h-4 w-4 text-violet-600" />
     default:                              return <Clock className="h-4 w-4 text-slate-500" />
   }
 }
 
 function getEstilos(accion: string, critico: boolean) {
   if (critico) return "border border-amber-300 bg-amber-50 border-l-4 border-l-amber-500"
-  // Eventos de tarea: estilo indigo distintivo
-  if (esDeTarea(accion)) return "border border-indigo-200 bg-indigo-50/50 border-l-4 border-l-indigo-400"
+  if (esDeTarea(accion))       return "border border-indigo-200 bg-indigo-50/50 border-l-4 border-l-indigo-400"
+  if (esDeDocumento(accion))   return "border border-blue-200 bg-blue-50/50 border-l-4 border-l-blue-400"
+  if (esDeLiquidacion(accion)) return "border border-violet-200 bg-violet-50/50 border-l-4 border-l-violet-400"
   switch (accion) {
     case "CREATE":           return "border border-green-200 bg-green-50"
     case "ESTADO_CHANGE":    return "border border-blue-200 bg-blue-50"
@@ -112,15 +164,29 @@ function getLabel(accion: string, estadoNuevo?: string | null) {
     case "TAREA_COMPLETADA_CON_DEMORA":   return "Evento completado con demora"
     case "TAREA_DESBLOQUEADA":            return "Evento desbloqueado"
     case "TAREA_VENCIDA_CERRADA_MANUAL":  return "Evento vencido cerrado"
+    // Documento
+    case "DOCUMENTO_SUBIDO":      return "Documento subido"
+    case "DOCUMENTO_ELIMINADO":   return "Documento eliminado"
+    case "DOCUMENTO_MOVIDO":      return "Documento movido"
+    case "DOCUMENTO_ACTUALIZADO": return "Documento editado"
+    case "CARPETA_CREADA":        return "Carpeta creada"
+    case "CARPETA_RENOMBRADA":    return "Carpeta renombrada"
+    case "CARPETA_ELIMINADA":     return "Carpeta eliminada"
+    // Liquidación
+    case "LIQUIDACION_CREADA":    return "Cálculo guardado"
+    case "LIQUIDACION_EDITADA":   return "Cálculo editado"
+    case "LIQUIDACION_ELIMINADA": return "Cálculo eliminado"
     default:                              return "Actualización"
   }
 }
 
 const ACCIONES_DETALLE = [
-  { value: "todos",     label: "Todos los tipos",                grupo: "general" },
-  { value: "criticos",  label: "⚠ Solo críticos",                grupo: "general" },
-  { value: "eventos",   label: "Solo eventos (tareas)",          grupo: "general" },
-  // Caso
+  { value: "todos",      label: "Todos los tipos",                grupo: "general" },
+  { value: "criticos",   label: "⚠ Solo críticos",                grupo: "general" },
+  { value: "eventos",    label: "Solo eventos (tareas)",          grupo: "general" },
+  { value: "documentos", label: "Solo documentos",                grupo: "general" },
+  { value: "calculos",   label: "Solo cálculos",                  grupo: "general" },
+
   { value: "ESTADO_CHANGE",     label: "Cambios de etapa",           grupo: "caso" },
   { value: "MONTO_CHANGE",      label: "Modificaciones de monto",    grupo: "caso" },
   { value: "JUZGADO_CHANGE",    label: "Modificaciones de juzgado",  grupo: "caso" },
@@ -129,12 +195,24 @@ const ACCIONES_DETALLE = [
   { value: "REAPERTURA",        label: "Reaperturas",                grupo: "caso" },
   { value: "PRIORIDAD_CHANGE",  label: "Cambios de prioridad",       grupo: "caso" },
   { value: "CREATE",            label: "Creaciones",                 grupo: "caso" },
-  // Tarea
-  { value: "TAREA_CREADA",                  label: "Eventos creados",            grupo: "tarea" },
-  { value: "TAREA_ESTADO_CHANGE",           label: "Eventos completados / bloqueados", grupo: "tarea" },
+
+  { value: "TAREA_CREADA",                  label: "Eventos creados",                 grupo: "tarea" },
+  { value: "TAREA_ESTADO_CHANGE",           label: "Eventos completados / bloqueados",grupo: "tarea" },
   { value: "TAREA_COMPLETADA_CON_DEMORA",   label: "Eventos completados con demora",  grupo: "tarea" },
-  { value: "TAREA_DESBLOQUEADA",            label: "Eventos desbloqueados",      grupo: "tarea" },
-  { value: "TAREA_VENCIDA_CERRADA_MANUAL",  label: "Eventos vencidos cerrados",  grupo: "tarea" },
+  { value: "TAREA_DESBLOQUEADA",            label: "Eventos desbloqueados",           grupo: "tarea" },
+  { value: "TAREA_VENCIDA_CERRADA_MANUAL",  label: "Eventos vencidos cerrados",       grupo: "tarea" },
+
+  { value: "DOCUMENTO_SUBIDO",      label: "Documentos subidos",      grupo: "documento" },
+  { value: "DOCUMENTO_ELIMINADO",   label: "Documentos eliminados",   grupo: "documento" },
+  { value: "DOCUMENTO_MOVIDO",      label: "Documentos movidos",      grupo: "documento" },
+  { value: "DOCUMENTO_ACTUALIZADO", label: "Documentos editados",     grupo: "documento" },
+  { value: "CARPETA_CREADA",        label: "Carpetas creadas",        grupo: "documento" },
+  { value: "CARPETA_RENOMBRADA",    label: "Carpetas renombradas",    grupo: "documento" },
+  { value: "CARPETA_ELIMINADA",     label: "Carpetas eliminadas",     grupo: "documento" },
+
+  { value: "LIQUIDACION_CREADA",    label: "Cálculos guardados",      grupo: "liquidacion" },
+  { value: "LIQUIDACION_EDITADA",   label: "Cálculos editados",       grupo: "liquidacion" },
+  { value: "LIQUIDACION_ELIMINADA", label: "Cálculos eliminados",     grupo: "liquidacion" },
 ]
 
 // ============================================================================
@@ -144,21 +222,38 @@ const ACCIONES_DETALLE = [
 function EventoCard({ evento }: { evento: EventoAuditoria }) {
   const critico = esCritico(evento.accion)
   const esTarea = esDeTarea(evento.accion)
+  const esDoc = esDeDocumento(evento.accion)
+  const esLiq = esDeLiquidacion(evento.accion)
 
   return (
     <div className={`p-4 rounded-lg ${getEstilos(evento.accion, critico)}`}>
-      {/* FILA 1: Hora + tipo de acción + badge EVENTO si aplica */}
+      {/* FILA 1: badge tipo + label + crítico + hora */}
       <div className="flex items-center justify-between gap-2 mb-2">
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Badge EVENTO si la acción proviene de una tarea */}
           {esTarea && (
             <span className="text-[10px] px-2 py-0.5 bg-indigo-600 text-white rounded-full font-bold tracking-wider flex items-center gap-1">
               <ClipboardCheck className="w-3 h-3" />
               EVENTO
             </span>
           )}
+          {esDoc && (
+            <span className="text-[10px] px-2 py-0.5 bg-blue-600 text-white rounded-full font-bold tracking-wider flex items-center gap-1">
+              <FileText className="w-3 h-3" />
+              DOCUMENTO
+            </span>
+          )}
+          {esLiq && (
+            <span className="text-[10px] px-2 py-0.5 bg-violet-600 text-white rounded-full font-bold tracking-wider flex items-center gap-1">
+              <Calculator className="w-3 h-3" />
+              CÁLCULO
+            </span>
+          )}
           <span className={`text-xs font-semibold uppercase tracking-wide ${
-            critico ? "text-amber-700" : esTarea ? "text-indigo-700" : "text-slate-500"
+            critico ? "text-amber-700" :
+            esTarea ? "text-indigo-700" :
+            esDoc   ? "text-blue-700"   :
+            esLiq   ? "text-violet-700" :
+                      "text-slate-500"
           }`}>
             {getLabel(evento.accion, evento.estadoNuevo)}
           </span>
@@ -174,11 +269,10 @@ function EventoCard({ evento }: { evento: EventoAuditoria }) {
         </span>
       </div>
 
-      {/* FILA 2: Información de la TAREA cuando aplica
-          Estructura solicitada: primero título, después categoría, después la acción
-          destacada (la acción ya va en el header arriba con uppercase). Acá ponemos
-          el título de la tarea + categoría como contexto de qué evento estamos viendo. */}
-      {esTarea && evento.tarea ? (
+      {/* FILA 2: contenido según tipo de evento */}
+
+      {/* TAREA */}
+      {esTarea && evento.tarea && (
         <div className="mb-2">
           <p className="text-sm font-bold text-slate-800">{evento.tarea.titulo}</p>
           <p className="text-xs text-slate-500 mt-0.5">
@@ -188,13 +282,67 @@ function EventoCard({ evento }: { evento: EventoAuditoria }) {
             )}
           </p>
         </div>
-      ) : (
-        /* Para eventos de caso: el texto de la bitácora (como antes) */
+      )}
+
+      {/* DOCUMENTO */}
+      {esDoc && (
+        <div className="mb-2">
+          {/* Si la relación al doc existe (no fue delete físico), mostrar nombre + extensión */}
+          {evento.documento ? (
+            <>
+              <p className="text-sm font-bold text-slate-800 break-words">{evento.documento.nombre}</p>
+              {evento.documento.extension && (
+                <p className="text-xs text-slate-500 mt-0.5">
+                  <span className="text-[10px] px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded font-mono font-medium uppercase">
+                    {evento.documento.extension}
+                  </span>
+                </p>
+              )}
+            </>
+          ) : (
+            /* Fallback: extraer nombre del texto de la bitácora */
+            <p className="text-sm font-bold text-slate-800 break-words">
+              {extraerNombreDelTexto(evento.texto) || evento.texto}
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* LIQUIDACIÓN */}
+      {esLiq && (
+        <div className="mb-2">
+          {evento.liquidacion ? (
+            <>
+              <div className="flex items-baseline gap-2 flex-wrap">
+                <p className="text-sm font-bold text-slate-800">
+                  {TIPO_LIQUIDACION_LABELS[evento.liquidacion.tipo] ?? evento.liquidacion.tipo}
+                </p>
+                <p className="text-sm font-semibold text-violet-700">
+                  ${formatearMonto(evento.liquidacion.montoTotal)}
+                </p>
+                {evento.liquidacion.eliminadoEn && (
+                  <span className="text-[10px] px-1.5 py-0.5 bg-slate-200 text-slate-600 rounded font-medium">
+                    eliminado
+                  </span>
+                )}
+              </div>
+              {evento.liquidacion.descripcion && (
+                <p className="text-xs text-slate-500 italic mt-0.5">"{evento.liquidacion.descripcion}"</p>
+              )}
+            </>
+          ) : (
+            <p className="text-sm font-bold text-slate-800">{evento.texto}</p>
+          )}
+        </div>
+      )}
+
+      {/* CASO (lo de antes: solo texto de la bitácora) */}
+      {!esTarea && !esDoc && !esLiq && (
         <p className={`text-sm ${critico ? "text-amber-900" : "text-slate-700"}`}>{evento.texto}</p>
       )}
 
-      {/* Transición de estados — solo para eventos de caso (las tareas ya tienen su propia descripción) */}
-      {!esTarea && evento.estadoAnterior && evento.estadoNuevo && (
+      {/* Transición de estados — solo para eventos de caso */}
+      {!esTarea && !esDoc && !esLiq && evento.estadoAnterior && evento.estadoNuevo && (
         <div className="flex items-center gap-2 text-xs text-slate-600 mt-2">
           <span className="px-2 py-0.5 bg-slate-200 rounded">{evento.estadoAnterior}</span>
           <span>→</span>
@@ -202,8 +350,8 @@ function EventoCard({ evento }: { evento: EventoAuditoria }) {
         </div>
       )}
 
-      {/* Texto descriptivo del evento de tarea (cuando hay) */}
-      {esTarea && evento.texto && (
+      {/* Texto descriptivo del evento de tarea/documento/cálculo (cuando hay y no es el título mismo) */}
+      {(esTarea || esDoc || esLiq) && evento.texto && (
         <p className="text-xs text-slate-600 mt-2 italic">{evento.texto}</p>
       )}
 
@@ -212,6 +360,8 @@ function EventoCard({ evento }: { evento: EventoAuditoria }) {
         <p className={`text-xs mt-2 border-l-2 pl-2 ${
           critico ? "border-amber-400 text-amber-700" :
           esTarea ? "border-indigo-300 text-indigo-700" :
+          esDoc   ? "border-blue-300 text-blue-700"     :
+          esLiq   ? "border-violet-300 text-violet-700" :
                     "border-slate-300 text-slate-500"
         }`}>
           <span className="font-semibold not-italic">Observación:</span>{" "}
@@ -256,14 +406,18 @@ export function DetalleCasoAuditoria({ eventos, casoNumero, casoTitulo, casoId, 
   const filtroAccionDetalle = searchParams.get("accionDetalle") || "todos"
 
   const eventosFiltrados = eventos.filter(e => {
-    if (filtroAccionDetalle === "todos") return true
-    if (filtroAccionDetalle === "criticos") return ACCIONES_CRITICAS.includes(e.accion)
-    if (filtroAccionDetalle === "eventos") return esDeTarea(e.accion)
+    if (filtroAccionDetalle === "todos")      return true
+    if (filtroAccionDetalle === "criticos")   return ACCIONES_CRITICAS.includes(e.accion)
+    if (filtroAccionDetalle === "eventos")    return esDeTarea(e.accion)
+    if (filtroAccionDetalle === "documentos") return esDeDocumento(e.accion)
+    if (filtroAccionDetalle === "calculos")   return esDeLiquidacion(e.accion)
     return e.accion === filtroAccionDetalle
   })
 
-  const cantidadCriticos = eventos.filter(e => ACCIONES_CRITICAS.includes(e.accion)).length
-  const cantidadEventos = eventos.filter(e => esDeTarea(e.accion)).length
+  const cantidadCriticos    = eventos.filter(e => ACCIONES_CRITICAS.includes(e.accion)).length
+  const cantidadEventos     = eventos.filter(e => esDeTarea(e.accion)).length
+  const cantidadDocumentos  = eventos.filter(e => esDeDocumento(e.accion)).length
+  const cantidadCalculos    = eventos.filter(e => esDeLiquidacion(e.accion)).length
 
   const volver = () => {
     const params = new URLSearchParams(searchParams.toString())
@@ -280,9 +434,11 @@ export function DetalleCasoAuditoria({ eventos, casoNumero, casoTitulo, casoId, 
     router.push(`${pathname}?${params.toString()}`)
   }
 
-  const accionesGenerales = ACCIONES_DETALLE.filter(a => a.grupo === "general")
-  const accionesCaso = ACCIONES_DETALLE.filter(a => a.grupo === "caso")
-  const accionesTarea = ACCIONES_DETALLE.filter(a => a.grupo === "tarea")
+  const accionesGenerales     = ACCIONES_DETALLE.filter(a => a.grupo === "general")
+  const accionesCaso          = ACCIONES_DETALLE.filter(a => a.grupo === "caso")
+  const accionesTarea         = ACCIONES_DETALLE.filter(a => a.grupo === "tarea")
+  const accionesDocumento     = ACCIONES_DETALLE.filter(a => a.grupo === "documento")
+  const accionesLiquidacion   = ACCIONES_DETALLE.filter(a => a.grupo === "liquidacion")
 
   return (
     <div className="space-y-4">
@@ -324,6 +480,18 @@ export function DetalleCasoAuditoria({ eventos, casoNumero, casoTitulo, casoId, 
                 <p className="text-xs text-indigo-600">evento{cantidadEventos !== 1 ? "s" : ""}</p>
               </div>
             )}
+            {cantidadDocumentos > 0 && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2 text-center min-w-[80px]">
+                <p className="text-2xl font-bold text-blue-700">{cantidadDocumentos}</p>
+                <p className="text-xs text-blue-600">document{cantidadDocumentos !== 1 ? "os" : "o"}</p>
+              </div>
+            )}
+            {cantidadCalculos > 0 && (
+              <div className="bg-violet-50 border border-violet-200 rounded-lg px-4 py-2 text-center min-w-[80px]">
+                <p className="text-2xl font-bold text-violet-700">{cantidadCalculos}</p>
+                <p className="text-xs text-violet-600">cálculo{cantidadCalculos !== 1 ? "s" : ""}</p>
+              </div>
+            )}
             {cantidadCriticos > 0 && (
               <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-2 text-center min-w-[80px]">
                 <p className="text-2xl font-bold text-amber-700">{cantidadCriticos}</p>
@@ -334,10 +502,10 @@ export function DetalleCasoAuditoria({ eventos, casoNumero, casoTitulo, casoId, 
         </div>
 
         {/* Filtro de tipo de acción dentro del detalle */}
-        <div className="mt-4 pt-4 border-t border-slate-100 flex items-center gap-2">
+        <div className="mt-4 pt-4 border-t border-slate-100 flex items-center gap-2 flex-wrap">
           <Filter className="w-3.5 h-3.5 text-slate-400 shrink-0" />
           <Select value={filtroAccionDetalle} onValueChange={setFiltroDetalle}>
-            <SelectTrigger className="text-sm h-8 w-[220px]">
+            <SelectTrigger className="text-sm h-8 w-[240px]">
               <SelectValue placeholder="Tipo de acción" />
             </SelectTrigger>
             <SelectContent>
@@ -351,6 +519,14 @@ export function DetalleCasoAuditoria({ eventos, casoNumero, casoTitulo, casoId, 
               <SelectGroup>
                 <SelectLabel className="text-[10px] uppercase tracking-wider text-slate-400">Eventos</SelectLabel>
                 {accionesTarea.map(a => <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>)}
+              </SelectGroup>
+              <SelectGroup>
+                <SelectLabel className="text-[10px] uppercase tracking-wider text-slate-400">Documentos</SelectLabel>
+                {accionesDocumento.map(a => <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>)}
+              </SelectGroup>
+              <SelectGroup>
+                <SelectLabel className="text-[10px] uppercase tracking-wider text-slate-400">Cálculos</SelectLabel>
+                {accionesLiquidacion.map(a => <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>)}
               </SelectGroup>
             </SelectContent>
           </Select>
@@ -374,13 +550,17 @@ export function DetalleCasoAuditoria({ eventos, casoNumero, casoTitulo, casoId, 
           <div className="relative border-l-2 border-slate-200 pl-6 space-y-3">
             {eventosFiltrados.map(evento => {
               const esTarea = esDeTarea(evento.accion)
+              const esDoc   = esDeDocumento(evento.accion)
+              const esLiq   = esDeLiquidacion(evento.accion)
               const critico = esCritico(evento.accion)
               return (
                 <div key={evento.id} className="relative">
                   <div className={`absolute -left-[1.65rem] top-3 w-8 h-8 rounded-full bg-white border-2 flex items-center justify-center ${
-                    critico  ? "border-amber-400" :
-                    esTarea  ? "border-indigo-400" :
-                               "border-slate-200"
+                    critico ? "border-amber-400"  :
+                    esTarea ? "border-indigo-400" :
+                    esDoc   ? "border-blue-400"   :
+                    esLiq   ? "border-violet-400" :
+                              "border-slate-200"
                   }`}>
                     {getIcono(evento.accion, evento.estadoNuevo)}
                   </div>

@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
 // GET - Obtener tareas de un caso
 export async function GET(request: NextRequest) {
   try {
-    console.log("[v0] GET /api/tareas - Obteniendo tareas")
+    console.log("[v0] GET /api/tareas - Obteniendo eventos")
 
     const { searchParams } = new URL(request.url)
     const casoId = searchParams.get("casoId")
@@ -67,11 +67,11 @@ export async function GET(request: NextRequest) {
       orderBy: [{ isCompleted: "asc" }, { dueDate: "asc" }],
     })
 
-    console.log("[v0] Tareas encontradas:", tareas.length)
+    console.log("[v0] Eventos encontradas:", tareas.length)
 
     return NextResponse.json(tareas)
   } catch (error) {
-    console.error("[v0] Error obteniendo tareas:", error)
-    return NextResponse.json({ error: "Error al obtener tareas" }, { status: 500 })
+    console.error("[v0] Error obteniendo eventos:", error)
+    return NextResponse.json({ error: "Error al obtener eventos" }, { status: 500 })
   }
 }

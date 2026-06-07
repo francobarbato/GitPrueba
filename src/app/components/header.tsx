@@ -124,6 +124,7 @@ export function Header() {
 
   // Carga inicial
   useEffect(() => {
+    if (isAdmin) return
     cargarNotificaciones()
   }, [cargarNotificaciones])
 
@@ -216,6 +217,7 @@ const handleClickItemTarea = (tareaId: string) => {
 
       <div className="ml-auto flex items-center gap-3">
 
+         {!isAdmin && (
         <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
           <SheetTrigger asChild>
             <button className="relative rounded-full bg-slate-100 p-2.5 hover:bg-slate-200 transition-colors">
@@ -459,6 +461,8 @@ const handleClickItemTarea = (tareaId: string) => {
             )}
           </SheetContent>
         </Sheet>
+        )}
+
 
         <div className="relative">
           <button

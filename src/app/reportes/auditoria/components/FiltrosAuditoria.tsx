@@ -2,7 +2,9 @@
 
 // app/reportes/auditoria/components/FiltrosAuditoria.tsx
 //
-// CAMBIO: agregamos opciones para filtrar hitos de tareas.
+// CAMBIO en esta versión:
+// - Agrega opciones generales "Solo documentos" y "Solo cálculos".
+// - Agrega los grupos "Documentos" y "Cálculos" en el select.
 
 import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import { useCallback, useState, useRef, useEffect } from "react"
@@ -16,31 +18,40 @@ import { format, addDays, subDays, isToday, isYesterday } from "date-fns"
 import { es } from "date-fns/locale"
 import type { DateRange } from "react-day-picker"
 
-// ════════ ACCIONES DEL SELECT ════════
-// Agrupadas por origen: "todos" + criticos generales primero, después casos,
-// después eventos (tareas).
 const ACCIONES = [
-  { value: "todos",     label: "Todos los tipos",                grupo: "general" },
-  { value: "criticos",  label: "⚠ Solo críticos",                grupo: "general" },
-  { value: "eventos",   label: "Solo eventos (tareas)",          grupo: "general" },
+  { value: "todos",       label: "Todos los tipos",                grupo: "general" },
+  { value: "criticos",    label: "⚠ Solo críticos",                grupo: "general" },
+  { value: "eventos",     label: "Solo eventos (tareas)",          grupo: "general" },
+  { value: "documentos",  label: "Solo documentos",                grupo: "general" },
+  { value: "calculos",    label: "Solo cálculos",                  grupo: "general" },
 
-  // Acciones de caso
-  { value: "ESTADO_CHANGE",     label: "Cambios de etapa",          grupo: "caso" },
-  { value: "MONTO_CHANGE",      label: "Modificaciones de monto",   grupo: "caso" },
-  { value: "JUZGADO_CHANGE",    label: "Modificaciones de juzgado", grupo: "caso" },
+  { value: "ESTADO_CHANGE",     label: "Cambios de etapa",            grupo: "caso" },
+  { value: "MONTO_CHANGE",      label: "Modificaciones de monto",     grupo: "caso" },
+  { value: "JUZGADO_CHANGE",    label: "Modificaciones de juzgado",   grupo: "caso" },
   { value: "UBICACION_CHANGE",  label: "Modificaciones de ubicación", grupo: "caso" },
-  { value: "CIERRE",            label: "Cierres de expediente",     grupo: "caso" },
-  { value: "REAPERTURA",        label: "Reaperturas",               grupo: "caso" },
-  { value: "PRIORIDAD_CHANGE",  label: "Cambios de prioridad",      grupo: "caso" },
-  { value: "CREATE",            label: "Creaciones de expediente",  grupo: "caso" },
-  { value: "UPDATE",            label: "Ediciones generales",       grupo: "caso" },
+  { value: "CIERRE",            label: "Cierres de expediente",       grupo: "caso" },
+  { value: "REAPERTURA",        label: "Reaperturas",                 grupo: "caso" },
+  { value: "PRIORIDAD_CHANGE",  label: "Cambios de prioridad",        grupo: "caso" },
+  { value: "CREATE",            label: "Creaciones de expediente",    grupo: "caso" },
+  { value: "UPDATE",            label: "Ediciones generales",         grupo: "caso" },
 
-  // Acciones de tarea (hitos auditables)
-  { value: "TAREA_CREADA",                  label: "Eventos creados",            grupo: "tarea" },
-  { value: "TAREA_ESTADO_CHANGE",           label: "Eventos completados / bloqueados", grupo: "tarea" },
+  { value: "TAREA_CREADA",                  label: "Eventos creados",                 grupo: "tarea" },
+  { value: "TAREA_ESTADO_CHANGE",           label: "Eventos completados / bloqueados",grupo: "tarea" },
   { value: "TAREA_COMPLETADA_CON_DEMORA",   label: "Eventos completados con demora",  grupo: "tarea" },
-  { value: "TAREA_DESBLOQUEADA",            label: "Eventos desbloqueados",      grupo: "tarea" },
-  { value: "TAREA_VENCIDA_CERRADA_MANUAL",  label: "Eventos vencidos cerrados",  grupo: "tarea" },
+  { value: "TAREA_DESBLOQUEADA",            label: "Eventos desbloqueados",           grupo: "tarea" },
+  { value: "TAREA_VENCIDA_CERRADA_MANUAL",  label: "Eventos vencidos cerrados",       grupo: "tarea" },
+
+  { value: "DOCUMENTO_SUBIDO",      label: "Documentos subidos",     grupo: "documento" },
+  { value: "DOCUMENTO_ELIMINADO",   label: "Documentos eliminados",  grupo: "documento" },
+  { value: "DOCUMENTO_MOVIDO",      label: "Documentos movidos",     grupo: "documento" },
+  { value: "DOCUMENTO_ACTUALIZADO", label: "Documentos editados",    grupo: "documento" },
+  { value: "CARPETA_CREADA",        label: "Carpetas creadas",       grupo: "documento" },
+  { value: "CARPETA_RENOMBRADA",    label: "Carpetas renombradas",   grupo: "documento" },
+  { value: "CARPETA_ELIMINADA",     label: "Carpetas eliminadas",    grupo: "documento" },
+
+  { value: "LIQUIDACION_CREADA",    label: "Cálculos guardados",     grupo: "liquidacion" },
+  { value: "LIQUIDACION_EDITADA",   label: "Cálculos editados",      grupo: "liquidacion" },
+  { value: "LIQUIDACION_ELIMINADA", label: "Cálculos eliminados",    grupo: "liquidacion" },
 ]
 
 type Caso = { id: string; numero: string; titulo: string }
@@ -50,10 +61,6 @@ type Props = {
   fechasActivas: string[]
   modoBusqueda: "fecha" | "caso"
 }
-
-// ============================================================================
-// BUSCADOR DE CASOS (sin cambios)
-// ============================================================================
 
 function BuscadorExpedientes({
   casos, casoActual, onSelect,
@@ -154,10 +161,6 @@ function BuscadorExpedientes({
   )
 }
 
-// ============================================================================
-// COMPONENTE PRINCIPAL
-// ============================================================================
-
 export function FiltrosAuditoria({ casos, fechasActivas, modoBusqueda }: Props) {
   const router = useRouter()
   const pathname = usePathname()
@@ -228,21 +231,19 @@ export function FiltrosAuditoria({ casos, fechasActivas, modoBusqueda }: Props) 
     if (range.from && range.to) setCalendarOpen(false)
   }
 
-  // Modo caso: el calendario es un filtro opcional de rango
   const esModoFecha = modoBusqueda === "fecha"
   const tieneFiltroDeFechaEnModoCaso = modoBusqueda === "caso" && esRango && desdeActual
 
-  // Acciones agrupadas para el select
   const accionesGenerales = ACCIONES.filter(a => a.grupo === "general")
   const accionesCaso = ACCIONES.filter(a => a.grupo === "caso")
   const accionesTarea = ACCIONES.filter(a => a.grupo === "tarea")
+  const accionesDocumento = ACCIONES.filter(a => a.grupo === "documento")
+  const accionesLiquidacion = ACCIONES.filter(a => a.grupo === "liquidacion")
 
   return (
     <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
 
-      {/* Fila 1: Calendario — obligatorio en modo fecha, opcional en modo caso */}
       {esModoFecha ? (
-        /* MODO FECHA: navegación completa con flechas */
         <div className="flex items-center gap-2">
           {!esRango && (
             <Button variant="outline" size="sm" onClick={diaAnterior} className="h-9 w-9 p-0 shrink-0">
@@ -314,7 +315,6 @@ export function FiltrosAuditoria({ casos, fechasActivas, modoBusqueda }: Props) 
           )}
         </div>
       ) : (
-        /* MODO CASO: rango opcional para acotar */
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs text-slate-500 font-medium">Acotar por fechas (opcional):</span>
           <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
@@ -363,7 +363,6 @@ export function FiltrosAuditoria({ casos, fechasActivas, modoBusqueda }: Props) 
         </div>
       )}
 
-      {/* Fila 2: Buscador de casos + filtro de acción */}
       <div className="flex items-center gap-2 flex-wrap pt-1 border-t border-slate-100">
         <Filter className="w-3.5 h-3.5 text-slate-400 shrink-0" />
 
@@ -375,27 +374,36 @@ export function FiltrosAuditoria({ casos, fechasActivas, modoBusqueda }: Props) 
 
         {esModoFecha && (
           <Select value={accionActual} onValueChange={(v) => updateParams({ accion: v === "todos" ? null : v })}>
-            <SelectTrigger className="text-sm h-8 min-w-[200px] w-auto">
+            <SelectTrigger className="text-sm h-8 min-w-[220px] w-auto">
               <SelectValue placeholder="Tipo de acción" />
             </SelectTrigger>
             <SelectContent>
-              {/* Generales */}
               <SelectGroup>
                 {accionesGenerales.map(a => (
                   <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>
                 ))}
               </SelectGroup>
-              {/* Caso */}
               <SelectGroup>
                 <SelectLabel className="text-[10px] uppercase tracking-wider text-slate-400">Expediente</SelectLabel>
                 {accionesCaso.map(a => (
                   <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>
                 ))}
               </SelectGroup>
-              {/* Tarea */}
               <SelectGroup>
                 <SelectLabel className="text-[10px] uppercase tracking-wider text-slate-400">Eventos</SelectLabel>
                 {accionesTarea.map(a => (
+                  <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>
+                ))}
+              </SelectGroup>
+              <SelectGroup>
+                <SelectLabel className="text-[10px] uppercase tracking-wider text-slate-400">Documentos</SelectLabel>
+                {accionesDocumento.map(a => (
+                  <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>
+                ))}
+              </SelectGroup>
+              <SelectGroup>
+                <SelectLabel className="text-[10px] uppercase tracking-wider text-slate-400">Cálculos</SelectLabel>
+                {accionesLiquidacion.map(a => (
                   <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>
                 ))}
               </SelectGroup>

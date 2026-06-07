@@ -7,7 +7,10 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ArrowLeft, Save, User, Building2, FileText, Phone, Mail, MapPin, Hash, AlertCircle, CheckCircle2, Calendar, Briefcase, IdCard, Scale, Lock } from "lucide-react"
+import {
+  ArrowLeft, Save, User, Building2, FileText, Phone, Mail, MapPin, Hash,
+  AlertCircle, CheckCircle2, Calendar, Briefcase, IdCard, Scale, Lock, Globe
+} from "lucide-react"
 import Link from "next/link"
 import { useFormState, useFormStatus } from "react-dom"
 import { useState, useEffect } from "react"
@@ -33,6 +36,11 @@ export function EditarClienteForm({ cliente }: { cliente: any }) {
   const [telefono, setTelefono] = useState<string>(cliente.telefono || "")
   const [activo, setActivo] = useState<boolean>(cliente.activo ?? true)
 
+  // ¿Este cliente tiene portal vinculado? (definirá el disclaimer del email)
+  const tienePortal = !!cliente.usuarioPortalId
+  const emailInicial = (cliente.email || "").toLowerCase()
+  const emailCambio = email.trim().toLowerCase() !== emailInicial && email.trim() !== ""
+
   // Validaciones en tiempo real
   const [validaciones, setValidaciones] = useState({
     email: { valido: true, mensaje: "" },
@@ -40,51 +48,40 @@ export function EditarClienteForm({ cliente }: { cliente: any }) {
     documento: { valido: true, mensaje: "" }
   })
 
-  // Validar email
   useEffect(() => {
     if (email.length === 0) {
-      setValidaciones(prev => ({ ...prev, email: { valido: true, mensaje: "" }}))
+      setValidaciones(prev => ({ ...prev, email: { valido: true, mensaje: "" } }))
       return
     }
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     const esValido = emailRegex.test(email)
-    setValidaciones(prev => ({ 
-      ...prev, 
-      email: { 
-        valido: esValido, 
-        mensaje: esValido ? "" : "Formato de email inválido" 
-      }
+    setValidaciones(prev => ({
+      ...prev,
+      email: { valido: esValido, mensaje: esValido ? "" : "Formato de email inválido" }
     }))
   }, [email])
 
-  // Validar teléfono
   useEffect(() => {
     if (telefono.length === 0) {
-      setValidaciones(prev => ({ ...prev, telefono: { valido: true, mensaje: "" }}))
+      setValidaciones(prev => ({ ...prev, telefono: { valido: true, mensaje: "" } }))
       return
     }
     const telefonoRegex = /^(\+?54)?[\s-]?(\d{2,4})[\s-]?\d{4}[\s-]?\d{4}$/
     const esValido = telefonoRegex.test(telefono)
-    setValidaciones(prev => ({ 
-      ...prev, 
-      telefono: { 
-        valido: esValido, 
-        mensaje: esValido ? "" : "Formato sugerido: +54 9 11 1234-5678" 
-      }
+    setValidaciones(prev => ({
+      ...prev,
+      telefono: { valido: esValido, mensaje: esValido ? "" : "Formato sugerido: +54 9 11 1234-5678" }
     }))
   }, [telefono])
 
-  // Validar documento
   useEffect(() => {
     if (numeroDocumento.length === 0) {
-      setValidaciones(prev => ({ ...prev, documento: { valido: true, mensaje: "" }}))
+      setValidaciones(prev => ({ ...prev, documento: { valido: true, mensaje: "" } }))
       return
     }
-
     let esValido = false
     let mensaje = ""
-
-    switch(documentoTipo) {
+    switch (documentoTipo) {
       case "DNI":
         esValido = /^\d{7,8}$/.test(numeroDocumento.replace(/\./g, ''))
         mensaje = esValido ? "" : "DNI debe tener 7-8 dígitos"
@@ -102,29 +99,20 @@ export function EditarClienteForm({ cliente }: { cliente: any }) {
         esValido = numeroDocumento.length >= 5
         mensaje = esValido ? "" : "Mínimo 5 caracteres"
     }
-
-    setValidaciones(prev => ({ 
-      ...prev, 
-      documento: { valido: esValido, mensaje }
-    }))
+    setValidaciones(prev => ({ ...prev, documento: { valido: esValido, mensaje } }))
   }, [numeroDocumento, documentoTipo])
 
-  // Formatear fecha
   const formatearFecha = (fecha: string | Date) => {
     if (!fecha) return "No disponible"
     const date = new Date(fecha)
-    return date.toLocaleDateString('es-AR', { 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
-    })
+    return date.toLocaleDateString('es-AR', { year: 'numeric', month: 'long', day: 'numeric' })
   }
 
   return (
     <div className="min-h-screen bg-slate-50 p-6">
       <div className="max-w-4xl mx-auto">
-        
-        {/* Header — sin cambios */}
+
+        {/* Header */}
         <div className="mb-6 flex items-center gap-4">
           <div className="flex-1">
             <h1 className="text-3xl font-bold text-slate-800 flex items-center gap-3">
@@ -141,9 +129,7 @@ export function EditarClienteForm({ cliente }: { cliente: any }) {
             </p>
           </div>
           <div className={`px-4 py-2 rounded-full text-sm font-semibold ${
-            activo 
-              ? 'bg-green-100 text-green-700' 
-              : 'bg-gray-100 text-gray-700'
+            activo ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
           }`}>
             {activo ? '● Activo' : '○ Inactivo'}
           </div>
@@ -173,7 +159,7 @@ export function EditarClienteForm({ cliente }: { cliente: any }) {
           </CardHeader>
 
           <CardContent className="pt-6">
-            
+
             {state?.error && (
               <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 text-red-700 rounded flex items-start gap-3">
                 <AlertCircle className="h-5 w-5 mt-0.5 flex-shrink-0" />
@@ -205,22 +191,10 @@ export function EditarClienteForm({ cliente }: { cliente: any }) {
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
-                  <Label 
-                    className={`flex items-center gap-3 p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                      tipoPersona === 'FISICA' 
-                        ? 'border-blue-500 bg-blue-50 shadow-sm' 
-                        : 'border-slate-200 hover:border-slate-300'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="tipoPersona"
-                      value="FISICA"
-                      checked={tipoPersona === 'FISICA'}
-                      onChange={() =>{}}
-                      disabled  
-                      className="w-5 h-5 accent-blue-600"
-                    />
+                  <Label className={`flex items-center gap-3 p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                    tipoPersona === 'FISICA' ? 'border-blue-500 bg-blue-50 shadow-sm' : 'border-slate-200 hover:border-slate-300'
+                  }`}>
+                    <input type="radio" name="tipoPersona" value="FISICA" checked={tipoPersona === 'FISICA'} onChange={() => {}} disabled className="w-5 h-5 accent-blue-600" />
                     <User className="h-5 w-5 text-blue-600" />
                     <div>
                       <p className="font-semibold text-slate-900">Persona Física</p>
@@ -228,30 +202,14 @@ export function EditarClienteForm({ cliente }: { cliente: any }) {
                     </div>
                   </Label>
 
-                  <Label 
-                    className={`flex items-center gap-3 p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                      tipoPersona === 'JURIDICA' 
-                        ? 'border-purple-500 bg-purple-50 shadow-sm' 
-                        : 'border-slate-200 hover:border-slate-300'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="tipoPersona"
-                      value="JURIDICA"
-                      checked={tipoPersona === 'JURIDICA'}
-                      onChange={() => {}}
-                      disabled  
-                      className="w-5 h-5 accent-purple-600"
-                    />
+                  <Label className={`flex items-center gap-3 p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                    tipoPersona === 'JURIDICA' ? 'border-purple-500 bg-purple-50 shadow-sm' : 'border-slate-200 hover:border-slate-300'
+                  }`}>
+                    <input type="radio" name="tipoPersona" value="JURIDICA" checked={tipoPersona === 'JURIDICA'} onChange={() => {}} disabled className="w-5 h-5 accent-purple-600" />
                     <Building2 className="h-5 w-5 text-purple-600" />
                     <div>
                       <p className="font-semibold text-slate-900">Persona Jurídica</p>
                       <p className="text-xs text-slate-600">Empresa / Sociedad</p>
-                      <p className="text-xs text-slate-500 flex items-center gap-1 mt-1">
-                        <Lock className="w-3 h-3" />
-                        El tipo de persona no puede modificarse una vez creado el cliente.
-                      </p>
                     </div>
                   </Label>
                 </div>
@@ -262,7 +220,7 @@ export function EditarClienteForm({ cliente }: { cliente: any }) {
                 </p>
               </div>
 
-              {/* SECCIÓN 2: DATOS PERSONALES — con campos nuevos */}
+              {/* SECCIÓN 2: DATOS PERSONALES */}
               <div className="space-y-4">
                 <div className="flex items-center gap-2 pb-2 border-b border-slate-200">
                   <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-600 font-bold text-sm">2</div>
@@ -272,39 +230,23 @@ export function EditarClienteForm({ cliente }: { cliente: any }) {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-slate-50 rounded-lg">
-                  
-                  {/* Nombre / Razón Social — sin cambios */}
                   <div className="space-y-2">
                     <Label>
                       {tipoPersona === 'FISICA' ? 'Nombre/s' : 'Razón Social'}
                       <span className="text-red-500 ml-1">*</span>
                     </Label>
-                    <Input 
-                      name="nombre" 
-                      defaultValue={cliente.nombre}
-                      disabled
-                      className="bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed"
-                    />
+                    <Input name="nombre" defaultValue={cliente.nombre} disabled className="bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed" />
                   </div>
 
                   {tipoPersona === 'FISICA' ? (
                     <div className="space-y-2">
-                      <Label>
-                        Apellido/s
-                        <span className="text-red-500 ml-1">*</span>
-                      </Label>
-                      <Input 
-                        name="apellido" 
-                        defaultValue={cliente.apellido || ""}
-                        disabled
-                        className="bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed" 
-                      />
+                      <Label>Apellido/s<span className="text-red-500 ml-1">*</span></Label>
+                      <Input name="apellido" defaultValue={cliente.apellido || ""} disabled className="bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed" />
                     </div>
                   ) : (
                     <input type="hidden" name="apellido" value="" />
                   )}
 
-                  {/* NUEVO: Tipo de Sociedad (solo JURIDICA) */}
                   {tipoPersona === 'JURIDICA' && (
                     <div className="space-y-2">
                       <Label className="flex items-center gap-2">
@@ -328,11 +270,8 @@ export function EditarClienteForm({ cliente }: { cliente: any }) {
                     </div>
                   )}
 
-                  {tipoPersona === 'FISICA' && (
-                    <input type="hidden" name="tipoSociedad" value="" />
-                  )}
+                  {tipoPersona === 'FISICA' && <input type="hidden" name="tipoSociedad" value="" />}
 
-                  {/* NUEVO: Representante Legal (solo JURIDICA) */}
                   {tipoPersona === 'JURIDICA' && (
                     <>
                       <div className="space-y-2">
@@ -341,13 +280,7 @@ export function EditarClienteForm({ cliente }: { cliente: any }) {
                           Nombre del Representante Legal
                           <span className="text-red-500">*</span>
                         </Label>
-                        <Input
-                          name="representanteNombre"
-                          defaultValue={cliente.representanteNombre || ""}
-                          placeholder="Ej: Juan Pérez"
-                          required
-                          className="border-slate-300"
-                        />
+                        <Input name="representanteNombre" defaultValue={cliente.representanteNombre || ""} placeholder="Ej: Juan Pérez" required className="border-slate-300" />
                         <p className="text-xs text-slate-500">Presidente, gerente o apoderado de la sociedad</p>
                       </div>
 
@@ -357,13 +290,7 @@ export function EditarClienteForm({ cliente }: { cliente: any }) {
                           DNI del Representante
                           <span className="text-red-500">*</span>
                         </Label>
-                        <Input
-                          name="representanteDni"
-                          defaultValue={cliente.representanteDni || ""}
-                          placeholder="Ej: 12345678"
-                          required
-                          className="border-slate-300"
-                        />
+                        <Input name="representanteDni" defaultValue={cliente.representanteDni || ""} placeholder="Ej: 12345678" required className="border-slate-300" />
                         <p className="text-xs text-slate-500">Necesario para escritos y poderes judiciales</p>
                       </div>
                     </>
@@ -376,7 +303,6 @@ export function EditarClienteForm({ cliente }: { cliente: any }) {
                     </>
                   )}
 
-                  {/* NUEVO: Bienes Embargables (solo FISICA) */}
                   {tipoPersona === 'FISICA' && (
                     <div className="space-y-2 md:col-span-2">
                       <Label className="flex items-center gap-2">
@@ -389,19 +315,12 @@ export function EditarClienteForm({ cliente }: { cliente: any }) {
                           { value: "NO", label: "No", desc: "Sin bienes conocidos" },
                           { value: "NO_CORRESPONDE", label: "No corresponde", desc: "No aplica al caso" },
                         ].map(({ value, label, desc }) => (
-                          <Label
-                            key={value}
-                            className="flex-1 flex items-center gap-2 p-3 border-2 rounded-lg cursor-pointer transition-all text-sm"
-                          >
+                          <Label key={value} className="flex-1 flex items-center gap-2 p-3 border-2 rounded-lg cursor-pointer transition-all text-sm">
                             <input
                               type="radio"
                               name="bienesEmbargables"
                               value={value}
-                              defaultChecked={
-                                cliente.bienesEmbargables 
-                                  ? cliente.bienesEmbargables === value
-                                  : value === "NO_CORRESPONDE"
-                              }
+                              defaultChecked={cliente.bienesEmbargables ? cliente.bienesEmbargables === value : value === "NO_CORRESPONDE"}
                               className="w-4 h-4"
                             />
                             <div>
@@ -415,14 +334,11 @@ export function EditarClienteForm({ cliente }: { cliente: any }) {
                     </div>
                   )}
 
-                  {tipoPersona === 'JURIDICA' && (
-                    <input type="hidden" name="bienesEmbargables" value="" />
-                  )}
-
+                  {tipoPersona === 'JURIDICA' && <input type="hidden" name="bienesEmbargables" value="" />}
                 </div>
               </div>
 
-              {/* SECCIÓN 3: DOCUMENTACIÓN — con CUIT bloqueado para JURIDICA */}
+              {/* SECCIÓN 3: DOCUMENTACIÓN */}
               <div className="space-y-4">
                 <div className="flex items-center gap-2 pb-2 border-b border-slate-200">
                   <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 font-bold text-sm">3</div>
@@ -436,14 +352,10 @@ export function EditarClienteForm({ cliente }: { cliente: any }) {
                       Tipo de Documento
                       <span className="text-red-500">*</span>
                     </Label>
-                    {/* Hidden para que el form envíe CUIT cuando está disabled */}
                     {tipoPersona === 'JURIDICA' && (
                       <input type="hidden" name="tipoDocumento" value="CUIT" />
                     )}
-                    <Select 
-                      disabled 
-                      value={cliente.tipoDocumento}
-                    >
+                    <Select disabled value={cliente.tipoDocumento}>
                       <SelectTrigger className="bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed">
                         <SelectValue />
                       </SelectTrigger>
@@ -466,38 +378,12 @@ export function EditarClienteForm({ cliente }: { cliente: any }) {
                       Número
                       <span className="text-red-500">*</span>
                     </Label>
-                    <Input 
-                        name="numeroDocumento"
-                        value={cliente.numeroDocumento}
-                        disabled
-                        className="bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed"
-                      />
-                    {numeroDocumento.length > 0 && (
-                      <p className={`text-xs flex items-center gap-1 ${
-                        validaciones.documento.valido ? 'text-green-600' : 'text-red-600'
-                      }`}>
-                        {validaciones.documento.valido ? (
-                          <>
-                            <CheckCircle2 className="h-3 w-3" />
-                            Formato válido
-                          </>
-                        ) : (
-                          <>
-                            <AlertCircle className="h-3 w-3" />
-                            {validaciones.documento.mensaje}
-                          </>
-                        )}
-                      </p>
-                    )}
+                    <Input name="numeroDocumento" value={cliente.numeroDocumento} disabled className="bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed" />
                   </div>
 
                   <div className="space-y-2 md:col-span-2">
                     <Label>Condición frente al IVA</Label>
-                    <Select 
-                      name="condicionIva" 
-                      defaultValue={cliente.condicionIva || "CONSUMIDOR_FINAL"}
-                      required
-                    >
+                    <Select name="condicionIva" defaultValue={cliente.condicionIva || "CONSUMIDOR_FINAL"} required>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
@@ -513,7 +399,7 @@ export function EditarClienteForm({ cliente }: { cliente: any }) {
                 </div>
               </div>
 
-              {/* SECCIÓN 4: CONTACTO — con dirección dinámica según tipoPersona */}
+              {/* SECCIÓN 4: CONTACTO */}
               <div className="space-y-4">
                 <div className="flex items-center gap-2 pb-2 border-b border-slate-200">
                   <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 font-bold text-sm">4</div>
@@ -521,26 +407,44 @@ export function EditarClienteForm({ cliente }: { cliente: any }) {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-slate-50 rounded-lg">
+
+                  {/* ───── Disclaimer del portal: solo si el cliente tiene portal vinculado ───── */}
+                  {tienePortal && (
+                    <div className="md:col-span-2 p-3 bg-indigo-50 border border-indigo-200 rounded-lg flex items-start gap-2">
+                      <Globe className="h-4 w-4 text-indigo-700 mt-0.5 shrink-0" />
+                      <div className="text-xs text-indigo-900 leading-relaxed">
+                        <p>
+                          <span className="font-semibold">Este cliente tiene acceso al portal.</span> El email registrado acá también es la credencial de acceso del cliente al portal.
+                        </p>
+                        {emailCambio && (
+                          <p className="mt-1 text-indigo-800">
+                            Al guardar el cambio, se va a actualizar también el email de acceso al portal,
+                            cerrar la sesión activa del cliente (si la tiene) e invalidar cualquier
+                            invitación pendiente. El cliente deberá entrar con el nuevo email.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="space-y-2">
                     <Label className="flex items-center gap-2">
                       <Mail className="h-4 w-4" />
                       Email
-                      <span className="text-red-500">*</span> 
+                      <span className="text-red-500">*</span>
                     </Label>
-                    <Input 
-                        type="email" 
-                        name="email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        required  
-                        className={`border-2 ${
-                          email.length > 0 
-                            ? validaciones.email.valido 
-                              ? 'border-green-500' 
-                              : 'border-red-500'
-                            : 'border-slate-300'
-                        }`}
-                      />
+                    <Input
+                      type="email"
+                      name="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                      className={`border-2 ${
+                        email.length > 0
+                          ? validaciones.email.valido ? 'border-green-500' : 'border-red-500'
+                          : 'border-slate-300'
+                      }`}
+                    />
                     {email.length > 0 && !validaciones.email.valido && (
                       <p className="text-xs text-red-600 flex items-center gap-1">
                         <AlertCircle className="h-3 w-3" />
@@ -553,22 +457,20 @@ export function EditarClienteForm({ cliente }: { cliente: any }) {
                     <Label className="flex items-center gap-2">
                       <Phone className="h-4 w-4" />
                       Teléfono
-                      <span className="text-red-500">*</span>  
+                      <span className="text-red-500">*</span>
                     </Label>
-                    <Input 
-                      type="tel" 
+                    <Input
+                      type="tel"
                       name="telefono"
                       value={telefono}
                       onChange={(e) => {
                         const valor = e.target.value.replace(/[^0-9+\s-]/g, '').slice(0, 13)
                         setTelefono(valor)
                       }}
-                      required 
+                      required
                       className={`border-2 ${
-                        telefono.length > 0 
-                          ? validaciones.telefono.valido 
-                            ? 'border-green-500' 
-                            : 'border-yellow-500'
+                        telefono.length > 0
+                          ? validaciones.telefono.valido ? 'border-green-500' : 'border-yellow-500'
                           : 'border-slate-300'
                       }`}
                     />
@@ -579,8 +481,8 @@ export function EditarClienteForm({ cliente }: { cliente: any }) {
                       <MapPin className="h-4 w-4" />
                       {tipoPersona === 'FISICA' ? 'Dirección' : 'Domicilio / Sede Social'}
                     </Label>
-                    <Input 
-                      name="direccion" 
+                    <Input
+                      name="direccion"
                       defaultValue={cliente.direccion || ""}
                       placeholder={
                         tipoPersona === 'FISICA'
@@ -591,14 +493,13 @@ export function EditarClienteForm({ cliente }: { cliente: any }) {
                     <p className="text-xs text-slate-500">
                       {tipoPersona === 'FISICA'
                         ? "Útil para logística y envíos de documentación"
-                        : "Domicilio inscripto en IGJ/DPPJ, válido para notificaciones legales aunque la empresa haya cambiado de sede"
-                      }
+                        : "Domicilio inscripto en IGJ/DPPJ, válido para notificaciones legales aunque la empresa haya cambiado de sede"}
                     </p>
                   </div>
                 </div>
               </div>
 
-              {/* SECCIÓN 5: ADICIONAL — sin cambios */}
+              {/* SECCIÓN 5: ADICIONAL */}
               <div className="space-y-4">
                 <div className="flex items-center gap-2 pb-2 border-b border-slate-200">
                   <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center text-teal-600 font-bold text-sm">5</div>
@@ -618,9 +519,7 @@ export function EditarClienteForm({ cliente }: { cliente: any }) {
                   </div>
 
                   <div className={`flex items-start gap-3 p-4 border-2 rounded-lg transition-all ${
-                    activo 
-                      ? 'bg-green-50 border-green-200' 
-                      : 'bg-gray-50 border-gray-200'
+                    activo ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'
                   }`}>
                     <input
                       type="checkbox"
@@ -631,22 +530,20 @@ export function EditarClienteForm({ cliente }: { cliente: any }) {
                       className={`w-5 h-5 mt-0.5 ${activo ? 'accent-green-600' : 'accent-gray-500'}`}
                     />
                     <Label htmlFor="activo" className="cursor-pointer flex-1">
-                      
-                      <p className={`font-semibold ${activo ? 'text-green-900' : 'text-gray-900'}`}>
+                      <span className={`font-semibold block ${activo ? 'text-green-900' : 'text-gray-900'}`}>
                         {activo ? 'Cliente habilitado' : 'Cliente archivado'}
-                      </p>
-                      <p className={`text-sm mt-1 ${activo ? 'text-green-700' : 'text-gray-600'}`}>
-                        {activo 
-                          ? 'El perfil está disponible para asignarle nuevos expedientes.' 
-                          : 'El perfil se mantiene en el historial pero se oculta de los listados principales.'
-                        }
-                      </p>
+                      </span>
+                      <span className={`text-sm mt-1 block ${activo ? 'text-green-700' : 'text-gray-600'}`}>
+                        {activo
+                          ? 'El perfil está disponible para asignarle nuevos expedientes.'
+                          : 'El perfil se mantiene en el historial pero se oculta de los listados principales.'}
+                      </span>
                     </Label>
                   </div>
                 </div>
               </div>
 
-              {/* BOTONES — sin cambios */}
+              {/* BOTONES */}
               <div className="flex justify-end gap-4 pt-6 border-t-2 border-slate-200">
                 <Link href="/clientes">
                   <Button variant="outline" type="button" className="gap-2">

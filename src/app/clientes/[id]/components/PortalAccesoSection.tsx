@@ -49,13 +49,12 @@ export function PortalAccesoSection({
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const puedeGestionarPortal = userRol === 'ADMIN' || userRol === 'ABOGADO'
+  // ASISTENTE ahora también puede gestionar el portal (acceso general,
+  // mismo criterio que documentos y plantillas).
+  const rol = userRol?.toUpperCase()
+  const puedeGestionarPortal = rol === 'ADMIN' || rol === 'ABOGADO' || rol === 'ASISTENTE'
 
   // === ESTADOS ===
-  // A) Sin acceso: nunca se creó usuario portal
-  // B) Invitación pendiente: usuario creado pero todavía no activó (password null)
-  // C) Acceso activo: usuario activado e isActive=true
-  // D) Acceso desactivado: usuario activado en el pasado pero hoy isActive=false
   const sinAcceso = !cliente.usuarioPortalId
   const invitacionPendiente = !sinAcceso && tieneInvitacionPendiente
   const accesoActivo = !sinAcceso && !invitacionPendiente && cliente.usuarioPortal?.isActive === true

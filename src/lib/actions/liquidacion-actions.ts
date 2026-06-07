@@ -4,6 +4,7 @@ import { getUserSessionServer } from "@/auth/actions/auth-actions"
 import prisma from "src/lib/db/prisma"
 import { revalidatePath } from "next/cache"
 import { TipoLiquidacion } from "@prisma/client"
+import { TIPO_LIQUIDACION_LABELS, labelOrFallback } from "src/lib/utils/labels"
 
 // ============================================================================
 // TIPOS
@@ -62,6 +63,13 @@ function mapearLiquidacion(l: any): LiquidacionConRelaciones {
 
 // Filtro estándar: solo no eliminadas. Siempre incluirlo en queries.
 const noEliminadas = { eliminadoEn: null }
+
+// Helper para formatear el Decimal de Prisma como string con separador
+// argentino. Convertimos a Number primero porque el toLocaleString() de
+// Object.prototype no acepta argumentos y rompe la compilación de TS.
+function formatearMonto(monto: any): string {
+  return Number(monto.toString()).toLocaleString("es-AR")
+}
 
 // ============================================================================
 // QUERIES
@@ -195,6 +203,7 @@ export async function guardarLiquidacionAction(data: {
   }
 
   try {
+    const tipoLabel = labelOrFallback(data.tipo, TIPO_LIQUIDACION_LABELS)
     const liquidacion = await prisma.liquidacion.create({
       data: {
         tipo: data.tipo,
@@ -206,17 +215,17 @@ export async function guardarLiquidacionAction(data: {
       },
     })
 
-    // Bitácora: si está vinculado a un caso, queda registrado ahí; si es suelto, sin caso.
     await prisma.bitacora.create({
       data: {
         texto: data.casoId
-          ? `Cálculo de ${data.tipo} guardado en el expediente`
-          : `Cálculo de ${data.tipo} guardado (sin vincular)`,
+          ? `Cálculo de ${tipoLabel} guardado en el expediente`
+          : `Cálculo de ${tipoLabel} guardado (sin vincular)`,
         tipo: "auto",
         accion: "LIQUIDACION_CREADA",
         usuarioId: user.id,
         casoId: data.casoId || null,
-        detalle: `Tipo: ${data.tipo} | Monto: $${data.montoTotal.toLocaleString("es-AR")}${data.descripcion ? ` | "${data.descripcion}"` : ""}`,
+        liquidacionId: liquidacion.id,
+        detalle: `Tipo: ${tipoLabel} | Monto: $${data.montoTotal.toLocaleString("es-AR")}${data.descripcion ? ` | "${data.descripcion}"` : ""}`,
       },
     })
 
@@ -251,7 +260,12 @@ export async function editarLiquidacionAction(
   try {
     const liquidacion = await prisma.liquidacion.findUnique({
       where: { id: liquidacionId },
-      select: { creadoPorId: true, casoId: true, tipo: true, eliminadoEn: true },
+      select: {
+        creadoPorId: true,
+        casoId: true,
+        tipo: true,
+        eliminadoEn: true,
+      },
     })
     if (!liquidacion) return { error: "Cálculo no encontrado" }
     if (liquidacion.eliminadoEn) return { error: "El cálculo está eliminado" }
@@ -281,13 +295,15 @@ export async function editarLiquidacionAction(
     if (data.descripcion !== undefined) cambios.push("descripción")
     if (data.casoId !== undefined && data.casoId !== liquidacion.casoId) cambios.push("vínculo a expediente")
 
+    const tipoLabel = labelOrFallback(liquidacion.tipo, TIPO_LIQUIDACION_LABELS)
     await prisma.bitacora.create({
       data: {
-        texto: `Cálculo de ${liquidacion.tipo} editado`,
+        texto: `Cálculo de ${tipoLabel} editado`,
         tipo: "auto",
         accion: "LIQUIDACION_EDITADA",
         usuarioId: user.id,
         casoId: data.casoId ?? liquidacion.casoId ?? null,
+        liquidacionId: liquidacionId,
         detalle: cambios.length > 0 ? `Cambios: ${cambios.join(", ")}` : null,
       },
     })
@@ -309,6 +325,8 @@ export async function editarLiquidacionAction(
 // NO borra físicamente. Setea eliminadoEn + eliminadoPorId.
 // El registro deja de aparecer en queries (todas filtran por noEliminadas).
 // Queda trazabilidad completa: quién la creó, quién la borró, cuándo.
+// Como es soft delete, el liquidacionId de la bitácora sigue siendo válido
+// y el reporte puede mostrar la info de la liquidación aunque esté "borrada".
 // ============================================================================
 
 export async function eliminarLiquidacionAction(
@@ -321,7 +339,7 @@ export async function eliminarLiquidacionAction(
   try {
     const liquidacion = await prisma.liquidacion.findUnique({
       where: { id: liquidacionId },
-      select: { creadoPorId: true, casoId: true, tipo: true, montoTotal: true, eliminadoEn: true },
+      select: { creadoPorId: true, casoId: true, tipo: true, montoTotal: true, descripcion: true, eliminadoEn: true },
     })
     if (!liquidacion) return { error: "Cálculo no encontrado" }
     if (liquidacion.eliminadoEn) return { error: "El cálculo ya fue eliminado" }
@@ -337,16 +355,19 @@ export async function eliminarLiquidacionAction(
       },
     })
 
+    const tipoLabel = labelOrFallback(liquidacion.tipo, TIPO_LIQUIDACION_LABELS)
+    const montoFmt = formatearMonto(liquidacion.montoTotal)
     await prisma.bitacora.create({
       data: {
-        texto: `Cálculo de ${liquidacion.tipo} eliminado`,
+        texto: `Cálculo de ${tipoLabel} eliminado`,
         tipo: "auto",
         accion: "LIQUIDACION_ELIMINADA",
         usuarioId: user.id,
         casoId: liquidacion.casoId || null,
+        liquidacionId: liquidacionId,
         detalle: motivo?.trim()
-          ? `Monto: $${liquidacion.montoTotal.toString()} | Motivo: ${motivo.trim()}`
-          : `Monto: $${liquidacion.montoTotal.toString()}`,
+          ? `Monto: $${montoFmt} | Motivo: ${motivo.trim()}`
+          : `Monto: $${montoFmt}`,
       },
     })
 

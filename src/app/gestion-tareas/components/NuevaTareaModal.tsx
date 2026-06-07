@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { X, Plus, MapPin, Calendar, Briefcase, User, Link as LinkIcon, Search, ChevronDown, AlertTriangle, Eye } from "lucide-react"
+import { X, Plus, MapPin, Calendar, Briefcase, User, Link as LinkIcon, Search, ChevronDown, AlertTriangle, Eye, Info } from "lucide-react"
 import { crearTareaAction } from "src/lib/actions/tarea-actions"
 import { getCargaResponsableAction } from "src/lib/actions/getCargaResponsable"
 import type { TipoTarea, CategoriaTarea, AmbitoTarea, PrioridadTarea } from "@prisma/client"
@@ -65,19 +65,19 @@ const ROL_LABEL: Record<string, string> = {
 const MAX_DESCRIPCION = 300
 
 type Usuario = { id: string; nombre: string | null; apellido: string | null; rol: string }
-type Caso = { id: string; numero: string; titulo: string; estaCerrado: boolean; abogadoId: string }
-type Cliente = { id: string; nombre: string; apellido: string | null; tipoPersona: string; tipoSociedad: string | null; usuarioPortalId: string | null }
+type Caso = { id: string; numero: string; titulo: string; estaCerrado: boolean; abogadoId: string; clienteId: string }
+type Cliente = { id: string; nombre: string; apellido: string | null; tipoPersona: string; tipoSociedad: string | null; usuarioPortalId: string | null; abogadoId: string }
 
 type Props = {
   usuarios: Usuario[]
   casos: Caso[]
   clientes?: Cliente[]
   currentUserId: string
+  currentUserRol?: string   // ⬅ NUEVO: si no se pasa, defaultea a ABOGADO
   casoPreseleccionado?: string
   onSuccess?: () => void
 }
 
-// Helper para convertir Date <-> "YYYY-MM-DD" (formato que espera la action y el HTML date input)
 function dateToISO(d: Date | undefined): string {
   if (!d) return ""
   const yyyy = d.getFullYear()
@@ -94,7 +94,7 @@ function isoToDate(s: string): Date | undefined {
 }
 
 // ============================================================================
-// COMBOBOX REUTILIZABLE (sin cambios)
+// COMBOBOX REUTILIZABLE
 // ============================================================================
 
 function Combobox({ label, placeholder, value, onClear, children, open, onOpen, onClose }: {
@@ -127,7 +127,11 @@ function Combobox({ label, placeholder, value, onClear, children, open, onOpen, 
 // COMPONENTE PRINCIPAL
 // ============================================================================
 
-export function NuevaTareaModal({ usuarios, casos, clientes = [], currentUserId, casoPreseleccionado, onSuccess }: Props) {
+export function NuevaTareaModal({
+  usuarios, casos, clientes = [],
+  currentUserId, currentUserRol = "ABOGADO",
+  casoPreseleccionado, onSuccess,
+}: Props) {
   const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -150,9 +154,6 @@ export function NuevaTareaModal({ usuarios, casos, clientes = [], currentUserId,
   const [openCliente, setOpenCliente] = useState(false)
   const [searchCliente, setSearchCliente] = useState("")
 
-  // ═══ NUEVO: estado de la carga del responsable ═══
-  // cargaResponsable es un mapa { "YYYY-MM-DD": cantidad } que se trae del server
-  // cada vez que el usuario cambia de responsable. Se pasa al CalendarioCarga.
   const [cargaResponsable, setCargaResponsable] = useState<Record<string, number>>({})
   const [cargaLoading, setCargaLoading] = useState(false)
   const { feriadosSet } = useFeriados([2026, 2027])
@@ -161,24 +162,72 @@ export function NuevaTareaModal({ usuarios, casos, clientes = [], currentUserId,
   const handleTipoChange = (nuevoTipo: TipoTarea) => { setTipo(nuevoTipo); setCategoria("") }
 
   const casosFiltrados = casos.filter(c => c.numero.toLowerCase().includes(searchCaso.toLowerCase()) || c.titulo.toLowerCase().includes(searchCaso.toLowerCase()))
-  const clientesFiltrados = clientes.filter(c => { const t = searchCliente.toLowerCase(); return `${c.nombre} ${c.apellido ?? ""}`.toLowerCase().includes(t) || (c.tipoSociedad ?? "").toLowerCase().includes(t) })
 
   const casoObj = casos.find(c => c.id === casoId)
-  const clienteObj = clientes.find(c => c.id === clienteId)
-  const clienteTienePortal = !!clienteObj?.usuarioPortalId
   const responsableObj = usuarios.find(u => u.id === responsableId)
   const creadorEsResponsable = responsableId === currentUserId
   const haySupervisor = !creadorEsResponsable
 
-// Lista de usuarios disponibles para asignar como responsable según el caso seleccionado.
-// Regla: si hay caso activo, solo el titular del caso y los asistentes pueden ser responsables.
-// Si no hay caso (o está cerrado y se auto-convierte a interna), todos los usuarios disponibles.
-const usuariosFiltrados = useMemo(() => {
-  if (!casoObj || casoObj.estaCerrado) return usuarios
-  return usuarios.filter(u => u.id === casoObj.abogadoId || u.rol === "ASISTENTE")
-}, [casoObj, usuarios])
+  // ════ CLIENTE HEREDADO DEL CASO ════
+  // Si hay caso activo seleccionado, el clienteId se deriva del caso.
+  // El campo de cliente vinculado no es seleccionable, pero el checkbox de
+  // "visible en portal" sí debe aparecer (porque el cliente existe).
+  const heredarClienteDelCaso = !!casoObj && !casoObj.estaCerrado
 
-const listaRestringidaPorCaso = !!casoObj && !casoObj.estaCerrado && usuariosFiltrados.length < usuarios.length
+  useEffect(() => {
+    if (heredarClienteDelCaso && casoObj) {
+      if (clienteId !== casoObj.clienteId) {
+        setClienteId(casoObj.clienteId)
+        setVisibleCliente(false)  // reset por las dudas
+      }
+    }
+  }, [heredarClienteDelCaso, casoObj, clienteId])
+
+  // ════ FILTRO DE CLIENTES (frontend) ════
+  // Regla:
+  //   - Si soy ABOGADO: el backend ya filtra a mis propios clientes, no toco
+  //   - Si soy ASISTENTE: aplico filtro según el responsable elegido
+  //     - Si responsable es ABOGADO → solo sus clientes
+  //     - Si responsable es ASISTENTE (incluido yo) → todos los del estudio
+  const clientesParaDropdown = useMemo(() => {
+    if (currentUserRol !== "ASISTENTE") return clientes
+    const responsable = usuarios.find(u => u.id === responsableId)
+    if (!responsable || responsable.rol !== "ABOGADO") return clientes
+    return clientes.filter(c => c.abogadoId === responsable.id)
+  }, [clientes, responsableId, usuarios, currentUserRol])
+
+  const clientesFiltrados = clientesParaDropdown.filter(c => {
+    const t = searchCliente.toLowerCase()
+    return `${c.nombre} ${c.apellido ?? ""}`.toLowerCase().includes(t) || (c.tipoSociedad ?? "").toLowerCase().includes(t)
+  })
+
+  // Si soy asistente y cambio de responsable, si el clienteId actual ya no
+  // pasa el filtro, lo limpio. Solo aplica cuando NO hay caso (porque con
+  // caso el clienteId viene impuesto).
+  useEffect(() => {
+    if (currentUserRol !== "ASISTENTE") return
+    if (heredarClienteDelCaso) return
+    if (!clienteId) return
+    const sigueValido = clientesParaDropdown.some(c => c.id === clienteId)
+    if (!sigueValido) {
+      setClienteId("")
+      setVisibleCliente(false)
+    }
+  }, [clientesParaDropdown, clienteId, currentUserRol, heredarClienteDelCaso])
+
+  // Cliente efectivo (puede venir del caso o del combobox)
+  // Usamos la lista completa de clientes (no la filtrada) para encontrarlo,
+  // así también lo encontramos cuando viene del caso.
+  const clienteObj = clientes.find(c => c.id === clienteId) ?? null
+  const clienteTienePortal = !!clienteObj?.usuarioPortalId
+
+  // Usuarios filtrados para responsable según caso (igual que antes)
+  const usuariosFiltrados = useMemo(() => {
+    if (!casoObj || casoObj.estaCerrado) return usuarios
+    return usuarios.filter(u => u.id === casoObj.abogadoId || u.rol === "ASISTENTE")
+  }, [casoObj, usuarios])
+
+  const listaRestringidaPorCaso = !!casoObj && !casoObj.estaCerrado && usuariosFiltrados.length < usuarios.length
 
   useEffect(() => {
     if (casoObj?.estaCerrado) {
@@ -186,25 +235,19 @@ const listaRestringidaPorCaso = !!casoObj && !casoObj.estaCerrado && usuariosFil
     }
   }, [casoObj])
 
-  // Si el caso seleccionado restringe la lista y el responsable actual ya no es válido,
-// resetear al currentUser si es válido, o al primer disponible.
-useEffect(() => {
-  if (!casoObj || casoObj.estaCerrado) return
-  const responsableValido = usuariosFiltrados.some(u => u.id === responsableId)
-  if (responsableValido) return
+  useEffect(() => {
+    if (!casoObj || casoObj.estaCerrado) return
+    const responsableValido = usuariosFiltrados.some(u => u.id === responsableId)
+    if (responsableValido) return
 
-  const currentValido = usuariosFiltrados.find(u => u.id === currentUserId)
-  if (currentValido) {
-    setResponsableId(currentUserId)
-  } else {
-    setResponsableId(usuariosFiltrados[0]?.id ?? currentUserId)
-  }
-}, [casoObj, usuariosFiltrados, responsableId, currentUserId])
+    const currentValido = usuariosFiltrados.find(u => u.id === currentUserId)
+    if (currentValido) {
+      setResponsableId(currentUserId)
+    } else {
+      setResponsableId(usuariosFiltrados[0]?.id ?? currentUserId)
+    }
+  }, [casoObj, usuariosFiltrados, responsableId, currentUserId])
 
-  // ═══ NUEVO: cargar la carga del responsable cuando cambia ═══
-  // Solo se ejecuta si el modal está abierto, para evitar fetch innecesario.
-  // El responsable por default es currentUserId, así que la primera carga
-  // ocurre al abrir el modal.
   useEffect(() => {
     if (!open) return
     if (!responsableId) {
@@ -323,20 +366,18 @@ useEffect(() => {
             </div>
           </div>
 
-          {/* BLOQUE 3: Vinculaciones y Asignación
-              ═══ MOVIDO ARRIBA del bloque de fecha ═══
-              Razón: necesitamos el responsable elegido ANTES de mostrar el calendario,
-              para poder colorear los días según la carga de esa persona. */}
+          {/* BLOQUE 2: Vinculaciones y Asignación */}
           <div className="space-y-4">
             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-2"><LinkIcon className="w-4 h-4" /> 2. Vinculaciones y Asignación</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {!casoPreseleccionado && (
                 <Combobox label="Expediente asociado" placeholder="Sin expediente vinculado"
                   value={casoObj ? <span className="truncate"><span className="font-mono text-xs text-blue-600 font-bold mr-2">{casoObj.numero}</span>{casoObj.titulo.slice(0, 30)}{casoObj.titulo.length > 30 ? "..." : ""}</span> : null}
-                  onClear={() => setCasoId("")} open={openCaso} onOpen={() => setOpenCaso(true)} onClose={() => { setOpenCaso(false); setSearchCaso("") }}>
+                  onClear={() => { setCasoId(""); setClienteId(""); setVisibleCliente(false) }}
+                  open={openCaso} onOpen={() => setOpenCaso(true)} onClose={() => { setOpenCaso(false); setSearchCaso("") }}>
                   <div className="p-2 border-b border-slate-100 flex items-center gap-2 bg-slate-50 rounded-t-lg"><Search className="w-4 h-4 text-slate-400 shrink-0" /><input autoFocus type="text" className="w-full bg-transparent text-sm focus:outline-none" placeholder="Buscar por número o carátula..." value={searchCaso} onChange={e => setSearchCaso(e.target.value)} /></div>
                   <div className="max-h-[280px] overflow-y-auto p-1">
-                    <div onClick={() => { setCasoId(""); setOpenCaso(false); setSearchCaso("") }} className="flex w-full cursor-pointer items-center rounded-md py-2.5 px-3 text-sm hover:bg-slate-100 transition-colors"><span className="text-slate-400 italic">Sin expediente (tarea interna)</span></div>
+                    <div onClick={() => { setCasoId(""); setClienteId(""); setVisibleCliente(false); setOpenCaso(false); setSearchCaso("") }} className="flex w-full cursor-pointer items-center rounded-md py-2.5 px-3 text-sm hover:bg-slate-100 transition-colors"><span className="text-slate-400 italic">Sin expediente (tarea interna)</span></div>
                     {casosFiltrados.map(c => {
                         const cerrado = c.estaCerrado
                         return (
@@ -384,22 +425,47 @@ useEffect(() => {
                     </div>
                   </div>
                 )}
-              <Combobox label="Cliente vinculado" placeholder="Sin cliente vinculado"
-                value={clienteObj ? <span className="truncate font-medium text-slate-800">{getNombreCliente(clienteObj)}</span> : null}
-                onClear={() => { setClienteId(""); setVisibleCliente(false) }} open={openCliente} onOpen={() => setOpenCliente(true)} onClose={() => { setOpenCliente(false); setSearchCliente("") }}>
-                <div className="p-2 border-b border-slate-100 flex items-center gap-2 bg-slate-50 rounded-t-lg"><Search className="w-4 h-4 text-slate-400 shrink-0" /><input autoFocus type="text" className="w-full bg-transparent text-sm focus:outline-none" placeholder="Buscar por nombre o empresa..." value={searchCliente} onChange={e => setSearchCliente(e.target.value)} /></div>
-                <div className="max-h-[280px] overflow-y-auto p-1">
-                  <div onClick={() => { setClienteId(""); setVisibleCliente(false); setOpenCliente(false); setSearchCliente("") }} className="flex w-full cursor-pointer items-center rounded-md py-2.5 px-3 text-sm hover:bg-slate-100 transition-colors"><span className="text-slate-400 italic">Sin cliente vinculado</span></div>
-                  {clientesFiltrados.map(c => (<div key={c.id} onClick={() => { setClienteId(c.id); setOpenCliente(false); setSearchCliente("") }} className={`flex w-full cursor-pointer items-center justify-between rounded-md py-2.5 px-3 text-sm hover:bg-slate-100 transition-colors ${clienteId === c.id ? "bg-blue-50 border border-blue-200" : ""}`}><span className="font-medium text-slate-700">{getNombreCliente(c)}</span>{c.usuarioPortalId ? <span className="text-[10px] px-1.5 py-0.5 bg-green-100 text-green-700 rounded-full border border-green-200 flex items-center gap-0.5 shrink-0"><Eye className="w-2.5 h-2.5" /> Portal</span> : <span className="text-[10px] text-slate-400 shrink-0">Sin portal</span>}</div>))}
-                  {clientesFiltrados.length === 0 && <div className="py-6 text-center text-sm text-slate-400">Sin resultados</div>}
+
+              {/* ════ CLIENTE ════
+                  Si hay caso activo: cliente automático del caso (no editable)
+                  Si no hay caso: combobox normal */}
+              {heredarClienteDelCaso ? (
+                <div className="p-3 rounded-lg border bg-blue-50 border-blue-200">
+                  <div className="flex items-start gap-2">
+                    <Info className="w-4 h-4 text-blue-600 mt-0.5 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-blue-900">Cliente del expediente</p>
+                      <p className="text-sm font-medium text-blue-800 truncate">
+                        {clienteObj ? getNombreCliente(clienteObj) : "—"}
+                      </p>
+                    </div>
+                  </div>
                 </div>
-              </Combobox>
+              ) : (
+                <Combobox label="Cliente vinculado" placeholder="Sin cliente vinculado"
+                  value={clienteObj ? <span className="truncate font-medium text-slate-800">{getNombreCliente(clienteObj)}</span> : null}
+                  onClear={() => { setClienteId(""); setVisibleCliente(false) }} open={openCliente} onOpen={() => setOpenCliente(true)} onClose={() => { setOpenCliente(false); setSearchCliente("") }}>
+                  <div className="p-2 border-b border-slate-100 flex items-center gap-2 bg-slate-50 rounded-t-lg"><Search className="w-4 h-4 text-slate-400 shrink-0" /><input autoFocus type="text" className="w-full bg-transparent text-sm focus:outline-none" placeholder="Buscar por nombre o empresa..." value={searchCliente} onChange={e => setSearchCliente(e.target.value)} /></div>
+                  <div className="max-h-[280px] overflow-y-auto p-1">
+                    <div onClick={() => { setClienteId(""); setVisibleCliente(false); setOpenCliente(false); setSearchCliente("") }} className="flex w-full cursor-pointer items-center rounded-md py-2.5 px-3 text-sm hover:bg-slate-100 transition-colors"><span className="text-slate-400 italic">Sin cliente vinculado</span></div>
+                    {clientesFiltrados.map(c => (<div key={c.id} onClick={() => { setClienteId(c.id); setOpenCliente(false); setSearchCliente("") }} className={`flex w-full cursor-pointer items-center justify-between rounded-md py-2.5 px-3 text-sm hover:bg-slate-100 transition-colors ${clienteId === c.id ? "bg-blue-50 border border-blue-200" : ""}`}><span className="font-medium text-slate-700">{getNombreCliente(c)}</span>{c.usuarioPortalId ? <span className="text-[10px] px-1.5 py-0.5 bg-green-100 text-green-700 rounded-full border border-green-200 flex items-center gap-0.5 shrink-0"><Eye className="w-2.5 h-2.5" /> Portal</span> : <span className="text-[10px] text-slate-400 shrink-0">Sin portal</span>}</div>))}
+                    {clientesFiltrados.length === 0 && (
+                      <div className="py-6 text-center text-sm text-slate-400">
+                        {currentUserRol === "ASISTENTE" && responsableObj?.rol === "ABOGADO"
+                          ? `Sin clientes del responsable (${responsableObj.nombre} ${responsableObj.apellido})`
+                          : "Sin resultados"}
+                      </div>
+                    )}
+                  </div>
+                </Combobox>
+              )}
+
               <div className="sm:col-span-2">
                 <Label className="text-xs font-semibold text-slate-600 mb-1.5 block flex items-center gap-1"><User className="w-3 h-3" /> Asignar a (Responsable) *</Label>
                 <Select value={responsableId} onValueChange={setResponsableId}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {usuariosFiltrados.map(u => {                                   
+                    {usuariosFiltrados.map(u => {
                       const rolLegible = ROL_LABEL[u.rol] ?? u.rol
                       const esYo = u.id === currentUserId
                       return (
@@ -431,23 +497,43 @@ useEffect(() => {
                 )}
               </div>
             </div>
-            {clienteId && (
+
+            {/* ════ VISIBLE EN PORTAL ════
+                Se muestra siempre que haya clienteId, sea del caso o seleccionado manualmente.
+                Si el cliente tiene portal: checkbox para marcar visible.
+                Si no tiene portal: disclaimer indicando que no se podrá enviar al portal. */}
+            {clienteId && clienteObj && (
               <div className={`p-3 rounded-lg border mt-2 ${clienteTienePortal ? "bg-blue-50/50 border-blue-100" : "bg-amber-50 border-amber-200"}`}>
                 {clienteTienePortal ? (
                   <div className="flex items-start gap-3">
                     <input type="checkbox" id="visibleCliente" checked={visibleCliente} onChange={e => setVisibleCliente(e.target.checked)} className="w-4 h-4 rounded text-blue-600 mt-0.5" />
-                    <div><label htmlFor="visibleCliente" className="text-sm font-bold text-blue-900 cursor-pointer block">Mostrar esta tarea en el Portal del Cliente</label><p className="text-xs text-blue-700/70">{clienteObj && getNombreCliente(clienteObj)} podrá ver el progreso de esta tarea.</p></div>
+                    <div>
+                      <label htmlFor="visibleCliente" className="text-sm font-bold text-blue-900 cursor-pointer block">
+                        Mostrar este evento en el Portal del Cliente
+                      </label>
+                      <p className="text-xs text-blue-700/70">
+                        {getNombreCliente(clienteObj)} podrá ver el evento desde su portal.
+                      </p>
+                    </div>
                   </div>
                 ) : (
-                  <div className="flex items-start gap-2"><AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" /><div><p className="text-sm font-semibold text-amber-800">Este cliente no tiene acceso al portal</p><p className="text-xs text-amber-700 mt-0.5">La tarea se creará igualmente, pero el cliente no recibirá notificaciones. Para habilitarle el portal, hacelo desde el perfil del cliente.</p></div></div>
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-sm font-semibold text-amber-800">
+                        {getNombreCliente(clienteObj)} no tiene acceso al portal
+                      </p>
+                      <p className="text-xs text-amber-700 mt-0.5">
+                        El evento se creará igualmente, pero el cliente no podrá verlo. Para habilitarle el portal, hacelo desde el perfil del cliente.
+                      </p>
+                    </div>
+                  </div>
                 )}
               </div>
             )}
           </div>
 
-          {/* BLOQUE 2 (renumerado): ¿Cuándo y Dónde?
-              ═══ El calendario inline ocupa toda la fila ═══
-              Lugar va abajo en otra fila, no al lado del calendario. */}
+          {/* BLOQUE 3: ¿Cuándo y Dónde? */}
           <div className="space-y-4">
             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-2"><Calendar className="w-4 h-4" /> 3. ¿Cuándo y Dónde?</h3>
 

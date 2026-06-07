@@ -225,6 +225,8 @@ model Liquidacion {
   creadoPorId String
   creadoPor   User            @relation("LiquidacionesCreadas", fields: [creadoPorId], references: [id])
 
+  bitacoras   Bitacora[]
+
   // Soft delete: nunca se borra físicamente
   eliminadoEn      DateTime?
   eliminadoPorId   String?
@@ -285,6 +287,7 @@ model Tarea {
   // Comentarios e historial de lectura
   comentarios      ComentarioTarea[]
   lecturas         TareaLectura[]
+  motivoCierreAdmin   MotivoCierreAdmin?
 
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
@@ -297,6 +300,11 @@ model Tarea {
   @@index([estado])
   @@index([fechaVencimiento])
   @@map("tarea")
+}
+
+enum MotivoCierreAdmin {
+  TRASPASO_ABOGADO     // El responsable/supervisor del evento se fue del estudio
+  TRASPASO_EXPEDIENTE  // El caso del que dependía se traspasó a otro estudio
 }
 
 // ============================================================================
@@ -354,32 +362,41 @@ model Bitacora {
   accion         String?
   casoId         String?
   detalle        String?  @db.Text
-   tareaId        String? 
+  tareaId        String?
   estadoAnterior String?
   estadoNuevo    String?
-  caso           Caso?    @relation(fields: [casoId], references: [id], onDelete: Cascade)
-  usuario        User     @relation(fields: [usuarioId], references: [id])
-  tarea          Tarea?   @relation(fields: [tareaId], references: [id], onDelete: Cascade)
+
+
+  documentoId    String?
+  liquidacionId  String?
+
+  caso           Caso?         @relation(fields: [casoId],         references: [id], onDelete: Cascade)
+  usuario        User          @relation(fields: [usuarioId],      references: [id])
+  tarea          Tarea?        @relation(fields: [tareaId],        references: [id], onDelete: Cascade)
+  documento      Documento?    @relation(fields: [documentoId],    references: [id], onDelete: SetNull)
+  liquidacion    Liquidacion?  @relation(fields: [liquidacionId],  references: [id], onDelete: SetNull)
 
   @@index([usuarioId])
-  @@index([tareaId]) 
+  @@index([tareaId])
   @@index([casoId])
   @@index([createdAt])
   @@index([accion])
+  @@index([documentoId])
+  @@index([liquidacionId])
   @@map("bitacora")
 }
 
 model Documento {
   id            String    @id @default(uuid())
-  nombre        String                          // "Demanda_inicial.pdf"
-  nombreOriginal String                         // nombre tal como lo subió el usuario
-  storageKey    String                          // clave en el storage (path relativo o key S3)
-  url           String?                         // URL pública o firmada (opcional)
-  tipo          String                          // "application/pdf", "image/png", etc.
-  extension     String                          // "pdf", "docx", "jpg"
-  tamanio       Int                             // bytes
+  nombre        String                         
+  nombreOriginal String                         
+  storageKey    String                         
+  url           String?                        
+  tipo          String                          
+  extension     String                          
+  tamanio       Int                             
   descripcion   String?   @db.Text
-  esInterno     Boolean   @default(false)       // true = no visible para cliente
+  esInterno     Boolean   @default(false)       
   
   // Relaciones
   casoId        String
@@ -390,6 +407,8 @@ model Documento {
   
   subidoPorId   String
   subidoPor     User      @relation(fields: [subidoPorId], references: [id])
+
+  bitacoras     Bitacora[]
   
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -404,7 +423,7 @@ model Carpeta {
   id              String      @id @default(uuid())
   nombre          String
   casoId          String
-  carpetaPadreId  String?     // null = raíz del expediente; con valor = anidada
+  carpetaPadreId  String?     
 
   caso            Caso        @relation(fields: [casoId], references: [id], onDelete: Cascade)
   carpetaPadre    Carpeta?    @relation("CarpetasAnidadas", fields: [carpetaPadreId], references: [id], onDelete: Cascade)

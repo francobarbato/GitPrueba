@@ -29,7 +29,7 @@ export async function GET(
       comoSupervisor,
     })
   } catch (error: any) {
-    console.error("Error al contar tareas activas:", error)
+    console.error("Error al contar eventos activos:", error)
     return NextResponse.json({ error: error.message || "Error" }, { status: 500 })
   }
 }

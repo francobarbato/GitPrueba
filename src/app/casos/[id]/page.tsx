@@ -26,6 +26,7 @@ import { getTareasDeCaso } from "src/lib/actions/tarea-actions"
 import { redirect, notFound } from "next/navigation"
 import { getLiquidacionesDeCaso } from "src/lib/actions/liquidacion-actions"
 import SeccionCalculosCaso from "./components/SeccionCalculosCaso"
+import { NavegadorCarpetas } from "@/app/documentos/components/NavegadorCarpetas"
 
 // Helper para verificar roles
 const isAdmin = (rol: string) => rol?.toUpperCase() === 'ADMIN'
@@ -660,7 +661,7 @@ const puedeVerMontoDisputa = isAbogado(userRol)
                 </Card>
               </TabsContent>
 
-                    <TabsContent value="documentacion" className="animate-in fade-in-50 space-y-6">
+            <TabsContent value="documentacion" className="animate-in fade-in-50 space-y-6">
  
               {/* Sección 1: Documentos del expediente (carpetas + archivos subidos) */}
               <Card>
@@ -673,19 +674,12 @@ const puedeVerMontoDisputa = isAbogado(userRol)
                     Carpetas y archivos subidos al expediente.
                   </p>
                 </CardHeader>
-                <CardContent className="p-6">
-                  <div className="text-center py-10 text-slate-400">
-                    <FolderOpen className="w-10 h-10 mx-auto mb-2 text-slate-300" />
-                    <p className="text-sm font-medium text-slate-500">
-                      Navegación de carpetas y documentos
-                    </p>
-                    <p className="text-xs mt-1">
-                      Esta sección replica la navegación de la sección global de Documentos, filtrada a este expediente.
-                    </p>
-                    <p className="text-[11px] text-slate-400 italic mt-3">
-                      (Próximamente — pendiente integrar el componente de navegación de documentos)
-                    </p>
-                  </div>
+                  <CardContent className="p-0 min-h-[600px] flex flex-col">
+                  <NavegadorCarpetas
+                    caso={{ id: caso.id, numero: caso.numero, titulo: caso.titulo }}
+                    userId={user.id}
+                    userRol={userRol}
+                  />
                 </CardContent>
               </Card>
             

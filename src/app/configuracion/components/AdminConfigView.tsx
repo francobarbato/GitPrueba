@@ -1,29 +1,17 @@
 'use client'
 
+// src/app/configuracion/AdminConfigView.tsx
+
 import { useState, useEffect, useMemo } from "react"
+import { useRouter } from "next/navigation"
 import {
   Trash2, UserPlus, Shield, AlertCircle, CheckCircle2,
-  Loader2, X, RotateCcw, AlertTriangle, Users, Key, Mail
+  Loader2, X, RotateCcw, Users, Key, Mail
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
-import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { useConfirmacion } from "@/components/confirmacion/ConfirmacionProvider"
 
 type Usuario = {
   id: string
@@ -32,22 +20,13 @@ type Usuario = {
   email: string
   rol: 'ADMIN' | 'ABOGADO' | 'ASISTENTE'
   isActive: boolean
-  estaInvitado: boolean       
+  estaInvitado: boolean
   createdAt: Date
   ultimoAcceso: Date | null
   _count?: {
     casos: number
     clientes: number
   }
-}
-
-type CasoMini = {
-  id:       string
-  numero:   string
-  titulo:   string
-  tipo:     string
-  priority: string
-  cliente?: { nombre: string | null; apellido: string | null } | null
 }
 
 type Estadisticas = {
@@ -62,6 +41,9 @@ type Estadisticas = {
 }
 
 export function AdminConfigView() {
+  const router = useRouter()
+  const { confirm: confirmar } = useConfirmacion()
+
   const [usuarios, setUsuarios] = useState<Usuario[]>([])
   const [estadisticas, setEstadisticas] = useState<Estadisticas | null>(null)
   const [loading, setLoading] = useState(true)
@@ -69,33 +51,9 @@ export function AdminConfigView() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
-  // Toggle para mostrar inactivos
   const [mostrarInactivos, setMostrarInactivos] = useState(false)
+  const [procesandoAccion, setProcesandoAccion] = useState(false)
 
-  // Modal de reasignación de casos
-  const [modalReasignar, setModalReasignar] = useState<Usuario | null>(null)
-  const [abogadoDestino, setAbogadoDestino] = useState<string>("")
-  const [procesandoEliminacion, setProcesandoEliminacion] = useState(false)
-
-  const [casosUsuario, setCasosUsuario] = useState<CasoMini[]>([])
-  const [loadingCasos, setLoadingCasos] = useState(false)
-
-  const [tareasInfo, setTareasInfo] = useState<{ total: number; comoResponsable: number; comoSupervisor: number } | null>(null)
-
-  // Decisiones por caso. Formato del value:
-  //   - "reasignar:<abogadoId>"
-  //   - "traspasar"
-  const [decisionesPorCaso, setDecisionesPorCaso] = useState<Record<string, string>>({})
-
-
-  const [modoGestion, setModoGestion] = useState<'reasignar' | 'traspasar'>('reasignar')
-  const [estudioDestino, setEstudioDestino] = useState<string>("")
-  const [motivoTraspaso, setMotivoTraspaso] = useState<string>("")
-
-  // Modal de confirmación de reactivación
-  const [modalReactivar, setModalReactivar] = useState<Usuario | null>(null)
-
-  // Estado del formulario (sin password — el usuario la elige al activar)
   const [formData, setFormData] = useState({
     nombre: '',
     apellido: '',
@@ -103,25 +61,12 @@ export function AdminConfigView() {
     rol: 'ABOGADO' as 'ADMIN' | 'ABOGADO' | 'ASISTENTE',
   })
 
-  // Filtrar usuarios según toggle. "Mostrar inactivos" muestra
-  // tanto invitaciones pendientes como desactivados reales.
   const usuariosFiltrados = useMemo(() => {
     if (mostrarInactivos) return usuarios
     return usuarios.filter(u => u.isActive)
   }, [usuarios, mostrarInactivos])
 
-  // Abogados activos disponibles para reasignar casos
-  const abogadosParaReasignar = useMemo(() => {
-    return usuarios.filter(u =>
-      u.rol === 'ABOGADO' &&
-      u.isActive &&
-      u.id !== modalReasignar?.id
-    )
-  }, [usuarios, modalReasignar])
-
-  useEffect(() => {
-    cargarUsuarios()
-  }, [])
+  useEffect(() => { cargarUsuarios() }, [])
 
   useEffect(() => {
     if (success) {
@@ -129,48 +74,6 @@ export function AdminConfigView() {
       return () => clearTimeout(timer)
     }
   }, [success])
-
-  // Cuando se abre el modal de gestión, cargamos los casos del usuario.
-// Al cerrarlo, limpiamos.
-useEffect(() => {
-  if (!modalReasignar) {
-    setCasosUsuario([])
-    setDecisionesPorCaso({})
-    setEstudioDestino("")
-    setMotivoTraspaso("")
-    setTareasInfo(null)
-    return
-  }
-
-  let cancelled = false
-  setLoadingCasos(true)
-
-  Promise.all([
-    fetch(`/api/admin/usuarios/${modalReasignar.id}/casos-activos`).then(r => r.json()),
-    fetch(`/api/admin/usuarios/${modalReasignar.id}/tareas-activas`).then(r => r.json()),
-  ])
-    .then(([casosData, tareasData]) => {
-      if (cancelled) return
-      setCasosUsuario(casosData.casos || [])
-      const inicial: Record<string, string> = {}
-      ;(casosData.casos || []).forEach((c: CasoMini) => { inicial[c.id] = "" })
-      setDecisionesPorCaso(inicial)
-      setTareasInfo({
-        total:           tareasData.total           || 0,
-        comoResponsable: tareasData.comoResponsable || 0,
-        comoSupervisor:  tareasData.comoSupervisor  || 0,
-      })
-    })
-    .catch(err => {
-      if (cancelled) return
-      setError(`No se pudo cargar la información del usuario: ${err.message}`)
-    })
-    .finally(() => {
-      if (!cancelled) setLoadingCasos(false)
-    })
-
-  return () => { cancelled = true }
-}, [modalReasignar])
 
   const cargarUsuarios = async () => {
     try {
@@ -196,20 +99,18 @@ useEffect(() => {
 
     try {
       const response = await fetch('/api/admin/usuarios', {
-        method:  'POST',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          nombre:   formData.nombre,
+          nombre: formData.nombre,
           apellido: formData.apellido,
-          email:    formData.email,
-          rol:      formData.rol,
+          email: formData.email,
+          rol: formData.rol,
         }),
       })
 
       const data = await response.json()
-      if (!response.ok) {
-        throw new Error(data.error || 'Error al crear usuario')
-      }
+      if (!response.ok) throw new Error(data.error || 'Error al crear usuario')
 
       setSuccess(data.mensaje || `Invitación enviada a ${formData.email}.`)
       setFormData({ nombre: '', apellido: '', email: '', rol: 'ABOGADO' })
@@ -221,189 +122,95 @@ useEffect(() => {
     }
   }
 
-  // ───── Desactivar usuario (con o sin reasignación de casos) ────────────
+  // ───── Acciones por usuario ────────────────────────────────────────────
+  //
+  // Caso 1 — Invitación pendiente: cancelación directa por DELETE
+  //          (el usuario nunca activó, no hay casos ni eventos ni clientes)
+  // Caso 2 — Usuario activo: redirect al panel de offboarding gradual
+  //          (ahí se manejan carteras, casos prestados, clientes y eventos)
 
-const handleDelete = async (usuario: Usuario) => {
-  const casosActivos = usuario._count?.casos || 0
+  const handleDelete = async (usuario: Usuario) => {
+    // Caso 1: invitación pendiente → cancelación directa
+    if (usuario.estaInvitado) {
+      const ok = await confirmar({
+        titulo: "Cancelar invitación",
+        descripcion: `Se cancelará la invitación enviada a ${usuario.email}. El enlace de activación dejará de funcionar.`,
+        variante: "danger",
+        textoConfirmar: "Sí, cancelar invitación",
+        textoCancelar: "Volver",
+      })
+      if (!ok) return
 
-  // Si tiene casos activos, abre el modal pesado (igual que antes)
-  if (casosActivos > 0) {
-    setModalReasignar(usuario)
-    return
-  }
+      setProcesandoAccion(true)
+      try {
+        const response = await fetch(`/api/admin/usuarios/${usuario.id}`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+        })
+        const data = await response.json()
+        if (!response.ok) throw new Error(data.error || 'Error al cancelar la invitación')
 
-  // Sin casos: consultar primero las tareas activas para informarle al admin
-  let advertenciaTareas = ""
-  try {
-    const r = await fetch(`/api/admin/usuarios/${usuario.id}/tareas-activas`)
-    if (r.ok) {
-      const data = await r.json()
-      const total = data.total || 0
-      if (total > 0) {
-        advertenciaTareas = `\n\nAtención: el usuario tiene ${total} tarea(s) activa(s) (${data.comoResponsable || 0} como responsable, ${data.comoSupervisor || 0} como supervisor). Se reasignarán automáticamente al titular del caso correspondiente o al administrador si no tienen caso.`
+        setSuccess('Invitación cancelada correctamente.')
+        cargarUsuarios()
+      } catch (err: any) {
+        setError(err.message)
+      } finally {
+        setProcesandoAccion(false)
       }
-    }
-  } catch { /* si falla el fetch, seguimos con la confirmación sin info de tareas */ }
-
-  const mensaje = usuario.estaInvitado
-    ? `¿Cancelar la invitación enviada a ${usuario.email}?`
-    : `¿Estás seguro de desactivar a ${usuario.nombre} ${usuario.apellido}?${advertenciaTareas}\n\nEl usuario no podrá acceder al sistema.`
-
-  if (!confirm(mensaje)) return
-
-  setProcesandoEliminacion(true)
-  try {
-    const response = await fetch(`/api/admin/usuarios/${usuario.id}`, {
-      method:  'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ decisiones: [] }),
-    })
-    const data = await response.json()
-    if (!response.ok) throw new Error(data.error || 'Error al desactivar usuario')
-
-    setSuccess(usuario.estaInvitado
-      ? 'Invitación cancelada correctamente.'
-      : 'Usuario desactivado correctamente.')
-    cargarUsuarios()
-  } catch (err: any) {
-    setError(err.message)
-  } finally {
-    setProcesandoEliminacion(false)
-  }
-}
-
-const aplicarGestionCasos = async () => {
-  if (!modalReasignar) return
-
-  // Construir el array de decisiones a partir del state
-  const decisiones = Object.entries(decisionesPorCaso).map(([casoId, valor]) => {
-    if (valor === 'traspasar') {
-      return { casoId, accion: 'traspasar' as const }
-    }
-    if (valor.startsWith('reasignar:')) {
-      return { casoId, accion: 'reasignar' as const, abogadoDestino: valor.split(':')[1] }
-    }
-    return null
-  }).filter(Boolean) as Array<{ casoId: string; accion: 'reasignar' | 'traspasar'; abogadoDestino?: string }>
-
-  if (decisiones.length !== casosUsuario.length) {
-    setError("Tenés que indicar qué hacer con cada caso.")
-    return
-  }
-
-  setProcesandoEliminacion(true)
-  try {
-    const response = await fetch(`/api/admin/usuarios/${modalReasignar.id}`, {
-      method:  'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({
-        decisiones,
-        estudioDestino,
-        motivoTraspaso,
-      }),
-    })
-    const data = await response.json()
-    if (!response.ok) throw new Error(data.error || 'Error al procesar')
-
-    setSuccess(data.message || 'Usuario desactivado correctamente.')
-    setModalReasignar(null)
-    cargarUsuarios()
-  } catch (err: any) {
-    setError(err.message)
-  } finally {
-    setProcesandoEliminacion(false)
-  }
-}
-
-const ejecutarEliminacion = async (
-  usuarioId: string,
-  opciones?: {
-    accion?:         'reasignar' | 'traspasar',
-    reasignarA?:     string,
-    estudioDestino?: string,
-    motivoTraspaso?: string,
-    eraInvitacion?:  boolean,
-  },
-) => {
-  setProcesandoEliminacion(true)
-  try {
-    const response = await fetch(`/api/admin/usuarios/${usuarioId}`, {
-      method:  'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({
-        accion:         opciones?.accion,
-        reasignarA:     opciones?.reasignarA,
-        estudioDestino: opciones?.estudioDestino,
-        motivoTraspaso: opciones?.motivoTraspaso,
-      }),
-    })
-
-    const data = await response.json()
-    if (!response.ok) {
-      throw new Error(data.error || 'Error al eliminar usuario')
+      return
     }
 
-    setSuccess(data.message || 'Usuario desactivado correctamente.')
-    setModalReasignar(null)
-    // Reset estados del modal
-    setAbogadoDestino("")
-    setModoGestion('reasignar')
-    setEstudioDestino("")
-    setMotivoTraspaso("")
-    cargarUsuarios()
-  } catch (err: any) {
-    setError(err.message)
-  } finally {
-    setProcesandoEliminacion(false)
+    // Caso 2: usuario activo → panel de offboarding
+    router.push(`/usuarios/${usuario.id}/offboarding`)
   }
-}
 
   // ───── Reactivar usuario ───────────────────────────────────────────────
 
-  const handleReactivar = (usuario: Usuario) => {
-    setModalReactivar(usuario)
-  }
+  const handleReactivar = async (usuario: Usuario) => {
+    const confirmado = await confirmar({
+      titulo: "Reactivar usuario",
+      descripcion: `¿Reactivar a ${usuario.nombre} ${usuario.apellido}? El usuario podrá volver a acceder al sistema con su contraseña anterior.`,
+      variante: "success",
+      textoConfirmar: "Sí, reactivar",
+      textoCancelar: "Cancelar",
+    })
+    if (!confirmado) return
 
-  const confirmarReactivacion = async () => {
-    if (!modalReactivar) return
-    setProcesandoEliminacion(true)
+    setProcesandoAccion(true)
     try {
-      const response = await fetch(`/api/admin/usuarios/${modalReactivar.id}/reactivar`, {
+      const response = await fetch(`/api/admin/usuarios/${usuario.id}/reactivar`, {
         method: 'POST',
       })
-
       const data = await response.json()
-      if (!response.ok) {
-        throw new Error(data.error || 'Error al reactivar usuario')
-      }
+      if (!response.ok) throw new Error(data.error || 'Error al reactivar usuario')
 
-      setSuccess(`Usuario ${modalReactivar.nombre} ${modalReactivar.apellido} reactivado correctamente.`)
-      setModalReactivar(null)
+      setSuccess(`Usuario ${usuario.nombre} ${usuario.apellido} reactivado correctamente.`)
       cargarUsuarios()
     } catch (err: any) {
       setError(err.message)
     } finally {
-      setProcesandoEliminacion(false)
+      setProcesandoAccion(false)
     }
   }
 
-  // ───── Disparar reset de contraseña (manda email) ──────────────────────
+  // ───── Reset de contraseña ────────────────────────────────────────────
 
   const handleResetPassword = async (usuario: Usuario) => {
-    const ok = confirm(
-      `Se enviará un email a ${usuario.email} con un enlace para que el usuario elija una nueva contraseña.\n\n¿Continuar?`
-    )
-    if (!ok) return
+    const confirmado = await confirmar({
+      titulo: "Enviar email de recuperación",
+      descripcion: `Se enviará un email a ${usuario.email} con un enlace para que el usuario elija una nueva contraseña.`,
+      variante: "warning",
+      textoConfirmar: "Enviar email",
+      textoCancelar: "Cancelar",
+    })
+    if (!confirmado) return
 
     try {
       const response = await fetch(`/api/admin/usuarios/${usuario.id}/cambiar-password`, {
         method: 'POST',
       })
-
       const data = await response.json()
-      if (!response.ok) {
-        throw new Error(data.error || 'Error al resetear contraseña')
-      }
+      if (!response.ok) throw new Error(data.error || 'Error al resetear contraseña')
 
       setSuccess(data.mensaje || `Email de recuperación enviado a ${usuario.email}.`)
     } catch (err: any) {
@@ -414,20 +221,21 @@ const ejecutarEliminacion = async (
   // ───── Reenviar invitación ─────────────────────────────────────────────
 
   const handleReenviarInvitacion = async (usuario: Usuario) => {
-    const ok = confirm(
-      `Se reenviará la invitación a ${usuario.email} con un nuevo enlace de activación (48 hs de validez).\n\n¿Continuar?`
-    )
-    if (!ok) return
+    const confirmado = await confirmar({
+      titulo: "Reenviar invitación",
+      descripcion: `Se reenviará la invitación a ${usuario.email} con un nuevo enlace de activación (48 hs de validez). El enlace anterior dejará de funcionar.`,
+      variante: "warning",
+      textoConfirmar: "Reenviar invitación",
+      textoCancelar: "Cancelar",
+    })
+    if (!confirmado) return
 
     try {
       const response = await fetch(`/api/admin/usuarios/${usuario.id}/reenviar-invitacion`, {
         method: 'POST',
       })
-
       const data = await response.json()
-      if (!response.ok) {
-        throw new Error(data.error || 'Error al reenviar invitación')
-      }
+      if (!response.ok) throw new Error(data.error || 'Error al reenviar invitación')
 
       setSuccess(data.mensaje || `Invitación reenviada a ${usuario.email}.`)
     } catch (err: any) {
@@ -460,9 +268,9 @@ const ejecutarEliminacion = async (
   const formatearFecha = (fecha: Date | null) => {
     if (!fecha) return 'Nunca'
     return new Date(fecha).toLocaleDateString('es-AR', {
-      day:   '2-digit',
+      day: '2-digit',
       month: 'short',
-      year:  'numeric',
+      year: 'numeric',
     })
   }
 
@@ -728,20 +536,22 @@ const ejecutarEliminacion = async (
                   <td className="px-6 py-4 text-right">
                     <div className="flex justify-end gap-1">
 
-                      {/* Usuario activo: cambiar password + desactivar */}
+                      {/* Usuario activo: cambiar password + iniciar baja */}
                       {user.isActive && (
                         <>
                           <button
-                            className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
+                            className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition disabled:opacity-50"
                             onClick={() => handleResetPassword(user)}
                             title="Enviar email de recuperación de contraseña"
+                            disabled={procesandoAccion}
                           >
                             <Key className="w-4 h-4" />
                           </button>
                           <button
-                            className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                            className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition disabled:opacity-50"
                             onClick={() => handleDelete(user)}
-                            title="Desactivar usuario"
+                            title="Iniciar baja del usuario"
+                            disabled={procesandoAccion}
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -752,16 +562,18 @@ const ejecutarEliminacion = async (
                       {!user.isActive && user.estaInvitado && (
                         <>
                           <button
-                            className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                            className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition disabled:opacity-50"
                             onClick={() => handleReenviarInvitacion(user)}
                             title="Reenviar invitación"
+                            disabled={procesandoAccion}
                           >
                             <Mail className="w-4 h-4" />
                           </button>
                           <button
-                            className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                            className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition disabled:opacity-50"
                             onClick={() => handleDelete(user)}
                             title="Cancelar invitación"
+                            disabled={procesandoAccion}
                           >
                             <X className="w-4 h-4" />
                           </button>
@@ -771,9 +583,10 @@ const ejecutarEliminacion = async (
                       {/* Inactivo (ex-activo): reactivar */}
                       {!user.isActive && !user.estaInvitado && (
                         <button
-                          className="p-2 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition"
+                          className="p-2 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition disabled:opacity-50"
                           onClick={() => handleReactivar(user)}
                           title="Reactivar usuario"
+                          disabled={procesandoAccion}
                         >
                           <RotateCcw className="w-4 h-4" />
                         </button>
@@ -799,218 +612,6 @@ const ejecutarEliminacion = async (
           )}
         </div>
       </div>
-
-{/* MODAL: GESTIONAR CASOS AL DESACTIVAR */}
-<Dialog open={!!modalReasignar} onOpenChange={() => setModalReasignar(null)}>
-  <DialogContent className="sm:max-w-3xl max-h-[85vh] overflow-y-auto">
-    <DialogHeader>
-      <DialogTitle className="flex items-center gap-2 text-amber-600">
-        <AlertTriangle className="w-5 h-5" />
-        Gestionar Casos Activos
-      </DialogTitle>
-      <DialogDescription>
-        <strong>{modalReasignar?.nombre} {modalReasignar?.apellido}</strong> tiene{' '}
-        <strong>{modalReasignar?._count?.casos || 0} expediente(s) activo(s)</strong>.
-        Para cada uno, indicá qué corresponde hacer antes de desactivar el usuario.
-      </DialogDescription>
-    </DialogHeader>
-    {/* Aviso de tareas activas */}
-    {tareasInfo && tareasInfo.total > 0 && (
-      <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-        <div className="flex gap-2">
-          <AlertTriangle className="w-4 h-4 text-amber-700 mt-0.5 shrink-0" />
-          <div className="text-sm text-amber-900">
-            <p className="font-semibold">Atención: tareas activas pendientes</p>
-            <p className="mt-1">
-              Este usuario tiene <strong>{tareasInfo.total} tarea(s) activa(s)</strong>
-              {tareasInfo.comoResponsable > 0 && ` — ${tareasInfo.comoResponsable} como responsable`}
-              {tareasInfo.comoSupervisor  > 0 && `${tareasInfo.comoResponsable > 0 ? ' y ' : ' — '}${tareasInfo.comoSupervisor} como supervisor`}.
-              Lo ideal es que las complete o reasigne antes de la desactivación.
-            </p>
-            <p className="mt-1 text-xs text-amber-700">
-              Si proceds igual, se aplica una política automática: responsables y supervisores pasan al
-              titular del caso correspondiente. Las tareas sin caso pasan al administrador que ejecuta.
-            </p>
-          </div>
-        </div>
-      </div>
-    )}
-
-    <div className="py-4">
-      {loadingCasos ? (
-        <div className="flex items-center justify-center py-12 text-slate-500">
-          <Loader2 className="w-5 h-5 animate-spin mr-2" />
-          Cargando casos...
-        </div>
-      ) : casosUsuario.length === 0 ? (
-        <p className="text-sm text-slate-500 py-6 text-center">
-          No se encontraron casos activos.
-        </p>
-      ) : (
-        <>
-          {/* Tabla de casos con select por fila */}
-          <div className="border border-slate-200 rounded-lg overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-50 border-b border-slate-200">
-                <tr>
-                  <th className="text-left px-3 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    Expediente
-                  </th>
-                  <th className="text-left px-3 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    Carátula
-                  </th>
-                  <th className="text-left px-3 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider w-[220px]">
-                    Acción
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {casosUsuario.map((c) => (
-                  <tr key={c.id} className="hover:bg-slate-50/60">
-                    <td className="px-3 py-2 font-mono text-xs text-slate-700">{c.numero}</td>
-                    <td className="px-3 py-2 text-slate-800">
-                      <p className="line-clamp-1" title={c.titulo}>{c.titulo}</p>
-                      {c.cliente && (
-                        <p className="text-xs text-slate-500">
-                          {c.cliente.nombre} {c.cliente.apellido || ''}
-                        </p>
-                      )}
-                    </td>
-                    <td className="px-3 py-2">
-                      <Select
-                        value={decisionesPorCaso[c.id] || ""}
-                        onValueChange={(v) =>
-                          setDecisionesPorCaso(prev => ({ ...prev, [c.id]: v }))
-                        }
-                      >
-                        <SelectTrigger className="h-8 text-xs">
-                          <SelectValue placeholder="Elegir acción..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {abogadosParaReasignar.length === 0 && (
-                            <div className="px-2 py-1.5 text-xs text-slate-400 italic">
-                              No hay otros abogados activos
-                            </div>
-                          )}
-                          {abogadosParaReasignar.map((abogado) => (
-                            <SelectItem key={abogado.id} value={`reasignar:${abogado.id}`}>
-                              Reasignar a {abogado.nombre} {abogado.apellido}
-                            </SelectItem>
-                          ))}
-                          <SelectItem value="traspasar">
-                            Traspasar a otro estudio
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Campos extra si hay al menos un traspaso */}
-          {Object.values(decisionesPorCaso).includes('traspasar') && (
-            <div className="mt-4 p-4 bg-purple-50 border border-purple-200 rounded-lg space-y-3">
-              <p className="text-sm font-semibold text-purple-800">
-                Datos del traspaso (se aplican a los casos marcados como traspasados)
-              </p>
-              <div>
-                <label className="text-xs font-medium text-slate-700">
-                  Estudio destino <span className="text-slate-400 font-normal">(opcional)</span>
-                </label>
-                <input
-                  type="text"
-                  value={estudioDestino}
-                  onChange={(e) => setEstudioDestino(e.target.value)}
-                  placeholder="Ej: Estudio Pérez & Asociados"
-                  className="mt-1 w-full p-2 border border-purple-200 rounded bg-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-400"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-slate-700">
-                  Motivo del traspaso <span className="text-slate-400 font-normal">(opcional)</span>
-                </label>
-                <textarea
-                  value={motivoTraspaso}
-                  onChange={(e) => setMotivoTraspaso(e.target.value)}
-                  placeholder="Ej: El cliente decidió continuar con otro estudio..."
-                  rows={2}
-                  className="mt-1 w-full p-2 border border-purple-200 rounded bg-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-400"
-                />
-              </div>
-            </div>
-          )}
-        </>
-      )}
-    </div>
-
-    <DialogFooter>
-      <Button
-        variant="outline"
-        onClick={() => setModalReasignar(null)}
-        disabled={procesandoEliminacion}
-      >
-        Cancelar
-      </Button>
-      <Button
-        onClick={aplicarGestionCasos}
-        disabled={
-          procesandoEliminacion ||
-          loadingCasos ||
-          casosUsuario.length === 0 ||
-          Object.values(decisionesPorCaso).some(v => !v)   // hay casos sin decisión
-        }
-        className="bg-slate-900 hover:bg-slate-800"
-      >
-        {procesandoEliminacion ? (
-          <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Procesando...</>
-        ) : (
-          'Aplicar y desactivar'
-        )}
-      </Button>
-    </DialogFooter>
-  </DialogContent>
-</Dialog>
-
-      {/* MODAL: REACTIVAR USUARIO */}
-      <Dialog open={!!modalReactivar} onOpenChange={() => setModalReactivar(null)}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-green-600">
-              <RotateCcw className="w-5 h-5" />
-              Reactivar Usuario
-            </DialogTitle>
-            <DialogDescription>
-              ¿Estás seguro de reactivar a{' '}
-              <strong>{modalReactivar?.nombre} {modalReactivar?.apellido}</strong>?
-              <br />
-              El usuario podrá volver a acceder al sistema con su contraseña anterior.
-            </DialogDescription>
-          </DialogHeader>
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setModalReactivar(null)}
-              disabled={procesandoEliminacion}
-            >
-              Cancelar
-            </Button>
-            <Button
-              onClick={confirmarReactivacion}
-              disabled={procesandoEliminacion}
-              className="bg-green-600 hover:bg-green-700"
-            >
-              {procesandoEliminacion ? (
-                <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Procesando...</>
-              ) : (
-                'Reactivar Usuario'
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

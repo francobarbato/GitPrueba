@@ -186,10 +186,26 @@ function validarLimiteCuerpo(texto: string, limite: LimiteCuerpo): string | null
   return null
 }
 
-async function usuarioPuedeAccederCaso(casoId: string, userId: string, rol?: string | null): Promise<boolean> {
-  if (rol === "ADMIN") return false
-  const caso = await prisma.caso.findUnique({ where: { id: casoId }, select: { abogadoId: true } })
+async function usuarioPuedeAccederCaso(
+  casoId: string,
+  userId: string,
+  rol?: string | null
+): Promise<boolean> {
+  const rolUpper = rol?.toUpperCase()
+ 
+  // ADMIN no accede a datos legales (es solo técnico).
+  if (rolUpper === "ADMIN") return false
+ 
+  const caso = await prisma.caso.findUnique({
+    where: { id: casoId },
+    select: { abogadoId: true }
+  })
   if (!caso) return false
+ 
+  // ASISTENTE tiene acceso general a cualquier expediente del estudio.
+  if (rolUpper === "ASISTENTE") return true
+ 
+  // ABOGADO solo accede a sus propios expedientes.
   return caso.abogadoId === userId
 }
 

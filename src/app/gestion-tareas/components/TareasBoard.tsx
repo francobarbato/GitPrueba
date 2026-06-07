@@ -27,6 +27,7 @@ import { ABRIR_TAREA_DRAWER_EVENT } from "@/app/components/header"
 import { dispatchNotificationsRefresh } from "@/app/components/header"
 import { useFeriados } from "../../hooks/useFeriados"
 import { UserName } from "../../components/UserName"
+import { cerrarEventoPorTraspasoAbogadoAction } from "src/lib/actions/tarea-actions"
 
 // ============================================================================
 // TIME-BOXING — Configuración
@@ -288,20 +289,54 @@ function isoToDateEdit(s: string): Date | undefined {
   return new Date(y, m - 1, d)
 }
  
-export function ModalEditar({ tarea, onClose, onSaved, currentUserId, usuarios }: {
-  tarea: TareaConRelaciones; onClose: () => void; onSaved: (t: TareaConRelaciones) => void
-  currentUserId: string; usuarios?: { id: string; nombre: string | null; apellido: string | null; rol: string }[]
+// ─────────────────────────────────────────────────────────────────────────────
+// ModalEditar.tsx —
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// CAMBIOS en esta versión:
+//   - Dropdown de responsable filtra según el caso del evento (titular + asistentes
+//     activos), igual que en NuevaTareaModal. Antes mostraba todos los usuarios.
+//   - El supervisor (visible solo en contexto admin) usa el mismo filtro.
+//   - Si el responsable o supervisor actual no está en la lista filtrada (caso
+//     histórico: se asignó cuando no había validación), se incluye con etiqueta
+//     "(fuera de las reglas habituales)" para no romper el form.
+//   - Disclaimer cuando la lista está restringida por el caso.
+//
+// El resto del componente (CalendarioCarga, sección administrativa, cierre por
+// traspaso, etc.) se mantiene igual.
+
+export function ModalEditar({ tarea, onClose, onSaved, currentUserId, usuarios, currentUserRol }: {
+  tarea: TareaConRelaciones
+  onClose: () => void
+  onSaved: (t: TareaConRelaciones) => void
+  currentUserId: string
+  usuarios?: { id: string; nombre: string | null; apellido: string | null; rol: string }[]
+  currentUserRol?: string
 }) {
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+  const [cerrandoTraspaso, setCerrandoTraspaso] = useState(false)
+  const [motivoTraspasoAbogado, setMotivoTraspasoAbogado] = useState("")
+  const [showCierreAdmin, setShowCierreAdmin] = useState(false)
+ 
+  const responsableInactivo = !tarea.responsable.isActive
+  const supervisorInactivo  = tarea.supervisor ? !tarea.supervisor.isActive : false
+  const esContextoAdmin = responsableInactivo || supervisorInactivo
  
   const esCreadorOSupervisor = tarea.creadorId === currentUserId || tarea.supervisorId === currentUserId
+  const esAbogadoOAsistente = currentUserRol === "ABOGADO" || currentUserRol === "ASISTENTE"
+ 
+  const puedeEditarEstructurales = esContextoAdmin
+    ? esAbogadoOAsistente
+    : esCreadorOSupervisor
  
   const [titulo, setTitulo] = useState(tarea.titulo)
   const [prioridad, setPrioridad] = useState<PrioridadTarea>(tarea.prioridad)
   const [responsableId, setResponsableId] = useState(tarea.responsableId)
+  const [supervisorId, setSupervisorIdState] = useState<string | null>(tarea.supervisorId)
   const [descripcion, setDescripcion] = useState(tarea.descripcion ?? "")
   const [fechaVencimiento, setFecha] = useState(tarea.fechaVencimiento ? tarea.fechaVencimiento.split("T")[0] : "")
+ 
   const detectarModalidad = (lugar: string | null): string => {
     if (!lugar || lugar === "Estudio Jurídico") return "ESTUDIO"
     if (lugar.startsWith("[TRIBUNAL]")) return "TRIBUNAL"
@@ -314,74 +349,174 @@ export function ModalEditar({ tarea, onClose, onSaved, currentUserId, usuarios }
  
   const categoriaCfg = CATEGORIA_CONFIG[tarea.categoria]
  
+  // ═══ FILTRO DE USUARIOS SEGÚN CASO ═══
+  // Misma regla que NuevaTareaModal: si la tarea tiene caso activo, solo el
+  // titular del caso y los asistentes pueden ser responsable o supervisor.
+  // Si el caso está cerrado o no hay caso, todos los usuarios.
+  //
+  // Filtramos por ABOGADO/ASISTENTE y por activos (en contexto admin el actual
+  // puede estar inactivo, pero el destino siempre tiene que estar activo).
+  const usuariosBase = useMemo(
+    () => (usuarios ?? []).filter(u => u.rol === "ABOGADO" || u.rol === "ASISTENTE"),
+    [usuarios]
+  )
+ 
+  const usuariosFiltrados = useMemo(() => {
+    if (!tarea.caso || tarea.caso.estaCerrado) return usuariosBase
+    return usuariosBase.filter(u => u.id === tarea.caso!.abogadoId || u.rol === "ASISTENTE")
+  }, [tarea.caso, usuariosBase])
+ 
+  const listaRestringidaPorCaso = !!tarea.caso && !tarea.caso.estaCerrado
+    && usuariosFiltrados.length < usuariosBase.length
+ 
+  // Lista efectiva para el selector de responsable: usuariosFiltrados + el actual
+  // si no está dentro (caso histórico de eventos creados sin validación).
+  const usuariosParaResponsable = useMemo(() => {
+    if (usuariosFiltrados.some(u => u.id === responsableId)) return usuariosFiltrados
+    const actual = usuariosBase.find(u => u.id === responsableId)
+    return actual ? [actual, ...usuariosFiltrados] : usuariosFiltrados
+  }, [usuariosFiltrados, responsableId, usuariosBase])
+ 
+  // Lista para supervisor: misma lógica con el supervisor actual
+  const usuariosParaSupervisor = useMemo(() => {
+    if (!supervisorId) return usuariosFiltrados
+    if (usuariosFiltrados.some(u => u.id === supervisorId)) return usuariosFiltrados
+    const actual = usuariosBase.find(u => u.id === supervisorId)
+    return actual ? [actual, ...usuariosFiltrados] : usuariosFiltrados
+  }, [usuariosFiltrados, supervisorId, usuariosBase])
+ 
   // ═══ Carga del responsable para el calendario ═══
-  // Misma lógica que en NuevaTareaModal: cuando cambia el responsable elegido,
-  // traemos la carga vía server action. El responsable puede cambiarse solo si
-  // sos creador/supervisor; si no, queda fijo y muestra la carga del responsable
-  // actual (sigue siendo útil para reagendar).
   const [cargaResponsable, setCargaResponsable] = useState<Record<string, number>>({})
   const [cargaLoading, setCargaLoading] = useState(false)
   const { feriadosSet } = useFeriados([2026, 2027])
  
   useEffect(() => {
-    if (!responsableId) {
-      setCargaResponsable({})
-      return
-    }
-
-
+    if (!responsableId) { setCargaResponsable({}); return }
     let cancelado = false
     setCargaLoading(true)
     getCargaResponsableAction(responsableId, 180)
       .then(result => {
         if (cancelado) return
-        if (result.error) {
-          console.error("Error cargando agenda del responsable:", result.error)
-          setCargaResponsable({})
-        } else {
-          setCargaResponsable(result.carga)
-        }
+        if (result.error) { console.error("Error cargando agenda:", result.error); setCargaResponsable({}) }
+        else { setCargaResponsable(result.carga) }
       })
-      .finally(() => {
-        if (!cancelado) setCargaLoading(false)
-      })
+      .finally(() => { if (!cancelado) setCargaLoading(false) })
     return () => { cancelado = true }
   }, [responsableId])
  
-  const responsableObj = usuarios?.find(u => u.id === responsableId)
+  const responsableObj = usuariosBase.find(u => u.id === responsableId)
  
   const handleSave = () => {
-    if (esCreadorOSupervisor && !titulo.trim()) { setError("El título es obligatorio"); return }
+    if (puedeEditarEstructurales && !titulo.trim()) {
+      setError("El título es obligatorio")
+      return
+    }
     startTransition(async () => {
-      const lugarFinal = modalidadLugar === "ESTUDIO" ? "Estudio Jurídico" : `[${modalidadLugar}] ${detalleLugar}`.trim()
-      const datos: any = { descripcion: descripcion || undefined, fechaVencimiento: fechaVencimiento || null, lugarFisico: lugarFinal }
-      if (esCreadorOSupervisor) {
+      const lugarFinal = modalidadLugar === "ESTUDIO"
+        ? "Estudio Jurídico"
+        : `[${modalidadLugar}] ${detalleLugar}`.trim()
+ 
+      const datos: any = {
+        descripcion: descripcion || undefined,
+        fechaVencimiento: fechaVencimiento || null,
+        lugarFisico: lugarFinal,
+      }
+      if (puedeEditarEstructurales) {
         datos.titulo = titulo.trim()
         datos.prioridad = prioridad
-        if (responsableId !== tarea.responsableId) { datos.responsableId = responsableId; datos.supervisorId = currentUserId }
+        if (responsableId !== tarea.responsableId) {
+          datos.responsableId = responsableId
+          if (!esContextoAdmin) datos.supervisorId = currentUserId
+        }
+        if (esContextoAdmin && supervisorId !== tarea.supervisorId) {
+          datos.supervisorId = supervisorId
+        }
       }
+ 
       const result = await editarTareaAction(tarea.id, datos)
-      if (result.error) { setError(result.error) } else {
-        onSaved({ ...tarea, ...(esCreadorOSupervisor ? { titulo, prioridad, responsableId } : {}), descripcion: descripcion || null, fechaVencimiento: fechaVencimiento ? new Date(fechaVencimiento).toISOString() : null, lugarFisico: lugarFinal })
+      if (result.error) {
+        setError(result.error)
+      } else {
+        onSaved({
+          ...tarea,
+          ...(puedeEditarEstructurales ? { titulo, prioridad, responsableId, supervisorId } : {}),
+          descripcion: descripcion || null,
+          fechaVencimiento: fechaVencimiento ? new Date(fechaVencimiento).toISOString() : null,
+          lugarFisico: lugarFinal,
+        })
         onClose()
       }
     })
   }
  
+  const handleCierrePorTraspasoAbogado = async () => {
+    if (!confirm("¿Cerrar este evento por traspaso del abogado? Esta acción marca el evento como cerrado administrativamente y no se puede revertir.")) return
+    setCerrandoTraspaso(true)
+    try {
+      const r = await cerrarEventoPorTraspasoAbogadoAction(tarea.id, motivoTraspasoAbogado.trim() || undefined)
+      if (r.error) {
+        setError(r.error)
+      } else {
+        onSaved({
+          ...tarea,
+          vencidaCerradaEn: new Date().toISOString(),
+          motivoCierreAdmin: 'TRASPASO_ABOGADO',
+        })
+        onClose()
+      }
+    } catch (e: any) {
+      setError(e.message || "Error")
+    } finally {
+      setCerrandoTraspaso(false)
+    }
+  }
+ 
+  // Helper para etiquetar al actual cuando está fuera del filtro
+  const esRespFueraDelFiltro = !!tarea.caso && !tarea.caso.estaCerrado
+    && !usuariosFiltrados.some(u => u.id === responsableId)
+  const esSupFueraDelFiltro = !!supervisorId && !!tarea.caso && !tarea.caso.estaCerrado
+    && !usuariosFiltrados.some(u => u.id === supervisorId)
+ 
   return (
-    // ─── ÚNICO CAMBIO DE LAYOUT: max-w-lg → max-w-3xl ───
-    // Necesario para que entre el calendario inline cómodo. Mismo ancho que
-    // NuevaTareaModal, así editar y crear se sienten consistentes.
     <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[60] flex items-center justify-center p-4 overflow-y-auto">
       <div className="bg-white rounded-2xl w-full max-w-3xl shadow-2xl flex flex-col max-h-[90vh]">
+ 
         <div className="flex items-center justify-between p-5 border-b border-slate-100 shrink-0">
           <div>
-            <h2 className="text-lg font-bold text-slate-800">Editar Tarea</h2>
-            <p className="text-xs text-slate-400 mt-0.5">{esCreadorOSupervisor ? "Vista de creador — podés editar todo" : "Vista de responsable — campos operativos"}</p>
+            <h2 className="text-lg font-bold text-slate-800">Editar Evento</h2>
+            <p className="text-xs text-slate-400 mt-0.5">
+              {esContextoAdmin
+                ? "Contexto administrativo — responsable o supervisor inactivo"
+                : puedeEditarEstructurales
+                  ? "Vista de creador — podés editar todo"
+                  : "Vista de responsable — campos operativos"}
+            </p>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100"><X className="w-4 h-4" /></button>
+          <button onClick={onClose} className="p-1.5 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100">
+            <X className="w-4 h-4" />
+          </button>
         </div>
+ 
         <div className="p-5 space-y-4 overflow-y-auto">
+ 
+          {/* ─── BANNER ADMINISTRATIVO ─── */}
+          {esContextoAdmin && (
+            <div className="p-3 bg-amber-50 border-2 border-amber-200 rounded-lg flex items-start gap-3">
+              <ShieldAlert className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-amber-900">Este evento necesita acción administrativa</p>
+                <p className="text-xs text-amber-700 mt-1">
+                  {responsableInactivo && supervisorInactivo
+                    ? "Tanto el responsable como el supervisor están inactivos."
+                    : responsableInactivo
+                      ? `El responsable (${tarea.responsable.nombre} ${tarea.responsable.apellido ?? ''}) está inactivo.`
+                      : `El supervisor (${tarea.supervisor?.nombre} ${tarea.supervisor?.apellido ?? ''}) está inactivo.`}
+                  {" "}Reasigná los roles a usuarios activos o cerrá el evento por traspaso del abogado.
+                </p>
+              </div>
+            </div>
+          )}
+ 
           <div className="grid grid-cols-2 gap-3">
             <CampoInmutable label="Tipo" valor={tarea.tipo === "PROCESAL" ? "⚖️ Procesal" : "🏢 Interna"} />
             <CampoInmutable label="Categoría" valor={categoriaCfg?.label ?? tarea.categoria} />
@@ -392,16 +527,100 @@ export function ModalEditar({ tarea, onClose, onSaved, currentUserId, usuarios }
               {tarea.cliente && <CampoInmutable label="Cliente" valor={`${tarea.cliente.nombre} ${tarea.cliente.apellido ?? ""}`} />}
             </div>
           )}
+ 
           <div className="border-t border-slate-100 pt-4" />
-          {esCreadorOSupervisor ? (
+ 
+          {puedeEditarEstructurales ? (
             <>
-              <div><label className="text-xs font-semibold text-slate-600 block mb-1">Título *</label><input value={titulo} onChange={e => setTitulo(e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" /></div>
+              <div>
+                <label className="text-xs font-semibold text-slate-600 block mb-1">Título *</label>
+                <input value={titulo} onChange={e => setTitulo(e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+              </div>
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="text-xs font-semibold text-slate-600 block mb-1">Prioridad</label><select value={prioridad} onChange={e => setPrioridad(e.target.value as PrioridadTarea)} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white">{PRIORIDADES_EDIT.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}</select></div>
-                {usuarios && usuarios.length > 0 && (
-                  <div><label className="text-xs font-semibold text-slate-600 block mb-1">Responsable</label><select value={responsableId} onChange={e => setResponsableId(e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white">{usuarios.map(u => <option key={u.id} value={u.id}>{u.nombre} {u.apellido} {u.id === currentUserId ? "(Yo)" : ""}</option>)}</select></div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 block mb-1">Prioridad</label>
+                  <select value={prioridad} onChange={e => setPrioridad(e.target.value as PrioridadTarea)} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white">
+                    {PRIORIDADES_EDIT.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+                  </select>
+                </div>
+                {usuariosParaResponsable.length > 0 && (
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 block mb-1">
+                      Responsable
+                      {responsableInactivo && <span className="ml-1 text-amber-600 text-[10px]">(inactivo — elegí otro)</span>}
+                    </label>
+                    <select value={responsableId} onChange={e => setResponsableId(e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white">
+                      {usuariosParaResponsable.map(u => {
+                        const fueraDelFiltro = !!tarea.caso && !tarea.caso.estaCerrado
+                          && !usuariosFiltrados.some(uu => uu.id === u.id)
+                        return (
+                          <option key={u.id} value={u.id}>
+                            {u.nombre} {u.apellido}
+                            {u.id === currentUserId ? " (Yo)" : ""}
+                            {fueraDelFiltro ? " · fuera de las reglas del caso" : ""}
+                          </option>
+                        )
+                      })}
+                    </select>
+                  </div>
                 )}
               </div>
+ 
+              {/* Disclaimer cuando la lista está limitada por el caso */}
+              {listaRestringidaPorCaso && (
+                <p className="text-xs text-amber-700 -mt-2 flex items-start gap-1">
+                  <ShieldAlert className="w-3 h-3 mt-0.5 shrink-0" />
+                  <span>
+                    Lista limitada al titular del expediente y asistentes (los demás abogados no tienen acceso a este caso).
+                  </span>
+                </p>
+              )}
+              {esRespFueraDelFiltro && (
+                <p className="text-xs text-orange-700 -mt-2 flex items-start gap-1">
+                  <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" />
+                  <span>
+                    El responsable actual no cumple las reglas del caso (no es titular ni asistente). Se recomienda reasignar.
+                  </span>
+                </p>
+              )}
+ 
+              {/* SUPERVISOR — solo en contexto administrativo */}
+              {esContextoAdmin && (
+                <>
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 block mb-1">
+                      Supervisor
+                      {supervisorInactivo && <span className="ml-1 text-amber-600 text-[10px]">(inactivo — elegí otro)</span>}
+                    </label>
+                    <select
+                      value={supervisorId ?? ""}
+                      onChange={e => setSupervisorIdState(e.target.value || null)}
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white"
+                    >
+                      <option value="">— Sin supervisor —</option>
+                      {usuariosParaSupervisor.map(u => {
+                        const fueraDelFiltro = !!tarea.caso && !tarea.caso.estaCerrado
+                          && !usuariosFiltrados.some(uu => uu.id === u.id)
+                        return (
+                          <option key={u.id} value={u.id}>
+                            {u.nombre} {u.apellido}
+                            {u.id === currentUserId ? " (Yo)" : ""}
+                            {fueraDelFiltro ? " · fuera de las reglas del caso" : ""}
+                          </option>
+                        )
+                      })}
+                    </select>
+                  </div>
+                  {esSupFueraDelFiltro && (
+                    <p className="text-xs text-orange-700 -mt-2 flex items-start gap-1">
+                      <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" />
+                      <span>
+                        El supervisor actual no cumple las reglas del caso. Se recomienda reasignar.
+                      </span>
+                    </p>
+                  )}
+                </>
+              )}
             </>
           ) : (
             <div className="grid grid-cols-2 gap-3">
@@ -409,35 +628,45 @@ export function ModalEditar({ tarea, onClose, onSaved, currentUserId, usuarios }
               <CampoInmutable label="Prioridad" valor={PRIORIDADES_EDIT.find(p => p.value === tarea.prioridad)?.label ?? tarea.prioridad} />
             </div>
           )}
+ 
           <div className="border-t border-slate-100 pt-4" />
  
-          {/* ═══ CALENDARIO INLINE (reemplaza el <input type="date"> viejo) ═══
-              Mismo patrón que NuevaTareaModal. Si hay responsable identificado,
-              mostramos su nombre al costado del label para dejar claro de quién
-              es la carga que se está visualizando. */}
           <div>
             <label className="text-xs font-semibold text-slate-600 block mb-1">
               Vencimiento / Plazo
               {responsableObj && (
                 <span className="ml-2 text-[10px] text-slate-400 font-normal italic">
-                  Mostrando carga de {responsableObj.nombre} {responsableObj.apellido}
+                  Carga de {responsableObj.nombre} {responsableObj.apellido}
                 </span>
               )}
             </label>
             <CalendarioCarga
               selected={isoToDateEdit(fechaVencimiento)}
               onSelect={(d) => {
-              if (!d) { setFecha(""); return }
-              const normalizada = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0)
-              setFecha(dateToISOEdit(normalizada))
-}}
+                if (!d) { setFecha(""); return }
+                const normalizada = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0)
+                setFecha(dateToISOEdit(normalizada))
+              }}
               carga={cargaResponsable}
               loading={cargaLoading}
               feriadosSet={feriadosSet}
             />
           </div>
  
-          <div><label className="text-xs font-semibold text-slate-600 block mb-1">Lugar o Modalidad</label><div className="flex gap-2"><select value={modalidadLugar} onChange={e => setModalidad(e.target.value)} className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white w-[180px]">{MODALIDADES_LUGAR_EDIT.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}</select>{modalidadLugar !== "ESTUDIO" && (<input value={detalleLugar} onChange={e => setDetalle(e.target.value)} placeholder={modalidadLugar === "VIRTUAL" ? "Link de la reunión..." : "Dirección o detalle..."} className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />)}</div></div>
+          <div>
+            <label className="text-xs font-semibold text-slate-600 block mb-1">Lugar o Modalidad</label>
+            <div className="flex gap-2">
+              <select value={modalidadLugar} onChange={e => setModalidad(e.target.value)} className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white w-[180px]">
+                {MODALIDADES_LUGAR_EDIT.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+              </select>
+              {modalidadLugar !== "ESTUDIO" && (
+                <input value={detalleLugar} onChange={e => setDetalle(e.target.value)}
+                  placeholder={modalidadLugar === "VIRTUAL" ? "Link de la reunión..." : "Dirección o detalle..."}
+                  className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+              )}
+            </div>
+          </div>
+ 
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="text-xs font-semibold text-slate-600">Descripción / Instrucciones</label>
@@ -445,11 +674,66 @@ export function ModalEditar({ tarea, onClose, onSaved, currentUserId, usuarios }
             </div>
             <textarea value={descripcion} onChange={e => { if (e.target.value.length <= 300) setDescripcion(e.target.value) }} maxLength={300} rows={3} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-300" />
           </div>
+ 
+          {esContextoAdmin && (
+            <div className="border-t border-slate-100 pt-4">
+              {!showCierreAdmin ? (
+                <button
+                  onClick={() => setShowCierreAdmin(true)}
+                  className="w-full text-sm text-amber-700 border-2 border-dashed border-amber-300 bg-amber-50 hover:bg-amber-100 rounded-lg px-3 py-2 flex items-center justify-center gap-2 transition-colors"
+                >
+                  <XCircle className="w-4 h-4" />
+                  Cerrar este evento por traspaso del abogado
+                </button>
+              ) : (
+                <div className="p-3 bg-amber-50 border-2 border-amber-200 rounded-lg space-y-3">
+                  <div>
+                    <p className="text-sm font-semibold text-amber-900 mb-1">Cerrar por traspaso del abogado</p>
+                    <p className="text-xs text-amber-700">
+                      Marca este evento como cerrado administrativamente porque el responsable/supervisor se fue del estudio
+                      y la tarea ya no aplica. Queda registrado en bitácora.
+                    </p>
+                  </div>
+                  <textarea
+                    value={motivoTraspasoAbogado}
+                    onChange={e => setMotivoTraspasoAbogado(e.target.value)}
+                    placeholder="Detalle opcional (ej: tarea específica del Dr. X, ya no aplica al estudio)"
+                    rows={2}
+                    className="w-full border border-amber-300 bg-white rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-300"
+                  />
+                  <div className="flex justify-end gap-2">
+                    <button
+                      onClick={() => setShowCierreAdmin(false)}
+                      disabled={cerrandoTraspaso}
+                      className="px-3 py-1.5 text-xs border border-amber-300 bg-white rounded-md hover:bg-amber-50 text-amber-700"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={handleCierrePorTraspasoAbogado}
+                      disabled={cerrandoTraspaso}
+                      className="px-3 py-1.5 text-xs bg-amber-600 text-white rounded-md hover:bg-amber-700 font-medium disabled:opacity-50 flex items-center gap-1"
+                    >
+                      {cerrandoTraspaso ? "Cerrando..." : "Confirmar cierre"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+ 
           {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
         </div>
+ 
         <div className="flex justify-end gap-2 p-5 border-t border-slate-100 bg-slate-50 rounded-b-2xl shrink-0">
           <button onClick={onClose} className="px-4 py-2 text-sm border border-slate-200 rounded-lg hover:bg-white text-slate-600">Cancelar</button>
-          <button onClick={handleSave} disabled={isPending} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50">{isPending ? "Guardando..." : "Guardar cambios"}</button>
+          <button
+            onClick={handleSave}
+            disabled={isPending || cerrandoTraspaso}
+            className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50"
+          >
+            {isPending ? "Guardando..." : "Guardar cambios"}
+          </button>
         </div>
       </div>
     </div>
@@ -1582,7 +1866,7 @@ const handleCloseDrawer = () => {
           return (
             <div className="bg-white border border-slate-200 rounded-xl p-12 text-center">
               <Filter className="w-10 h-10 mx-auto mb-3 text-slate-300" />
-              <p className="font-medium text-slate-600">No hay tareas que coincidan con los filtros</p>
+              <p className="font-medium text-slate-600">No hay eventos que coincidan con los filtros</p>
               <p className="text-sm text-slate-400 mt-1">Probá desactivando los filtros de arriba</p>
               <button
                 onClick={() => { setTipoFiltro("TODOS"); setCatFiltro("TODOS"); setFiltroKpi(null) }}
@@ -1609,8 +1893,8 @@ const handleCloseDrawer = () => {
             return (
               <div className="bg-white border border-slate-200 rounded-xl p-12 text-center">
                 <CheckCheck className="w-10 h-10 mx-auto mb-3 text-slate-300" />
-                <p className="font-medium text-slate-600">Ninguna tarea completada todavía</p>
-                <p className="text-sm text-slate-400 mt-1">Las tareas que termines aparecerán acá</p>
+                <p className="font-medium text-slate-600">Ningun evento completado todavía</p>
+                <p className="text-sm text-slate-400 mt-1">Los eventos que termines aparecerán acá</p>
               </div>
             )
           }
@@ -1618,7 +1902,7 @@ const handleCloseDrawer = () => {
             return (
               <div className="bg-white border border-slate-200 rounded-xl p-12 text-center">
                 <CheckCheck className="w-10 h-10 mx-auto mb-3 text-green-300" />
-                <p className="font-medium text-slate-600">Ninguna tarea vencida</p>
+                <p className="font-medium text-slate-600">Ningun evento vencido</p>
                 <p className="text-sm text-slate-400 mt-1">Buen control de plazos</p>
               </div>
             )
@@ -1626,8 +1910,8 @@ const handleCloseDrawer = () => {
           return (
             <div className="bg-white border border-slate-200 rounded-xl p-12 text-center">
               <History className="w-10 h-10 mx-auto mb-3 text-slate-300" />
-              <p className="font-medium text-slate-600">Aún no hay tareas finalizadas</p>
-              <p className="text-sm text-slate-400 mt-1">Cuando completes o cierres tareas, van a aparecer acá</p>
+              <p className="font-medium text-slate-600">Aún no hay eventos finalizados</p>
+              <p className="text-sm text-slate-400 mt-1">Cuando completes o cierres eventos, van a aparecer acá</p>
             </div>
           )
         }
@@ -1636,8 +1920,8 @@ const handleCloseDrawer = () => {
           return (
             <div className="bg-white border border-slate-200 rounded-xl p-12 text-center">
               <Eye className="w-10 h-10 mx-auto mb-3 text-slate-300" />
-              <p className="font-medium text-slate-600">No supervisás ninguna tarea</p>
-              <p className="text-sm text-slate-400 mt-1">Cuando asignes tareas a otro miembro del equipo, aparecerán acá</p>
+              <p className="font-medium text-slate-600">No supervisás ningún evento</p>
+              <p className="text-sm text-slate-400 mt-1">Cuando asignes eventos a otro miembro del equipo, aparecerán acá</p>
             </div>
           )
         }
@@ -1645,8 +1929,8 @@ const handleCloseDrawer = () => {
         return (
           <div className="bg-white border border-slate-200 rounded-xl p-12 text-center">
             <User className="w-10 h-10 mx-auto mb-3 text-slate-300" />
-            <p className="font-medium text-slate-600">No tenés tareas asignadas</p>
-            <p className="text-sm text-slate-400 mt-1">Creá una nueva tarea o esperá que te asignen una</p>
+            <p className="font-medium text-slate-600">No tenés eventos asignados</p>
+            <p className="text-sm text-slate-400 mt-1">Creá un nuevo evento o esperá que te asignen uno</p>
           </div>
         )
       })()}

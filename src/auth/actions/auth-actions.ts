@@ -66,6 +66,6 @@ export const signInEmailPassword = async(email: string, password: string) => {
     email: user.email,
     rol: user.rol,
     isActive: user.isActive,
-    debeResetearPassword: user.debeResetearPassword  // ← AGREGADO
+    debeResetearPassword: user.debeResetearPassword  
   }
 }

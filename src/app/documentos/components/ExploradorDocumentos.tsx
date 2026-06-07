@@ -1,8 +1,10 @@
 'use client'
 
-import { useState } from "react"
-import { FileText, MailOpen, Search, Briefcase, FolderClosed } from "lucide-react"
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
+import { FileText, MailOpen, Search, Briefcase, FolderClosed, ArrowLeft } from "lucide-react"
 import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
 import { TelegramaSelector } from "./plantillas/telegrama/TelegramaSelector"
 import { NavegadorCarpetas } from "./NavegadorCarpetas"
 
@@ -16,18 +18,63 @@ interface Caso {
   cliente: { nombre: string; apellido: string | null }
 }
 
+interface ContextoAsistente {
+  abogadoId: string
+  abogadoNombre: string
+  basePath: string
+}
+
 interface Props {
   casos: Caso[]
   userId: string
   userRol: string
+  // Si está presente, indica que el explorador está siendo usado por un asistente
+  // que ya eligió un abogado en el paso anterior. Habilita el botón "Cambiar abogado".
+  contextoAsistente?: ContextoAsistente | null
+  // Caso a pre-seleccionar al cargar (viene de ?caso=X en la URL).
+  casoInicialId?: string | null
 }
 
 type TabActiva = 'documentos' | 'plantillas'
 
-export function ExploradorDocumentos({ casos, userId, userRol }: Props) {
+export function ExploradorDocumentos({
+  casos,
+  userId,
+  userRol,
+  contextoAsistente,
+  casoInicialId,
+}: Props) {
+  const router = useRouter()
+
   const [tabActiva, setTabActiva] = useState<TabActiva>('documentos')
-  const [casoSeleccionado, setCasoSeleccionado] = useState<Caso | null>(null)
+  const [casoSeleccionado, setCasoSeleccionado] = useState<Caso | null>(() => {
+    if (!casoInicialId) return null
+    return casos.find(c => c.id === casoInicialId) || null
+  })
   const [busqueda, setBusqueda] = useState('')
+
+  // Si la URL trae ?caso=X pero ese caso no está en la lista (cambió de abogado, etc),
+  // limpiamos el state para evitar inconsistencia.
+  useEffect(() => {
+    if (casoSeleccionado && !casos.find(c => c.id === casoSeleccionado.id)) {
+      setCasoSeleccionado(null)
+    }
+  }, [casos, casoSeleccionado])
+
+  const seleccionarCaso = (caso: Caso) => {
+    setCasoSeleccionado(caso)
+    // Persistir en URL para que la selección sobreviva al refresh y se pueda compartir.
+    const url = new URL(window.location.href)
+    url.searchParams.set('caso', caso.id)
+    router.replace(`${url.pathname}?${url.searchParams.toString()}`, { scroll: false })
+  }
+
+  const cambiarAbogado = () => {
+    if (contextoAsistente) {
+      // Volver al selector de abogado, limpiando todos los params (incluido ?caso).
+      router.push(contextoAsistente.basePath)
+    }
+  }
 
   const casosFiltrados = casos.filter(c => {
     const q = busqueda.toLowerCase()
@@ -45,13 +92,33 @@ export function ExploradorDocumentos({ casos, userId, userRol }: Props) {
     <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
 
       {/* ── Header ── */}
-      <div className="flex items-center justify-between px-6 py-4 bg-white border-b border-slate-200 flex-shrink-0">
-        <div>
+      <div className="flex items-center justify-between px-6 py-4 bg-white border-b border-slate-200 flex-shrink-0 gap-3">
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold text-slate-900">Documentos</h1>
           <p className="text-sm text-slate-500 mt-1">
-            {totalDocumentos} archivos en {casos.length} expedientes
+            {contextoAsistente && (
+              <>
+                <span className="text-blue-600 font-medium">
+                  {contextoAsistente.abogadoNombre}
+                </span>
+                <span className="mx-2 text-slate-300">·</span>
+              </>
+            )}
+            {totalDocumentos} archivo{totalDocumentos === 1 ? '' : 's'} en {casos.length} expediente{casos.length === 1 ? '' : 's'}
           </p>
         </div>
+
+        {contextoAsistente && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={cambiarAbogado}
+            className="gap-1.5 flex-shrink-0"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Cambiar abogado
+          </Button>
+        )}
       </div>
 
       {/* ── Tabs ── */}
@@ -85,11 +152,10 @@ export function ExploradorDocumentos({ casos, userId, userRol }: Props) {
       {/* ── Contenido ── */}
       <div className="flex-1 min-h-0 flex flex-col">
 
-        {/* DOCUMENTOS: sidebar de expedientes + navegador de carpetas */}
         {tabActiva === 'documentos' && (
           <div className="flex flex-1 min-h-0">
 
-            {/* Sidebar de expedientes con buscador */}
+            {/* Sidebar de expedientes */}
             <div className="w-80 border-r border-slate-200 bg-white flex flex-col flex-shrink-0">
               <div className="p-3 border-b border-slate-100 flex-shrink-0">
                 <div className="relative">
@@ -110,7 +176,7 @@ export function ExploradorDocumentos({ casos, userId, userRol }: Props) {
                     return (
                       <button
                         key={caso.id}
-                        onClick={() => setCasoSeleccionado(caso)}
+                        onClick={() => seleccionarCaso(caso)}
                         className={`w-full text-left p-3 rounded-lg mb-1 transition-colors ${
                           activo ? 'bg-blue-50 border border-blue-200' : 'hover:bg-slate-50 border border-transparent'
                         }`}
@@ -134,13 +200,15 @@ export function ExploradorDocumentos({ casos, userId, userRol }: Props) {
                   })
                 ) : (
                   <p className="text-center text-xs text-slate-400 py-6">
-                    No se encontraron expedientes.
+                    {casos.length === 0
+                      ? 'No hay expedientes para mostrar.'
+                      : 'No se encontraron expedientes con ese filtro.'}
                   </p>
                 )}
               </div>
             </div>
 
-            {/* Panel derecho: navegador de carpetas del expediente elegido */}
+            {/* Panel derecho: navegador de carpetas */}
             <div className="flex-1 min-w-0 overflow-hidden">
               {casoSeleccionado ? (
                 <NavegadorCarpetas
@@ -163,7 +231,6 @@ export function ExploradorDocumentos({ casos, userId, userRol }: Props) {
           </div>
         )}
 
-        {/* PLANTILLAS: directo al selector de telegramas */}
         {tabActiva === 'plantillas' && (
           <div className="flex-1 min-h-0 overflow-y-auto bg-slate-50/50">
             <TelegramaSelector casos={casos} />

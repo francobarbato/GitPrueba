@@ -64,9 +64,19 @@ export class DocumentoService {
     })
     if (!caso) throw new Error('Caso no encontrado')
     if (!ctx) return
-    if (ctx.rol?.toUpperCase() === 'ADMIN') {
+ 
+    const rol = ctx.rol?.toUpperCase()
+ 
+    // ADMIN no tiene acceso a datos legales (es solo técnico).
+    if (rol === 'ADMIN') {
       throw new Error('El rol administrador no tiene acceso a los documentos de los expedientes')
     }
+ 
+    // ASISTENTE tiene acceso general a cualquier expediente del estudio
+    // (no es titular de casos, pero asiste a todos los abogados).
+    if (rol === 'ASISTENTE') return
+ 
+    // ABOGADO solo accede a sus propios expedientes.
     if (caso.abogadoId !== ctx.usuarioId) {
       throw new Error('No tenés permiso para acceder a los documentos de este expediente')
     }
@@ -114,8 +124,10 @@ export class DocumentoService {
     if (nombreLimpio.length > 100) throw new Error('El nombre es demasiado largo (máximo 100 caracteres)')
 
     // Si es anidada, validar que la carpeta padre sea del mismo caso.
+    let nombrePadre: string | null = null
     if (carpetaPadreId) {
-      await this.verificarCarpetaDelCaso(carpetaPadreId, casoId)
+      const padre = await this.verificarCarpetaDelCaso(carpetaPadreId, casoId)
+      nombrePadre = padre.nombre
     }
 
     // Evitar duplicados en el mismo nivel.
@@ -133,6 +145,9 @@ export class DocumentoService {
         casoId, usuarioId: ctx?.usuarioId || '',
         accion: 'CARPETA_CREADA',
         texto: `Carpeta creada: ${nombreLimpio}`,
+        detalle: nombrePadre
+          ? `Dentro de la carpeta "${nombrePadre}"`
+          : 'En la raíz del expediente',
         tipo: 'sistema'
       }
     })
@@ -151,6 +166,7 @@ export class DocumentoService {
     const nombreLimpio = nuevoNombre.trim()
     if (!nombreLimpio) throw new Error('El nombre no puede estar vacío')
     if (nombreLimpio.length > 100) throw new Error('El nombre es demasiado largo (máximo 100 caracteres)')
+    if (nombreLimpio === carpeta.nombre) return carpeta // no-op si no cambió
 
     const yaExiste = await prisma.carpeta.findFirst({
       where: {
@@ -162,10 +178,22 @@ export class DocumentoService {
     })
     if (yaExiste) throw new Error('Ya existe una carpeta con ese nombre en este nivel')
 
-    return await prisma.carpeta.update({
+    const actualizada = await prisma.carpeta.update({
       where: { id: carpetaId },
       data: { nombre: nombreLimpio }
     })
+
+    await prisma.bitacora.create({
+      data: {
+        casoId: carpeta.casoId,
+        usuarioId: ctx?.usuarioId || '',
+        accion: 'CARPETA_RENOMBRADA',
+        texto: `Carpeta renombrada: "${carpeta.nombre}" → "${nombreLimpio}"`,
+        tipo: 'sistema'
+      }
+    })
+
+    return actualizada
   }
 
   // Borra una carpeta. El cascade del schema borra subcarpetas y documentos.
@@ -190,6 +218,8 @@ export class DocumentoService {
     }
 
     // Borrar la carpeta: el cascade del schema elimina subcarpetas y filas de documentos.
+    // Las bitácoras previas de esos documentos quedan con documentoId = null (SetNull),
+    // preservando la trazabilidad histórica.
     await prisma.carpeta.delete({ where: { id: carpetaId } })
 
     await prisma.bitacora.create({
@@ -319,8 +349,10 @@ export class DocumentoService {
     await this.verificarAccesoCaso(casoId, ctx)
 
     // Si va dentro de una carpeta, validar que sea del mismo caso.
+    let nombreCarpeta: string | null = null
     if (carpetaId) {
-      await this.verificarCarpetaDelCaso(carpetaId, casoId)
+      const carpeta = await this.verificarCarpetaDelCaso(carpetaId, casoId)
+      nombreCarpeta = carpeta.nombre
     }
 
     const storageKey = buildStorageKey(casoId, carpetaId || 'raiz', file.nombre)
@@ -347,10 +379,16 @@ export class DocumentoService {
 
     await prisma.bitacora.create({
       data: {
-        casoId, usuarioId: subidoPorId,
+        casoId,
+        usuarioId: subidoPorId,
+        documentoId: documento.id,
         accion: 'DOCUMENTO_SUBIDO',
         texto: `Documento subido: ${file.nombre}`,
-        detalle: `Tamaño: ${this.formatearTamanio(file.tamanio)}`,
+        detalle: [
+          `Tamaño: ${this.formatearTamanio(file.tamanio)}`,
+          nombreCarpeta ? `Carpeta: ${nombreCarpeta}` : 'Carpeta: raíz del expediente',
+          esInterno ? 'Visibilidad: solo interno' : 'Visibilidad: visible al cliente',
+        ].join(' | '),
         tipo: 'sistema'
       }
     })
@@ -361,25 +399,35 @@ export class DocumentoService {
   // --------------------------------------------------------------------------
   // ELIMINAR DOCUMENTO
   // --------------------------------------------------------------------------
+  // El orden importa: creamos la bitácora ANTES del delete físico, así
+  // documentoId referencia al documento (que aún existe). Cuando borramos
+  // el documento, el SetNull del schema deja la bitácora con documentoId=null
+  // pero el texto/detalle conservan toda la info histórica.
   async eliminarDocumento(documentoId: string, usuarioId: string, ctx?: ContextoUsuario) {
     const documento = await prisma.documento.findUnique({
       where: { id: documentoId },
-      select: { id: true, nombre: true, storageKey: true, casoId: true }
+      select: { id: true, nombre: true, storageKey: true, casoId: true, tamanio: true }
     })
     if (!documento) throw new Error('Documento no encontrado')
     await this.verificarAccesoCaso(documento.casoId, ctx ?? { usuarioId })
 
-    await storage.delete(documento.storageKey)
-    await prisma.documento.delete({ where: { id: documentoId } })
-
+    // 1. Crear bitácora primero, con la referencia al documento
     await prisma.bitacora.create({
       data: {
-        casoId: documento.casoId, usuarioId,
+        casoId: documento.casoId,
+        usuarioId,
+        documentoId: documento.id,
         accion: 'DOCUMENTO_ELIMINADO',
         texto: `Documento eliminado: ${documento.nombre}`,
+        detalle: `Tamaño: ${this.formatearTamanio(documento.tamanio)}`,
         tipo: 'sistema'
       }
     })
+
+    // 2. Borrar físicamente. El SetNull del schema dejará la bitácora anterior
+    //    con documentoId=null, lo cual es correcto (el doc ya no existe).
+    await storage.delete(documento.storageKey)
+    await prisma.documento.delete({ where: { id: documentoId } })
 
     return { success: true }
   }
@@ -394,19 +442,48 @@ export class DocumentoService {
   ) {
     const documento = await prisma.documento.findUnique({
       where: { id: documentoId },
-      select: { id: true, casoId: true, nombre: true }
+      select: { id: true, casoId: true, nombre: true, carpetaId: true }
     })
     if (!documento) throw new Error('Documento no encontrado')
     await this.verificarAccesoCaso(documento.casoId, ctx)
 
-    if (nuevaCarpetaId) {
-      await this.verificarCarpetaDelCaso(nuevaCarpetaId, documento.casoId)
+    // Resolver nombres de origen y destino para el detalle de la bitácora
+    let nombreOrigen = 'raíz del expediente'
+    if (documento.carpetaId) {
+      const origen = await prisma.carpeta.findUnique({
+        where: { id: documento.carpetaId },
+        select: { nombre: true }
+      })
+      if (origen) nombreOrigen = `"${origen.nombre}"`
     }
 
-    return await prisma.documento.update({
+    let nombreDestino = 'raíz del expediente'
+    if (nuevaCarpetaId) {
+      const destino = await this.verificarCarpetaDelCaso(nuevaCarpetaId, documento.casoId)
+      nombreDestino = `"${destino.nombre}"`
+    }
+
+    // No-op si no cambió de ubicación
+    if (documento.carpetaId === (nuevaCarpetaId ?? null)) return documento
+
+    const actualizado = await prisma.documento.update({
       where: { id: documentoId },
       data: { carpetaId: nuevaCarpetaId ?? null }
     })
+
+    await prisma.bitacora.create({
+      data: {
+        casoId: documento.casoId,
+        usuarioId: ctx?.usuarioId || '',
+        documentoId: documento.id,
+        accion: 'DOCUMENTO_MOVIDO',
+        texto: `Documento "${documento.nombre}" movido a ${nombreDestino}`,
+        detalle: `Desde ${nombreOrigen} → ${nombreDestino}`,
+        tipo: 'sistema'
+      }
+    })
+
+    return actualizado
   }
 
   // --------------------------------------------------------------------------
@@ -420,10 +497,18 @@ export class DocumentoService {
   ) {
     const documento = await prisma.documento.findUnique({
       where: { id: documentoId },
-      select: { id: true, casoId: true, nombre: true }
+      select: { id: true, casoId: true, nombre: true, descripcion: true, esInterno: true }
     })
     if (!documento) throw new Error('Documento no encontrado')
     await this.verificarAccesoCaso(documento.casoId, ctx ?? { usuarioId })
+
+    const cambios: string[] = []
+    if (data.descripcion !== undefined && data.descripcion !== documento.descripcion) {
+      cambios.push('Descripción actualizada')
+    }
+    if (data.esInterno !== undefined && data.esInterno !== documento.esInterno) {
+      cambios.push(data.esInterno ? 'Marcado como interno' : 'Marcado como visible al cliente')
+    }
 
     const actualizado = await prisma.documento.update({
       where: { id: documentoId },
@@ -432,9 +517,12 @@ export class DocumentoService {
 
     await prisma.bitacora.create({
       data: {
-        casoId: documento.casoId, usuarioId,
+        casoId: documento.casoId,
+        usuarioId,
+        documentoId: documento.id,
         accion: 'DOCUMENTO_ACTUALIZADO',
         texto: `Documento actualizado: ${documento.nombre}`,
+        detalle: cambios.length > 0 ? cambios.join(' | ') : null,
         tipo: 'sistema'
       }
     })

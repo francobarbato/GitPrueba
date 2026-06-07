@@ -2,7 +2,11 @@
 
 import { useState, useEffect, useMemo } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
-import { User, Mail, Lock, Phone, Save, AlertTriangle, Check, X, Eye, EyeOff, Loader2, Shield } from "lucide-react"
+import { signOut } from "next-auth/react"
+import {
+  User, Mail, Lock, Save, AlertTriangle, Check, X,
+  Eye, EyeOff, Loader2, Shield, AtSign
+} from "lucide-react"
 
 // ===== VALIDACIÓN DE CONTRASEÑA =====
 const PASSWORD_REQUIREMENTS = {
@@ -12,6 +16,8 @@ const PASSWORD_REQUIREMENTS = {
   hasNumber: /[0-9]/,
   hasSpecial: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/
 }
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 function validatePassword(password: string) {
   return {
@@ -59,7 +65,7 @@ function PasswordRequirements({ password }: { password: string }) {
           </span>
         </div>
         <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-          <div 
+          <div
             className={`h-full ${strength.color} transition-all duration-300`}
             style={{ width: strength.width }}
           />
@@ -90,7 +96,6 @@ type UserData = {
   nombre?: string | null
   apellido?: string | null
   email: string
-  telefono?: string | null
   rol: string
   image?: string | null
   debeResetearPassword?: boolean
@@ -101,33 +106,53 @@ export function PerfilView({ user }: { user: UserData }) {
   const router = useRouter()
   const resetPasswordRequired = searchParams.get('resetPassword') === 'true' || user.debeResetearPassword
 
-  // Estado del formulario de datos personales
+  // ── Datos personales ──
   const [formData, setFormData] = useState({
     nombre: user.nombre || user.name?.split(' ')[0] || '',
     apellido: user.apellido || user.name?.split(' ').slice(1).join(' ') || '',
-    telefono: user.telefono || ''
   })
 
-  // Estado del formulario de contraseña
+  // ── Contraseña ──
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
     newPassword: '',
     confirmPassword: ''
   })
-
   const [showCurrentPassword, setShowCurrentPassword] = useState(false)
   const [showNewPassword, setShowNewPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  
+
+  // ── Cambio de email ──
+  const [showChangeEmail, setShowChangeEmail] = useState(false)
+  const [emailData, setEmailData] = useState({
+    nuevoEmail: '',
+    confirmacionEmail: '',
+    contrasenaActual: ''
+  })
+  const [showEmailPassword, setShowEmailPassword] = useState(false)
+
+  // ── Loaders ──
   const [savingProfile, setSavingProfile] = useState(false)
   const [savingPassword, setSavingPassword] = useState(false)
+  const [changingEmail, setChangingEmail] = useState(false)
+
+  // ── Mensajes ──
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
-  // Validaciones de contraseña
+  // ── Validaciones derivadas ──
   const passwordValidation = useMemo(() => validatePassword(passwordData.newPassword), [passwordData.newPassword])
   const isPasswordValid = useMemo(() => Object.values(passwordValidation).every(Boolean), [passwordValidation])
   const passwordsMatch = passwordData.newPassword === passwordData.confirmPassword && passwordData.confirmPassword !== ''
+
+  const emailsMatch = emailData.nuevoEmail.trim().toLowerCase() === emailData.confirmacionEmail.trim().toLowerCase()
+    && emailData.confirmacionEmail !== ''
+  const emailFormatValid = EMAIL_REGEX.test(emailData.nuevoEmail.trim())
+  const emailEsDistinto = emailData.nuevoEmail.trim().toLowerCase() !== user.email.toLowerCase()
+  const emailFormValid = emailData.nuevoEmail !== '' &&
+    emailData.confirmacionEmail !== '' &&
+    emailData.contrasenaActual !== '' &&
+    emailsMatch && emailFormatValid && emailEsDistinto
 
   // Auto-limpiar mensajes
   useEffect(() => {
@@ -137,7 +162,14 @@ export function PerfilView({ user }: { user: UserData }) {
     }
   }, [success])
 
-  // Guardar datos personales
+  // Cancelar form de email reseteándolo
+  const cancelarCambioEmail = () => {
+    setShowChangeEmail(false)
+    setEmailData({ nuevoEmail: '', confirmacionEmail: '', contrasenaActual: '' })
+    setShowEmailPassword(false)
+  }
+
+  // ───── Guardar datos personales ─────
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault()
     setSavingProfile(true)
@@ -151,12 +183,10 @@ export function PerfilView({ user }: { user: UserData }) {
       })
 
       const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Error al guardar')
-      }
+      if (!response.ok) throw new Error(data.error || 'Error al guardar')
 
       setSuccess('Datos actualizados correctamente')
+      router.refresh()
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -164,7 +194,7 @@ export function PerfilView({ user }: { user: UserData }) {
     }
   }
 
-// Cambiar contraseña
+  // ───── Cambiar contraseña ─────
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
@@ -173,7 +203,6 @@ export function PerfilView({ user }: { user: UserData }) {
       setError('La nueva contraseña no cumple con los requisitos de seguridad')
       return
     }
-
     if (!passwordsMatch) {
       setError('Las contraseñas no coinciden')
       return
@@ -192,24 +221,56 @@ export function PerfilView({ user }: { user: UserData }) {
       })
 
       const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Error al cambiar la contraseña')
-      }
+      if (!response.ok) throw new Error(data.error || 'Error al cambiar la contraseña')
 
       setSuccess('Contraseña actualizada correctamente. Redirigiendo...')
 
-      // ═══ BARRERA DE SEGURIDAD ═══
-      // Usamos window.location.href para forzar la recarga de la sesión
-      // y que el Middleware reconozca el nuevo estado del usuario
       setTimeout(() => {
         window.location.href = data.redirectUrl || '/'
       }, 1500)
-
     } catch (err: any) {
       setError(err.message)
     } finally {
       setSavingPassword(false)
+    }
+  }
+
+  // ───── Cambiar email ─────
+  const handleCambiarEmail = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+
+    if (!emailFormValid) {
+      if (!emailsMatch) setError('Los emails no coinciden')
+      else if (!emailFormatValid) setError('El email no tiene un formato válido')
+      else if (!emailEsDistinto) setError('El nuevo email es igual al actual')
+      else setError('Completá todos los campos')
+      return
+    }
+
+    setChangingEmail(true)
+    try {
+      const response = await fetch('/api/usuario/cambiar-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nuevoEmail: emailData.nuevoEmail.trim().toLowerCase(),
+          confirmacionEmail: emailData.confirmacionEmail.trim().toLowerCase(),
+          contrasenaActual: emailData.contrasenaActual,
+        })
+      })
+
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Error al cambiar el email')
+
+      setSuccess('Email cambiado correctamente. Cerrando tu sesión...')
+      // Esperar a que el user vea el mensaje y cerrar sesión
+      setTimeout(async () => {
+        await signOut({ callbackUrl: '/auth/signin?emailChanged=1' })
+      }, 1800)
+    } catch (err: any) {
+      setError(err.message)
+      setChangingEmail(false)
     }
   }
 
@@ -225,7 +286,7 @@ export function PerfilView({ user }: { user: UserData }) {
 
   return (
     <div className="max-w-4xl mx-auto">
-      
+
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-800">Mi Perfil</h1>
@@ -245,31 +306,31 @@ export function PerfilView({ user }: { user: UserData }) {
         </div>
       )}
 
-      {/* Mensajes de estado */}
+      {/* Mensajes */}
       {error && (
         <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 text-red-700 rounded flex items-start gap-3">
           <X className="h-5 w-5 flex-shrink-0 mt-0.5" />
-          <div>
+          <div className="flex-1">
             <p className="font-semibold">Error</p>
             <p className="text-sm">{error}</p>
           </div>
-          <button onClick={() => setError(null)} className="ml-auto text-red-500 hover:text-red-700">×</button>
+          <button onClick={() => setError(null)} className="text-red-500 hover:text-red-700">×</button>
         </div>
       )}
 
       {success && (
         <div className="mb-6 p-4 bg-green-50 border-l-4 border-green-500 text-green-700 rounded flex items-start gap-3">
           <Check className="h-5 w-5 flex-shrink-0 mt-0.5" />
-          <div>
+          <div className="flex-1">
             <p className="font-semibold">Éxito</p>
             <p className="text-sm">{success}</p>
           </div>
-          <button onClick={() => setSuccess(null)} className="ml-auto text-green-500 hover:text-green-700">×</button>
+          <button onClick={() => setSuccess(null)} className="text-green-500 hover:text-green-700">×</button>
         </div>
       )}
 
       <div className="grid gap-8 md:grid-cols-3">
-        
+
         {/* Columna Izquierda: Avatar y Resumen */}
         <div className="md:col-span-1">
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 text-center">
@@ -283,8 +344,8 @@ export function PerfilView({ user }: { user: UserData }) {
               )}
             </div>
             <h2 className="font-bold text-gray-800">
-              {user.nombre && user.apellido 
-                ? `${user.nombre} ${user.apellido}` 
+              {user.nombre && user.apellido
+                ? `${user.nombre} ${user.apellido}`
                 : user.name || "Usuario"}
             </h2>
             <p className="text-sm text-gray-500 mb-4">{user.email}</p>
@@ -297,8 +358,8 @@ export function PerfilView({ user }: { user: UserData }) {
 
         {/* Columna Derecha: Formularios */}
         <div className="md:col-span-2 space-y-6">
-          
-          {/* ===== SECCIÓN: CAMBIAR CONTRASEÑA (Prioritaria si es obligatorio) ===== */}
+
+          {/* ===== SECCIÓN: CAMBIAR CONTRASEÑA ===== */}
           <div className={`bg-white p-6 rounded-2xl shadow-sm border ${
             resetPasswordRequired ? 'border-amber-300 ring-2 ring-amber-100' : 'border-gray-200'
           }`}>
@@ -306,21 +367,20 @@ export function PerfilView({ user }: { user: UserData }) {
               <Lock className="w-4 h-4" />
               {resetPasswordRequired ? 'Cambiar Contraseña (Obligatorio)' : 'Seguridad'}
             </h3>
-            
+
             <form onSubmit={handleChangePassword} className="grid gap-4">
-              {/* ===== ESTO ES LO QUE OCULTA EL CAMPO SI ES OBLIGATORIO ===== */}
               {!resetPasswordRequired && (
                 <div>
                   <label className="text-xs font-medium text-gray-500 mb-1 block">Contraseña Actual</label>
                   <div className="relative">
                     <Lock className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
-                    <input 
+                    <input
                       type={showCurrentPassword ? "text" : "password"}
                       value={passwordData.currentPassword}
                       onChange={(e) => setPasswordData({...passwordData, currentPassword: e.target.value})}
                       className="w-full pl-9 pr-10 p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                       placeholder="••••••••"
-                      required={!resetPasswordRequired} // Si es obligatorio el reset, el input no es required
+                      required={!resetPasswordRequired}
                     />
                     <button
                       type="button"
@@ -333,18 +393,17 @@ export function PerfilView({ user }: { user: UserData }) {
                 </div>
               )}
 
-              {/* Nueva contraseña */}
               <div>
                 <label className="text-xs font-medium text-gray-500 mb-1 block">Nueva Contraseña</label>
                 <div className="relative">
                   <Lock className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
-                  <input 
+                  <input
                     type={showNewPassword ? "text" : "password"}
                     value={passwordData.newPassword}
                     onChange={(e) => setPasswordData({...passwordData, newPassword: e.target.value})}
                     className={`w-full pl-9 pr-10 p-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      passwordData.newPassword && !isPasswordValid 
-                        ? 'border-orange-300 bg-orange-50' 
+                      passwordData.newPassword && !isPasswordValid
+                        ? 'border-orange-300 bg-orange-50'
                         : 'border-gray-200 bg-gray-50'
                     }`}
                     placeholder="Ingrese nueva contraseña"
@@ -361,18 +420,17 @@ export function PerfilView({ user }: { user: UserData }) {
                 <PasswordRequirements password={passwordData.newPassword} />
               </div>
 
-              {/* Confirmar nueva contraseña */}
               <div>
                 <label className="text-xs font-medium text-gray-500 mb-1 block">Confirmar Nueva Contraseña</label>
                 <div className="relative">
                   <Lock className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
-                  <input 
+                  <input
                     type={showConfirmPassword ? "text" : "password"}
                     value={passwordData.confirmPassword}
                     onChange={(e) => setPasswordData({...passwordData, confirmPassword: e.target.value})}
                     className={`w-full pl-9 pr-10 p-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      passwordData.confirmPassword && !passwordsMatch 
-                        ? 'border-red-300 bg-red-50' 
+                      passwordData.confirmPassword && !passwordsMatch
+                        ? 'border-red-300 bg-red-50'
                         : passwordData.confirmPassword && passwordsMatch
                         ? 'border-green-300 bg-green-50'
                         : 'border-gray-200 bg-gray-50'
@@ -400,7 +458,7 @@ export function PerfilView({ user }: { user: UserData }) {
               </div>
 
               <div className="mt-2 text-right">
-                <button 
+                <button
                   type="submit"
                   disabled={savingPassword || !isPasswordValid || !passwordsMatch}
                   className="text-sm bg-gray-900 text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition flex items-center gap-2 ml-auto disabled:opacity-50 disabled:cursor-not-allowed"
@@ -419,69 +477,183 @@ export function PerfilView({ user }: { user: UserData }) {
                 <User className="w-4 h-4" />
                 Información Básica
               </h3>
-              
+
               <form onSubmit={handleSaveProfile} className="grid gap-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs font-medium text-gray-500 mb-1 block">Nombre</label>
                     <div className="relative">
                       <User className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         value={formData.nombre}
                         onChange={(e) => setFormData({...formData, nombre: e.target.value})}
-                        className="w-full pl-9 p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                        className="w-full pl-9 p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
                   </div>
                   <div>
                     <label className="text-xs font-medium text-gray-500 mb-1 block">Apellido</label>
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       value={formData.apellido}
                       onChange={(e) => setFormData({...formData, apellido: e.target.value})}
-                      className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                    />
-                  </div>
-                </div>
-                
-                <div>
-                  <label className="text-xs font-medium text-gray-500 mb-1 block">Email</label>
-                  <div className="relative">
-                    <Mail className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
-                    <input 
-                      type="email" 
-                      value={user.email}
-                      disabled 
-                      className="w-full pl-9 p-2.5 bg-gray-100 border border-gray-200 rounded-lg text-sm text-gray-500 cursor-not-allowed" 
-                    />
-                  </div>
-                  <p className="text-xs text-gray-400 mt-1">El email no se puede modificar</p>
-                </div>
-                
-                <div>
-                  <label className="text-xs font-medium text-gray-500 mb-1 block">Teléfono / Celular</label>
-                  <div className="relative">
-                    <Phone className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
-                    <input 
-                      type="tel" 
-                      value={formData.telefono}
-                      onChange={(e) => setFormData({...formData, telefono: e.target.value})}
-                      placeholder="+54 9 ..." 
-                      className="w-full pl-9 p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                      className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
                 </div>
 
+                {/* ───── EMAIL con botón de cambiar ───── */}
+                <div>
+                  <label className="text-xs font-medium text-gray-500 mb-1 block">Email</label>
+                  <div className="flex items-center gap-2">
+                    <div className="relative flex-1">
+                      <Mail className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
+                      <input
+                        type="email"
+                        value={user.email}
+                        disabled
+                        className="w-full pl-9 p-2.5 bg-gray-100 border border-gray-200 rounded-lg text-sm text-gray-600 cursor-not-allowed"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => showChangeEmail ? cancelarCambioEmail() : setShowChangeEmail(true)}
+                      className="text-sm text-blue-600 hover:text-blue-800 font-medium px-3 py-2 hover:bg-blue-50 rounded-lg transition whitespace-nowrap"
+                    >
+                      {showChangeEmail ? 'Cancelar' : 'Cambiar email'}
+                    </button>
+                  </div>
+                </div>
+
                 <div className="mt-2 text-right">
-                  <button 
+                  <button
                     type="submit"
                     disabled={savingProfile}
                     className="text-sm bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition flex items-center gap-2 ml-auto disabled:opacity-50"
                   >
                     {savingProfile && <Loader2 className="w-4 h-4 animate-spin" />}
-                    <Save className="w-4 h-4" /> 
+                    <Save className="w-4 h-4" />
                     {savingProfile ? 'Guardando...' : 'Guardar Cambios'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* ===== SECCIÓN: CAMBIAR EMAIL (inline, despliega bajo demanda) ===== */}
+          {!resetPasswordRequired && showChangeEmail && (
+            <div className="bg-white p-6 rounded-2xl shadow-sm border-2 border-blue-200">
+              <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-4 border-b pb-2 flex items-center gap-2">
+                <AtSign className="w-4 h-4" />
+                Cambiar Email
+              </h3>
+
+              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-blue-700 mt-0.5 shrink-0" />
+                <p className="text-xs text-blue-800">
+                  Para confirmar el cambio necesitás ingresar tu contraseña actual. Al guardar,
+                  tu sesión se cerrará y vas a usar el nuevo email para entrar.
+                </p>
+              </div>
+
+              <form onSubmit={handleCambiarEmail} className="grid gap-4">
+                <div>
+                  <label className="text-xs font-medium text-gray-500 mb-1 block">Nuevo Email</label>
+                  <div className="relative">
+                    <Mail className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
+                    <input
+                      type="email"
+                      value={emailData.nuevoEmail}
+                      onChange={(e) => setEmailData({...emailData, nuevoEmail: e.target.value})}
+                      className={`w-full pl-9 p-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                        emailData.nuevoEmail && (!emailFormatValid || !emailEsDistinto)
+                          ? 'border-orange-300 bg-orange-50'
+                          : 'border-gray-200 bg-gray-50'
+                      }`}
+                      placeholder="nuevoemail@ejemplo.com"
+                      autoComplete="off"
+                      required
+                    />
+                  </div>
+                  {emailData.nuevoEmail && !emailFormatValid && (
+                    <p className="text-xs text-orange-600 mt-1">Formato de email inválido</p>
+                  )}
+                  {emailData.nuevoEmail && emailFormatValid && !emailEsDistinto && (
+                    <p className="text-xs text-orange-600 mt-1">El nuevo email es igual al actual</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="text-xs font-medium text-gray-500 mb-1 block">Confirmar Nuevo Email</label>
+                  <div className="relative">
+                    <Mail className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
+                    <input
+                      type="email"
+                      value={emailData.confirmacionEmail}
+                      onChange={(e) => setEmailData({...emailData, confirmacionEmail: e.target.value})}
+                      className={`w-full pl-9 p-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                        emailData.confirmacionEmail && !emailsMatch
+                          ? 'border-red-300 bg-red-50'
+                          : emailData.confirmacionEmail && emailsMatch
+                          ? 'border-green-300 bg-green-50'
+                          : 'border-gray-200 bg-gray-50'
+                      }`}
+                      placeholder="Repetí el nuevo email"
+                      autoComplete="off"
+                      required
+                    />
+                  </div>
+                  {emailData.confirmacionEmail && (
+                    <p className={`text-xs mt-1 flex items-center gap-1 ${emailsMatch ? 'text-green-600' : 'text-red-600'}`}>
+                      {emailsMatch ? (
+                        <><Check className="w-3.5 h-3.5" /> Los emails coinciden</>
+                      ) : (
+                        <><X className="w-3.5 h-3.5" /> Los emails no coinciden</>
+                      )}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="text-xs font-medium text-gray-500 mb-1 block">Tu Contraseña Actual</label>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
+                    <input
+                      type={showEmailPassword ? "text" : "password"}
+                      value={emailData.contrasenaActual}
+                      onChange={(e) => setEmailData({...emailData, contrasenaActual: e.target.value})}
+                      className="w-full pl-9 pr-10 p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="••••••••"
+                      autoComplete="current-password"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowEmailPassword(!showEmailPassword)}
+                      className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
+                    >
+                      {showEmailPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 mt-2">
+                  <button
+                    type="button"
+                    onClick={cancelarCambioEmail}
+                    disabled={changingEmail}
+                    className="text-sm px-4 py-2 rounded-lg text-gray-700 hover:bg-gray-100 transition disabled:opacity-50"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={changingEmail || !emailFormValid}
+                    className="text-sm bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {changingEmail && <Loader2 className="w-4 h-4 animate-spin" />}
+                    {changingEmail ? 'Cambiando...' : 'Confirmar cambio de email'}
                   </button>
                 </div>
               </form>

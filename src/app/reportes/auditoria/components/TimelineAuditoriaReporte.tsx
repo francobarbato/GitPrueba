@@ -2,9 +2,12 @@
 
 // app/reportes/auditoria/components/TimelineAuditoriaReporte.tsx
 //
-// CAMBIO: agrega visualización de hitos de tareas con badge "EVENTO" y
-// ícono ClipboardCheck. Las acciones de tarea muestran el título del evento
-// y la categoría como contexto, y la acción destaca como detalle principal.
+// CAMBIO en esta versión:
+// - Suma visualización de hitos de DOCUMENTOS (badge azul "DOCUMENTO") y
+//   CÁLCULOS / LIQUIDACIONES (badge violeta "CÁLCULO").
+// - Cada tipo tiene su bloque dedicado en la TarjetaCaso, con su propia
+//   FilaEvento*** y su set de íconos/labels.
+// - TarjetaCasoConDias suma KPIs separados para docs y cálculos cuando hay.
 
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
@@ -13,7 +16,10 @@ import {
   History, ShieldAlert, ChevronRight, User,
   FileText, CheckCircle2, DollarSign, Scale,
   MapPin, Lock, RotateCcw, AlertCircle, Clock, Calendar,
-  ClipboardCheck, ClipboardX, Unlock, ClipboardList, Sparkles,
+  ClipboardCheck, ClipboardX, Unlock, Sparkles,
+  FileUp, FileX, FolderInput, FilePen,
+  FolderPlus, FolderPen, FolderX,
+  Calculator, Edit3, Trash2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { EventoAuditoria, EventosPorDia } from "../page"
@@ -32,6 +38,22 @@ const ACCIONES_TAREA = [
   "TAREA_VENCIDA_CERRADA_MANUAL",
 ]
 
+const ACCIONES_DOCUMENTO = [
+  "DOCUMENTO_SUBIDO",
+  "DOCUMENTO_ELIMINADO",
+  "DOCUMENTO_MOVIDO",
+  "DOCUMENTO_ACTUALIZADO",
+  "CARPETA_CREADA",
+  "CARPETA_RENOMBRADA",
+  "CARPETA_ELIMINADA",
+]
+
+const ACCIONES_LIQUIDACION = [
+  "LIQUIDACION_CREADA",
+  "LIQUIDACION_EDITADA",
+  "LIQUIDACION_ELIMINADA",
+]
+
 const CATEGORIA_LABELS: Record<string, string> = {
   PRESENTACION_ESCRITO: "Presentación / Escrito",
   AUDIENCIA: "Audiencia",
@@ -48,13 +70,16 @@ const CATEGORIA_LABELS: Record<string, string> = {
   VENCIMIENTO_PLAZO: "Vencimiento / Plazo",
 }
 
-function esCritico(accion: string) {
-  return ACCIONES_CRITICAS.includes(accion)
+const TIPO_LIQUIDACION_LABELS: Record<string, string> = {
+  DESPIDO: "Indemnización por despido",
+  LRT: "LRT",
+  CAPITALIZACION: "Capitalización",
 }
 
-function esDeTarea(accion: string) {
-  return ACCIONES_TAREA.includes(accion)
-}
+function esCritico(accion: string)        { return ACCIONES_CRITICAS.includes(accion) }
+function esDeTarea(accion: string)        { return ACCIONES_TAREA.includes(accion) }
+function esDeDocumento(accion: string)    { return ACCIONES_DOCUMENTO.includes(accion) }
+function esDeLiquidacion(accion: string)  { return ACCIONES_LIQUIDACION.includes(accion) }
 
 function getLabel(accion: string, estadoNuevo?: string | null) {
   switch (accion) {
@@ -70,13 +95,24 @@ function getLabel(accion: string, estadoNuevo?: string | null) {
     // Tarea
     case "TAREA_CREADA":                  return "Evento creado"
     case "TAREA_ESTADO_CHANGE":
-      // Sabemos por filtrado que solo llegan COMPLETADA / BLOQUEADA
       if (estadoNuevo === "COMPLETADA") return "Completado"
       if (estadoNuevo === "BLOQUEADA")  return "Bloqueado"
       return "Cambio de estado"
     case "TAREA_COMPLETADA_CON_DEMORA":   return "Completado con demora"
     case "TAREA_DESBLOQUEADA":            return "Desbloqueado"
     case "TAREA_VENCIDA_CERRADA_MANUAL":  return "Vencido cerrado"
+    // Documento
+    case "DOCUMENTO_SUBIDO":      return "Documento subido"
+    case "DOCUMENTO_ELIMINADO":   return "Documento eliminado"
+    case "DOCUMENTO_MOVIDO":      return "Documento movido"
+    case "DOCUMENTO_ACTUALIZADO": return "Documento editado"
+    case "CARPETA_CREADA":        return "Carpeta creada"
+    case "CARPETA_RENOMBRADA":    return "Carpeta renombrada"
+    case "CARPETA_ELIMINADA":     return "Carpeta eliminada"
+    // Liquidación
+    case "LIQUIDACION_CREADA":    return "Cálculo guardado"
+    case "LIQUIDACION_EDITADA":   return "Cálculo editado"
+    case "LIQUIDACION_ELIMINADA": return "Cálculo eliminado"
     default:                              return "Actualización"
   }
 }
@@ -100,6 +136,18 @@ function getIconoSmall(accion: string, estadoNuevo?: string | null) {
     case "TAREA_COMPLETADA_CON_DEMORA":   return <ClipboardCheck className="h-3 w-3" />
     case "TAREA_DESBLOQUEADA":            return <Unlock className="h-3 w-3" />
     case "TAREA_VENCIDA_CERRADA_MANUAL":  return <ClipboardX className="h-3 w-3" />
+    // Documento
+    case "DOCUMENTO_SUBIDO":      return <FileUp className="h-3 w-3" />
+    case "DOCUMENTO_ELIMINADO":   return <FileX className="h-3 w-3" />
+    case "DOCUMENTO_MOVIDO":      return <FolderInput className="h-3 w-3" />
+    case "DOCUMENTO_ACTUALIZADO": return <FilePen className="h-3 w-3" />
+    case "CARPETA_CREADA":        return <FolderPlus className="h-3 w-3" />
+    case "CARPETA_RENOMBRADA":    return <FolderPen className="h-3 w-3" />
+    case "CARPETA_ELIMINADA":     return <FolderX className="h-3 w-3" />
+    // Liquidación
+    case "LIQUIDACION_CREADA":    return <Calculator className="h-3 w-3" />
+    case "LIQUIDACION_EDITADA":   return <Edit3 className="h-3 w-3" />
+    case "LIQUIDACION_ELIMINADA": return <Trash2 className="h-3 w-3" />
     default:                              return <Clock className="h-3 w-3" />
   }
 }
@@ -119,16 +167,30 @@ function getAutoresUnicos(eventos: EventoAuditoria[]): string[] {
   return Array.from(nombres)
 }
 
-// ════════ Cuenta cuántos hitos de tarea hay en una lista de eventos ════════
 function contarHitosTarea(eventos: EventoAuditoria[]): number {
   return eventos.filter(e => esDeTarea(e.accion)).length
 }
+function contarHitosDocumento(eventos: EventoAuditoria[]): number {
+  return eventos.filter(e => esDeDocumento(e.accion)).length
+}
+function contarHitosLiquidacion(eventos: EventoAuditoria[]): number {
+  return eventos.filter(e => esDeLiquidacion(e.accion)).length
+}
+
+function formatearMonto(monto: string): string {
+  return Number(monto).toLocaleString("es-AR")
+}
+
+// Fallback: si la relación al documento se perdió (delete físico),
+// parseamos el texto "Documento subido: X.pdf".
+function extraerNombreDelTexto(texto: string): string | null {
+  const m = texto.match(/:\s*(.+)$/)
+  return m ? m[1].trim() : null
+}
 
 // ============================================================================
-// MINI-FILA DE EVENTO DE TAREA — para listar en TarjetaCaso
+// MINI-FILAS DE EVENTO
 // ============================================================================
-// Renderiza inline el resumen de un hito de tarea: título + categoría + acción destacada.
-// Se usa adentro de TarjetaCaso cuando la tarjeta agrupa varios eventos de un caso.
 
 function FilaEventoTarea({ evento }: { evento: EventoAuditoria }) {
   if (!evento.tarea) return null
@@ -149,6 +211,49 @@ function FilaEventoTarea({ evento }: { evento: EventoAuditoria }) {
   )
 }
 
+function FilaEventoDocumento({ evento }: { evento: EventoAuditoria }) {
+  const labelAccion = getLabel(evento.accion)
+  const nombreDoc = evento.documento?.nombre ?? extraerNombreDelTexto(evento.texto)
+
+  return (
+    <div className="flex items-start gap-2 py-1 text-xs">
+      <span className="text-blue-500 shrink-0 mt-0.5">
+        {getIconoSmall(evento.accion)}
+      </span>
+      <div className="flex-1 min-w-0">
+        <span className="text-slate-700 font-medium">{nombreDoc || "Documento"}</span>
+        <span className="ml-1.5 text-[10px] px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded font-bold uppercase tracking-wider border border-blue-200">
+          {labelAccion}
+        </span>
+      </div>
+    </div>
+  )
+}
+
+function FilaEventoLiquidacion({ evento }: { evento: EventoAuditoria }) {
+  const labelAccion = getLabel(evento.accion)
+  const liq = evento.liquidacion
+
+  const tipoLabel = liq ? (TIPO_LIQUIDACION_LABELS[liq.tipo] ?? liq.tipo) : "Cálculo"
+  const monto = liq ? `$${formatearMonto(liq.montoTotal)}` : null
+
+  return (
+    <div className="flex items-start gap-2 py-1 text-xs">
+      <span className="text-violet-500 shrink-0 mt-0.5">
+        {getIconoSmall(evento.accion)}
+      </span>
+      <div className="flex-1 min-w-0">
+        <span className="text-slate-700 font-medium">{tipoLabel}</span>
+        {monto && <span className="text-slate-500 ml-2">{monto}</span>}
+        {liq?.descripcion && <span className="text-slate-400 italic ml-2">— {liq.descripcion}</span>}
+        <span className="ml-1.5 text-[10px] px-1.5 py-0.5 bg-violet-50 text-violet-700 rounded font-bold uppercase tracking-wider border border-violet-200">
+          {labelAccion}
+        </span>
+      </div>
+    </div>
+  )
+}
+
 // ============================================================================
 // TARJETA DE CASO — Modo fecha
 // ============================================================================
@@ -161,14 +266,17 @@ function TarjetaCaso({
 }) {
   const criticos = eventos.filter(e => esCritico(e.accion))
   const eventosTarea = eventos.filter(e => esDeTarea(e.accion))
-  const eventosCaso = eventos.filter(e => !esDeTarea(e.accion))
+  const eventosDoc = eventos.filter(e => esDeDocumento(e.accion))
+  const eventosLiq = eventos.filter(e => esDeLiquidacion(e.accion))
+  const eventosCaso = eventos.filter(e =>
+    !esDeTarea(e.accion) && !esDeDocumento(e.accion) && !esDeLiquidacion(e.accion)
+  )
   const autores = getAutoresUnicos(eventos)
   const tiposUnicos = Array.from(new Set(eventosCaso.map(e => e.accion)))
   const horas = eventos.map(e => new Date(e.createdAt).getTime()).sort((a, b) => a - b)
   const horaInicio = format(new Date(horas[0]), "HH:mm", { locale: es })
   const horaFin = format(new Date(horas[horas.length - 1]), "HH:mm", { locale: es })
   const tieneCriticos = criticos.length > 0
-  const tieneEventos = eventosTarea.length > 0
 
   return (
     <div
@@ -187,16 +295,28 @@ function TarjetaCaso({
                 {criticos.length} crítico{criticos.length !== 1 ? "s" : ""}
               </span>
             )}
-            {tieneEventos && (
+            {eventosTarea.length > 0 && (
               <span className="text-[10px] px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full font-bold flex items-center gap-1 border border-indigo-200">
                 <ClipboardCheck className="w-3 h-3" />
                 {eventosTarea.length} evento{eventosTarea.length !== 1 ? "s" : ""}
               </span>
             )}
+            {eventosDoc.length > 0 && (
+              <span className="text-[10px] px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full font-bold flex items-center gap-1 border border-blue-200">
+                <FileText className="w-3 h-3" />
+                {eventosDoc.length} documento{eventosDoc.length !== 1 ? "s" : ""}
+              </span>
+            )}
+            {eventosLiq.length > 0 && (
+              <span className="text-[10px] px-2 py-0.5 bg-violet-100 text-violet-700 rounded-full font-bold flex items-center gap-1 border border-violet-200">
+                <Calculator className="w-3 h-3" />
+                {eventosLiq.length} cálculo{eventosLiq.length !== 1 ? "s" : ""}
+              </span>
+            )}
           </div>
           <p className="text-sm text-slate-500 truncate mb-3">{casoTitulo}</p>
 
-          {/* Tipos de acción de CASO (las de tarea van en su propio bloque debajo) */}
+          {/* Tipos de acción de CASO (no incluye tareas/docs/cálculos) */}
           {tiposUnicos.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mb-3">
               {tiposUnicos.map(accion => (
@@ -215,13 +335,37 @@ function TarjetaCaso({
             </div>
           )}
 
-          {/* Eventos de tarea — con título, categoría y acción destacada */}
+          {/* Bloque de tareas (indigo) */}
           {eventosTarea.length > 0 && (
             <div className="mb-3 p-2 bg-indigo-50/40 border border-indigo-100 rounded-lg">
               {eventosTarea.slice(0, 3).map(e => <FilaEventoTarea key={e.id} evento={e} />)}
               {eventosTarea.length > 3 && (
                 <p className="text-[10px] text-indigo-600 mt-1 font-medium">
                   + {eventosTarea.length - 3} evento{eventosTarea.length - 3 !== 1 ? "s" : ""} más
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Bloque de documentos (azul) */}
+          {eventosDoc.length > 0 && (
+            <div className="mb-3 p-2 bg-blue-50/40 border border-blue-100 rounded-lg">
+              {eventosDoc.slice(0, 3).map(e => <FilaEventoDocumento key={e.id} evento={e} />)}
+              {eventosDoc.length > 3 && (
+                <p className="text-[10px] text-blue-600 mt-1 font-medium">
+                  + {eventosDoc.length - 3} documento{eventosDoc.length - 3 !== 1 ? "s" : ""} más
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Bloque de cálculos (violeta) */}
+          {eventosLiq.length > 0 && (
+            <div className="mb-3 p-2 bg-violet-50/40 border border-violet-100 rounded-lg">
+              {eventosLiq.slice(0, 3).map(e => <FilaEventoLiquidacion key={e.id} evento={e} />)}
+              {eventosLiq.length > 3 && (
+                <p className="text-[10px] text-violet-600 mt-1 font-medium">
+                  + {eventosLiq.length - 3} cálculo{eventosLiq.length - 3 !== 1 ? "s" : ""} más
                 </p>
               )}
             </div>
@@ -265,6 +409,12 @@ function TarjetaCasoConDias({
   const totalHitosTarea = eventosCasoAgrupados.reduce(
     (acc, d) => acc + contarHitosTarea(d.eventos), 0
   )
+  const totalHitosDoc = eventosCasoAgrupados.reduce(
+    (acc, d) => acc + contarHitosDocumento(d.eventos), 0
+  )
+  const totalHitosLiq = eventosCasoAgrupados.reduce(
+    (acc, d) => acc + contarHitosLiquidacion(d.eventos), 0
+  )
 
   if (eventosCasoAgrupados.length === 0) {
     return (
@@ -280,12 +430,12 @@ function TarjetaCasoConDias({
     <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
       {/* Header de la tarjeta */}
       <div className="p-5 border-b border-slate-100">
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
             <h2 className="text-lg font-bold text-slate-800">{casoBuscado.numero}</h2>
             <p className="text-sm text-slate-500 mt-0.5">{casoBuscado.titulo}</p>
           </div>
-          <div className="flex items-center gap-3 shrink-0">
+          <div className="flex items-center gap-3 shrink-0 flex-wrap">
             <div className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 text-center min-w-[70px]">
               <p className="text-xl font-bold text-slate-800">{totalEventos}</p>
               <p className="text-xs text-slate-500">movimientos</p>
@@ -298,6 +448,18 @@ function TarjetaCasoConDias({
               <div className="bg-indigo-50 border border-indigo-200 rounded-lg px-4 py-2 text-center min-w-[70px]">
                 <p className="text-xl font-bold text-indigo-700">{totalHitosTarea}</p>
                 <p className="text-xs text-indigo-600">evento{totalHitosTarea !== 1 ? "s" : ""}</p>
+              </div>
+            )}
+            {totalHitosDoc > 0 && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2 text-center min-w-[70px]">
+                <p className="text-xl font-bold text-blue-700">{totalHitosDoc}</p>
+                <p className="text-xs text-blue-600">document{totalHitosDoc !== 1 ? "os" : "o"}</p>
+              </div>
+            )}
+            {totalHitosLiq > 0 && (
+              <div className="bg-violet-50 border border-violet-200 rounded-lg px-4 py-2 text-center min-w-[70px]">
+                <p className="text-xl font-bold text-violet-700">{totalHitosLiq}</p>
+                <p className="text-xs text-violet-600">cálculo{totalHitosLiq !== 1 ? "s" : ""}</p>
               </div>
             )}
             {totalCriticos > 0 && (
@@ -313,9 +475,15 @@ function TarjetaCasoConDias({
       {/* Lista de días */}
       <div className="divide-y divide-slate-100">
         {eventosCasoAgrupados.map((dia) => {
-          const criticosDia = dia.eventos.filter(e => esCritico(e.accion))
-          const hitosTareaDia = contarHitosTarea(dia.eventos)
-          const tiposDia = Array.from(new Set(dia.eventos.filter(e => !esDeTarea(e.accion)).map(e => e.accion)))
+          const criticosDia    = dia.eventos.filter(e => esCritico(e.accion))
+          const hitosTareaDia  = contarHitosTarea(dia.eventos)
+          const hitosDocDia    = contarHitosDocumento(dia.eventos)
+          const hitosLiqDia    = contarHitosLiquidacion(dia.eventos)
+          const tiposDia = Array.from(new Set(
+            dia.eventos
+              .filter(e => !esDeTarea(e.accion) && !esDeDocumento(e.accion) && !esDeLiquidacion(e.accion))
+              .map(e => e.accion)
+          ))
           const autoresDia = getAutoresUnicos(dia.eventos)
           const horas = dia.eventos.map(e => new Date(e.createdAt).getTime()).sort((a, b) => a - b)
           const horaInicio = format(new Date(horas[0]), "HH:mm", { locale: es })
@@ -329,13 +497,11 @@ function TarjetaCasoConDias({
             >
               <div className="flex items-center justify-between gap-4">
                 <div className="flex items-start gap-3 flex-1 min-w-0">
-                  {/* Fecha */}
                   <div className="flex items-center gap-2 shrink-0 w-48">
                     <Calendar className="w-4 h-4 text-slate-400 shrink-0" />
                     <span className="text-sm font-medium text-slate-700 capitalize">{dia.fechaLabel}</span>
                   </div>
 
-                  {/* Tipos de acción */}
                   <div className="flex flex-wrap gap-1.5 flex-1">
                     {tiposDia.map(accion => (
                       <span
@@ -356,6 +522,18 @@ function TarjetaCasoConDias({
                         {hitosTareaDia} evento{hitosTareaDia !== 1 ? "s" : ""}
                       </span>
                     )}
+                    {hitosDocDia > 0 && (
+                      <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full font-bold border border-blue-200">
+                        <FileText className="w-3 h-3" />
+                        {hitosDocDia} documento{hitosDocDia !== 1 ? "s" : ""}
+                      </span>
+                    )}
+                    {hitosLiqDia > 0 && (
+                      <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 bg-violet-100 text-violet-700 rounded-full font-bold border border-violet-200">
+                        <Calculator className="w-3 h-3" />
+                        {hitosLiqDia} cálculo{hitosLiqDia !== 1 ? "s" : ""}
+                      </span>
+                    )}
                     {criticosDia.length > 0 && (
                       <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full font-bold border border-amber-200">
                         <ShieldAlert className="w-3 h-3" />
@@ -366,12 +544,10 @@ function TarjetaCasoConDias({
                 </div>
 
                 <div className="flex items-center gap-4 shrink-0">
-                  {/* Autor */}
                   <div className="flex items-center gap-1 text-xs text-slate-500">
                     <User className="w-3 h-3 text-slate-400" />
                     <span>{autoresDia.join(", ")}</span>
                   </div>
-                  {/* Hora y cantidad */}
                   <span className="text-xs text-slate-400 font-mono">{horaInicio}{horas.length > 1 ? ` — ${horaFin}` : ""}</span>
                   <div className="flex items-center gap-1">
                     <span className="text-sm font-bold text-slate-700">{dia.eventos.length}</span>

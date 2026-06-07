@@ -65,15 +65,15 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 
     return NextResponse.json(tarea)
   } catch (error) {
-    console.error("[v0] Error actualizando tarea:", error)
-    return NextResponse.json({ error: "Error al actualizar tarea" }, { status: 500 })
+    console.error("[v0] Error actualizando evento:", error)
+    return NextResponse.json({ error: "Error al actualizar evento" }, { status: 500 })
   }
 }
 
 // DELETE - Eliminar tarea
 export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    console.log("[v0] DELETE /api/tareas/[id] - Eliminando tarea")
+    console.log("[v0] DELETE /api/tareas/[id] - Eliminando evento")
 
     const tareaId = params.id
 
@@ -82,14 +82,14 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     })
 
     if (!tarea) {
-      return NextResponse.json({ error: "Tarea no encontrada" }, { status: 404 })
+      return NextResponse.json({ error: "Evento no encontrado" }, { status: 404 })
     }
 
     await prisma.requirement.delete({
       where: { id: tareaId },
     })
 
-    console.log("[v0] Tarea eliminada exitosamente")
+    console.log("[v0] Evento eliminado exitosamente")
 
     const usuario = await prisma.user.findFirst()
 
@@ -97,8 +97,8 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
       await prisma.bitacora.create({
         data: {
           tipo: "auto",
-          accion: "Tarea Eliminada",
-          texto: `Eliminada: "${tarea.description}"`,
+          accion: "Evento Eliminado",
+          texto: `Eliminado: "${tarea.description}"`,
           usuarioId: usuario.id,
           casoId: tarea.casoId,
         },
@@ -107,7 +107,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error("[v0] Error eliminando tarea:", error)
-    return NextResponse.json({ error: "Error al eliminar tarea" }, { status: 500 })
+    console.error("[v0] Error eliminando evento:", error)
+    return NextResponse.json({ error: "Error al eliminar evento" }, { status: 500 })
   }
 }

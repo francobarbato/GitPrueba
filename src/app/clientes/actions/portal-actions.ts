@@ -7,13 +7,19 @@ import { generarToken, fechaDeVencimiento, TOKEN_TTL } from "src/lib/auth/tokens
 import { sendActivationEmail } from "src/lib/email/send"
 
 // ============================================================================
+// PERMISOS DE GESTIÓN DEL PORTAL
+// ============================================================================
+// ADMIN     — puede gestionar (defensa en profundidad; el middleware ya lo
+//             bloquea de /clientes)
+// ABOGADO   — solo el portal de sus propios clientes (cliente.abogadoId === user.id)
+// ASISTENTE — acceso general: puede gestionar el portal de cualquier cliente
+//             del estudio (mismo criterio que documentos y plantillas)
+// ============================================================================
+const ROLES_GESTION_PORTAL = ['ADMIN', 'ABOGADO', 'ASISTENTE'] as const
+
+// ============================================================================
 // ENVIAR INVITACIÓN AL PORTAL
 // ============================================================================
-// Crea un User CLIENTE con isActive=false y password=null + AccountActivationToken,
-// vincula al Cliente y manda email al cliente con el link de activación.
-// El cliente carga su propia contraseña en /auth/activate-account/{token}.
-// ============================================================================
-
 export async function crearUsuarioPortalAction(clienteId: string): Promise<{
   error?: string
   success?: boolean
@@ -21,8 +27,8 @@ export async function crearUsuarioPortalAction(clienteId: string): Promise<{
   const user = await getUserSessionServer()
   if (!user?.id) return { error: "No autorizado" }
 
-  const userRol = user.rol?.toUpperCase()
-  if (userRol !== 'ADMIN' && userRol !== 'ABOGADO') {
+  const userRol = user.rol?.toUpperCase() || ''
+  if (!ROLES_GESTION_PORTAL.includes(userRol as any)) {
     return { error: "No tenés permiso para invitar al portal" }
   }
 
@@ -47,7 +53,6 @@ export async function crearUsuarioPortalAction(clienteId: string): Promise<{
       return { error: "Este cliente ya tiene un usuario de portal. Si querés reenviar el email, usá 'Reenviar invitación'." }
     }
 
-    // Email no debe estar en uso por otro user
     const emailExistente = await prisma.user.findUnique({
       where: { email: cliente.email },
       select: { id: true, isActive: true }
@@ -60,6 +65,7 @@ export async function crearUsuarioPortalAction(clienteId: string): Promise<{
       }
     }
 
+    // Ownership: solo aplica al ABOGADO; ASISTENTE y ADMIN no se restringen.
     if (userRol === 'ABOGADO' && cliente.abogadoId !== user.id) {
       return { error: "Solo podés gestionar el portal de tus propios clientes" }
     }
@@ -67,7 +73,6 @@ export async function crearUsuarioPortalAction(clienteId: string): Promise<{
     const token = generarToken()
     const appUrl = process.env.NEXTAUTH_URL || "http://localhost:3000"
 
-    // Transacción: crear user inactivo + token + vincular al cliente + bitácora
     await prisma.$transaction(async (tx) => {
       const usuario = await tx.user.create({
         data: {
@@ -105,7 +110,6 @@ export async function crearUsuarioPortalAction(clienteId: string): Promise<{
       })
     })
 
-    // Email fuera de la transacción
     const envio = await sendActivationEmail({
       to: cliente.email,
       nombre: cliente.nombre,
@@ -122,7 +126,7 @@ export async function crearUsuarioPortalAction(clienteId: string): Promise<{
       }
     }
 
-    console.log(`✅ Invitación al portal enviada para cliente ${cliente.nombre} (${cliente.email}) por user ${user.id}`)
+    console.log(`Invitación al portal enviada para cliente ${cliente.nombre} (${cliente.email}) por user ${user.id} (${userRol})`)
     revalidatePath(`/clientes/${clienteId}`)
     return { success: true }
 
@@ -135,11 +139,6 @@ export async function crearUsuarioPortalAction(clienteId: string): Promise<{
 // ============================================================================
 // REENVIAR INVITACIÓN
 // ============================================================================
-// Para clientes que ya tienen usuarioPortalId pero todavía NO activaron
-// (password=null). Si el cliente ya activó alguna vez, se bloquea: en ese caso
-// hay que usar "Reactivar acceso" o que el cliente use "Olvidé contraseña".
-// ============================================================================
-
 export async function reenviarInvitacionPortalAction(clienteId: string): Promise<{
   error?: string
   success?: boolean
@@ -147,8 +146,8 @@ export async function reenviarInvitacionPortalAction(clienteId: string): Promise
   const user = await getUserSessionServer()
   if (!user?.id) return { error: "No autorizado" }
 
-  const userRol = user.rol?.toUpperCase()
-  if (userRol !== 'ADMIN' && userRol !== 'ABOGADO') {
+  const userRol = user.rol?.toUpperCase() || ''
+  if (!ROLES_GESTION_PORTAL.includes(userRol as any)) {
     return { error: "No tenés permiso para reenviar invitaciones" }
   }
 
@@ -183,7 +182,6 @@ export async function reenviarInvitacionPortalAction(clienteId: string): Promise
     const emailDestino = cliente.email ?? cliente.usuarioPortal.email
     if (!emailDestino) return { error: "No hay email registrado para enviar la invitación" }
 
-    // Borramos tokens previos del usuario y creamos uno nuevo
     await prisma.accountActivationToken.deleteMany({
       where: { userId: cliente.usuarioPortalId }
     })
@@ -232,10 +230,6 @@ export async function reenviarInvitacionPortalAction(clienteId: string): Promise
 // ============================================================================
 // DESACTIVAR USUARIO DE PORTAL
 // ============================================================================
-// Pone isActive=false. Invalida también los tokens pendientes (para que un link
-// de invitación viejo no funcione después).
-// ============================================================================
-
 export async function desactivarUsuarioPortalAction(clienteId: string): Promise<{
   error?: string
   success?: boolean
@@ -243,8 +237,8 @@ export async function desactivarUsuarioPortalAction(clienteId: string): Promise<
   const user = await getUserSessionServer()
   if (!user?.id) return { error: "No autorizado" }
 
-  const userRol = user.rol?.toUpperCase()
-  if (userRol !== 'ADMIN' && userRol !== 'ABOGADO') {
+  const userRol = user.rol?.toUpperCase() || ''
+  if (!ROLES_GESTION_PORTAL.includes(userRol as any)) {
     return { error: "No tenés permiso para desactivar usuarios de portal" }
   }
 
@@ -274,7 +268,6 @@ export async function desactivarUsuarioPortalAction(clienteId: string): Promise<
       data: { isActive: false }
     })
 
-    // Invalidamos también los tokens activos (importante para invitaciones pendientes que se cancelan)
     await prisma.accountActivationToken.updateMany({
       where: { userId: cliente.usuarioPortalId, usedAt: null },
       data: { usedAt: new Date() }
@@ -301,10 +294,6 @@ export async function desactivarUsuarioPortalAction(clienteId: string): Promise<
 // ============================================================================
 // REACTIVAR USUARIO DE PORTAL
 // ============================================================================
-// Solo aplica a usuarios que ya activaron (tienen password). Si el cliente
-// nunca activó, hay que reenviarle la invitación, no reactivarlo.
-// ============================================================================
-
 export async function reactivarUsuarioPortalAction(clienteId: string): Promise<{
   error?: string
   success?: boolean
@@ -312,8 +301,8 @@ export async function reactivarUsuarioPortalAction(clienteId: string): Promise<{
   const user = await getUserSessionServer()
   if (!user?.id) return { error: "No autorizado" }
 
-  const userRol = user.rol?.toUpperCase()
-  if (userRol !== 'ADMIN' && userRol !== 'ABOGADO') {
+  const userRol = user.rol?.toUpperCase() || ''
+  if (!ROLES_GESTION_PORTAL.includes(userRol as any)) {
     return { error: "No tenés permiso para reactivar usuarios" }
   }
 

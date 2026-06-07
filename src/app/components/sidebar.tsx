@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation"
 import { useSession } from "next-auth/react"
 import {
   FileText, PieChart, Users, Calendar, FileCheck,
-  Calculator, UserPlus, Home, Menu, Settings, ShieldAlert
+  Calculator, UserPlus, Home, Menu, Settings, ShieldAlert, Inbox
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"

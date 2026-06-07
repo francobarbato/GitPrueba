@@ -1,9 +1,14 @@
+// app/reportes/auditoria/page.tsx
+//
 // REPORTE: Auditoría Personal del Abogado
 // ACCESO: Solo ABOGADO — ve únicamente sus propios casos
 //
-// CAMBIO: ahora también muestra HITOS DE TAREAS vinculadas a expedientes
-// del abogado. Solo se incluyen tareas con casoId (las administrativas sin
-// caso quedan fuera de este reporte por ser de otra naturaleza).
+// CAMBIO en esta versión:
+// - Suma a la trazabilidad las acciones de DOCUMENTOS (subida, eliminación,
+//   movimiento, edición, y gestión de carpetas) y CÁLCULOS / LIQUIDACIONES
+//   (creación, edición, eliminación).
+// - El include de Prisma trae las nuevas relaciones documento y liquidacion.
+// - Mantiene la lógica existente de tareas y casos sin cambios funcionales.
 
 import Link from "next/link"
 import { Sidebar } from "@/app/components/sidebar"
@@ -34,8 +39,17 @@ export type EventoAuditoria = {
   createdAt: string
   usuario: { nombre: string; apellido: string; rol: string }
   caso: { id: string; numero: string; titulo: string } | null
-  // ── NUEVO: si la entrada proviene de una tarea, traemos su info ──
   tarea: { id: string; titulo: string; tipo: string; categoria: string } | null
+  // ── NUEVO: relación a documento si la entrada proviene de uno ──
+  documento: { id: string; nombre: string; tipo: string; extension: string } | null
+  // ── NUEVO: relación a liquidación ──
+  liquidacion: {
+    id: string
+    tipo: string
+    montoTotal: string
+    descripcion: string | null
+    eliminadoEn: string | null
+  } | null
 }
 
 export type EventosPorDia = {
@@ -44,28 +58,14 @@ export type EventosPorDia = {
   eventos: EventoAuditoria[]
 }
 
-// ════════ ACCIONES DE CASOS (existentes) ════════
+// ════════ ACCIONES DE CASOS ════════
 const ACCIONES_CASO = [
   "CREATE", "ESTADO_CHANGE", "PRIORIDAD_CHANGE",
   "JUZGADO_CHANGE", "UBICACION_CHANGE", "MONTO_CHANGE",
   "CIERRE", "REAPERTURA", "UPDATE",
 ]
 
-// ════════ NUEVO: HITOS DE TAREAS ════════
-// Solo los hitos significativos. Las acciones intermedias (TAREA_ESTADO_CHANGE
-// hacia EN_PROCESO, ediciones menores, comentarios) NO entran al reporte de
-// auditoría — son operativas, no auditables.
-//
-// Hitos auditables:
-//   - TAREA_CREADA: nace una tarea sobre el expediente
-//   - TAREA_COMPLETADA_CON_DEMORA: cumplimiento tardío (relevante para auditoría)
-//   - TAREA_DESBLOQUEADA: la tarea volvió a estar activa
-//   - TAREA_VENCIDA_CERRADA_MANUAL: cierre con motivo, decisión registrada
-//
-// Nota: también incluimos TAREA_ESTADO_CHANGE pero con filtrado posterior:
-// solo cuentan los cambios a estados terminales (COMPLETADA, BLOQUEADA, VENCIDA).
-// Lamentablemente Prisma no permite filtrar por estadoNuevo dentro del mismo
-// `accion`, así que traemos todos los TAREA_ESTADO_CHANGE y filtramos en JS.
+// ════════ HITOS DE TAREAS ════════
 const ACCIONES_TAREA = [
   "TAREA_CREADA",
   "TAREA_ESTADO_CHANGE",            // se filtra por estadoNuevo en JS
@@ -77,13 +77,45 @@ const ACCIONES_TAREA = [
 // Estados terminales/significativos para filtro de TAREA_ESTADO_CHANGE
 const ESTADOS_TAREA_AUDITABLES = ["COMPLETADA", "BLOQUEADA"]
 
-const ACCIONES_RELEVANTES = [...ACCIONES_CASO, ...ACCIONES_TAREA]
+// ════════ NUEVO: ACCIONES DE DOCUMENTOS Y CARPETAS ════════
+// Cubren todo el ciclo de vida documental: gestión de archivos físicos y de la
+// organización en carpetas. Todas terminan creando una bitácora desde el
+// DocumentoService, vinculadas al expediente y (cuando aplica) al documento.
+const ACCIONES_DOCUMENTO = [
+  "DOCUMENTO_SUBIDO",
+  "DOCUMENTO_ELIMINADO",
+  "DOCUMENTO_MOVIDO",
+  "DOCUMENTO_ACTUALIZADO",
+  "CARPETA_CREADA",
+  "CARPETA_RENOMBRADA",
+  "CARPETA_ELIMINADA",
+]
+
+// ════════ NUEVO: ACCIONES DE LIQUIDACIONES ════════
+const ACCIONES_LIQUIDACION = [
+  "LIQUIDACION_CREADA",
+  "LIQUIDACION_EDITADA",
+  "LIQUIDACION_ELIMINADA",
+]
+
+const ACCIONES_RELEVANTES = [
+  ...ACCIONES_CASO,
+  ...ACCIONES_TAREA,
+  ...ACCIONES_DOCUMENTO,
+  ...ACCIONES_LIQUIDACION,
+]
 
 const ACCIONES_CRITICAS = ["MONTO_CHANGE", "JUZGADO_CHANGE", "UBICACION_CHANGE", "CIERRE", "REAPERTURA"]
 
-// Helper para saber si una acción es de tarea (lo usan los componentes)
+// Helpers exportados para los componentes
 export function esAccionDeTarea(accion: string): boolean {
   return ACCIONES_TAREA.includes(accion)
+}
+export function esAccionDeDocumento(accion: string): boolean {
+  return ACCIONES_DOCUMENTO.includes(accion)
+}
+export function esAccionDeLiquidacion(accion: string): boolean {
+  return ACCIONES_LIQUIDACION.includes(accion)
 }
 
 // ============================================================================
@@ -111,12 +143,24 @@ function mapearEvento(e: any): EventoAuditoria {
       tipo: e.tarea.tipo,
       categoria: e.tarea.categoria,
     } : null,
+    documento: e.documento ? {
+      id: e.documento.id,
+      nombre: e.documento.nombre,
+      tipo: e.documento.tipo,
+      extension: e.documento.extension,
+    } : null,
+    liquidacion: e.liquidacion ? {
+      id: e.liquidacion.id,
+      tipo: e.liquidacion.tipo,
+      montoTotal: e.liquidacion.montoTotal.toString(),
+      descripcion: e.liquidacion.descripcion,
+      eliminadoEn: e.liquidacion.eliminadoEn?.toISOString() ?? null,
+    } : null,
   }
 }
 
 // Filtra los TAREA_ESTADO_CHANGE para mantener solo los que cambian a un
-// estado terminal/auditable. Esto se hace post-query porque Prisma no permite
-// condicionar por columnas distintas dentro del mismo OR.
+// estado terminal/auditable.
 function filtrarHitosTarea(eventos: any[]): any[] {
   return eventos.filter(e => {
     if (e.accion !== "TAREA_ESTADO_CHANGE") return true
@@ -139,7 +183,9 @@ async function getEventosAuditoria(
   // Resolver filtro de acción según selección
   const accionWhere =
     filtroAccion === "criticos"   ? { in: ACCIONES_CRITICAS } :
-    filtroAccion === "eventos"    ? { in: ACCIONES_TAREA } :          // ← NUEVO
+    filtroAccion === "eventos"    ? { in: ACCIONES_TAREA } :
+    filtroAccion === "documentos" ? { in: ACCIONES_DOCUMENTO } :
+    filtroAccion === "calculos"   ? { in: ACCIONES_LIQUIDACION } :
     filtroAccion !== "todos"      ? filtroAccion :
                                     { in: ACCIONES_RELEVANTES }
 
@@ -151,14 +197,15 @@ async function getEventosAuditoria(
   if (filtroRol) where.usuario = { rol: filtroRol }
 
   const include = {
-    usuario: { select: { nombre: true, apellido: true, rol: true } },
-    caso: { select: { id: true, numero: true, titulo: true } },
-    tarea: { select: { id: true, titulo: true, tipo: true, categoria: true } },  // ← NUEVO
+    usuario:     { select: { nombre: true, apellido: true, rol: true } },
+    caso:        { select: { id: true, numero: true, titulo: true } },
+    tarea:       { select: { id: true, titulo: true, tipo: true, categoria: true } },
+    documento:   { select: { id: true, nombre: true, tipo: true, extension: true } },
+    liquidacion: { select: { id: true, tipo: true, montoTotal: true, descripcion: true, eliminadoEn: true } },
   }
 
   // Para paginar correctamente con el filtrado post-query, primero
   // traemos TODO lo que matchea el where, filtramos en JS, y después paginamos.
-  // Costo aceptable: el reporte está acotado por fecha (un día / un rango corto).
   const todosLosEventos = await prisma.bitacora.findMany({
     where,
     orderBy: { createdAt: "desc" },
@@ -168,11 +215,9 @@ async function getEventosAuditoria(
   const filtrados = filtrarHitosTarea(todosLosEventos)
   const totalCount = filtrados.length
 
-  // Paginar después del filtrado
   const skip = (page - 1) * ITEMS_PER_PAGE
   const eventosPaginados = filtrados.slice(skip, skip + ITEMS_PER_PAGE)
 
-  // Casos afectados sobre el total (no solo la página)
   const casosAfectadosTotal = new Set(filtrados.map((e: any) => e.casoId).filter(Boolean)).size
 
   return { eventos: eventosPaginados.map(mapearEvento), totalCount, casosAfectadosTotal }
@@ -194,9 +239,11 @@ async function getEventosCasoAgrupados(
   const eventosDb = await prisma.bitacora.findMany({
     where, orderBy: { createdAt: "desc" },
     include: {
-      usuario: { select: { nombre: true, apellido: true, rol: true } },
-      caso: { select: { id: true, numero: true, titulo: true } },
-      tarea: { select: { id: true, titulo: true, tipo: true, categoria: true } },
+      usuario:     { select: { nombre: true, apellido: true, rol: true } },
+      caso:        { select: { id: true, numero: true, titulo: true } },
+      tarea:       { select: { id: true, titulo: true, tipo: true, categoria: true } },
+      documento:   { select: { id: true, nombre: true, tipo: true, extension: true } },
+      liquidacion: { select: { id: true, tipo: true, montoTotal: true, descripcion: true, eliminadoEn: true } },
     }
   })
 
@@ -234,9 +281,11 @@ async function getEventosPorCaso(
     },
     orderBy: { createdAt: "desc" },
     include: {
-      usuario: { select: { nombre: true, apellido: true, rol: true } },
-      caso: { select: { id: true, numero: true, titulo: true } },
-      tarea: { select: { id: true, titulo: true, tipo: true, categoria: true } },
+      usuario:     { select: { nombre: true, apellido: true, rol: true } },
+      caso:        { select: { id: true, numero: true, titulo: true } },
+      tarea:       { select: { id: true, titulo: true, tipo: true, categoria: true } },
+      documento:   { select: { id: true, nombre: true, tipo: true, extension: true } },
+      liquidacion: { select: { id: true, tipo: true, montoTotal: true, descripcion: true, eliminadoEn: true } },
     }
   })
   const filtrados = filtrarHitosTarea(eventosDb)
@@ -253,6 +302,8 @@ async function getFechasConActividad(
   const accionWhere =
     filtroAccion === "criticos"   ? { in: ACCIONES_CRITICAS } :
     filtroAccion === "eventos"    ? { in: ACCIONES_TAREA } :
+    filtroAccion === "documentos" ? { in: ACCIONES_DOCUMENTO } :
+    filtroAccion === "calculos"   ? { in: ACCIONES_LIQUIDACION } :
     filtroAccion !== "todos"      ? filtroAccion :
                                     { in: ACCIONES_RELEVANTES }
 
@@ -262,8 +313,6 @@ async function getFechasConActividad(
   }
   if (filtroRol) where.usuario = { rol: filtroRol }
 
-  // Para fechas con actividad, necesitamos saber qué TAREA_ESTADO_CHANGE
-  // realmente cuentan (los terminales). Traemos esos campos también.
   const bitacoras = await prisma.bitacora.findMany({
     where,
     select: { createdAt: true, accion: true, estadoNuevo: true },
@@ -300,7 +349,6 @@ export default async function AuditoriaPage({ searchParams }: PageProps) {
   if (!user) redirect("/api/auth/signin")
 
   const userRol = user.rol?.toUpperCase()
-  // Defensa en profundidad — bloquear roles no operativos
   if (userRol === 'CLIENTE' || userRol === 'ADMIN') notFound()
   if (userRol !== "ABOGADO") redirect("/reportes")
 
@@ -330,12 +378,10 @@ export default async function AuditoriaPage({ searchParams }: PageProps) {
     orderBy: { updatedAt: "desc" }
   })
 
-  // Modo fecha: query normal con fecha obligatoria
   const { eventos, totalCount, casosAfectadosTotal } = modoBusqueda === "fecha"
     ? await getEventosAuditoria(user.id, filtroAccion, filtroCasoId, fechaDesde, fechaHasta, filtroRol, currentPage)
     : { eventos: [], totalCount: 0, casosAfectadosTotal: 0 }
 
-  // Modo caso: todos los eventos agrupados por día (fecha como filtro opcional)
   const tieneFiltroDeFecha = esRango && typeof params.desde === "string"
   const eventosCasoAgrupados = modoBusqueda === "caso" && vista !== "detalle"
     ? await getEventosCasoAgrupados(
@@ -349,7 +395,6 @@ export default async function AuditoriaPage({ searchParams }: PageProps) {
   const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE)
   const fechaLabel = getLabelFecha(esRango, fechaDesde, esRango ? fechaDesde : null, esRango ? fechaHasta : null)
 
-  // Vista 2
   let eventosDetalle: EventoAuditoria[] = []
   let casoDetalle: { numero: string; titulo: string } | null = null
   if (vista === "detalle" && casoIdDetalle) {
@@ -390,7 +435,6 @@ export default async function AuditoriaPage({ searchParams }: PageProps) {
               </div>
             )}
 
-            {/* VISTA 1 — MODO FECHA */}
             {vista !== "detalle" && modoBusqueda === "fecha" && (
               <>
                 <div className="grid grid-cols-2 gap-4 mb-6">
@@ -417,7 +461,6 @@ export default async function AuditoriaPage({ searchParams }: PageProps) {
               </>
             )}
 
-            {/* VISTA 1 — MODO CASO */}
             {vista !== "detalle" && modoBusqueda === "caso" && casoBuscado && (
               <>
                 <FiltrosAuditoria casos={casosDelAbogado} fechasActivas={fechasActivas} modoBusqueda="caso" />
@@ -434,7 +477,6 @@ export default async function AuditoriaPage({ searchParams }: PageProps) {
               </>
             )}
 
-            {/* VISTA 2 */}
             {vista === "detalle" && casoIdDetalle && casoDetalle && (
               <DetalleCasoAuditoria
                 eventos={eventosDetalle}
