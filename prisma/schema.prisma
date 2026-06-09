@@ -4,7 +4,7 @@ generator client {
 
 // TODO: migrar a postrges y aprovechar mejor las relaciones
 datasource db {
-  provider = "mysql"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -171,7 +171,7 @@ model Requirement {
   createdAt   DateTime  @default(now())
   caso        Caso      @relation(fields: [casoId], references: [id], onDelete: Cascade)
 
-  @@index([casoId], map: "requirement_casoId_fkey")
+  @@index([casoId])
   @@map("requirement")
 }
 
@@ -460,7 +460,7 @@ model Pago {
 
   @@index([casoId])
   @@index([estado])
-  @@index([validadoPor], map: "pago_validadoPor_fkey")
+  @@index([validadoPor])
   @@map("pago")
 }
 
@@ -480,7 +480,7 @@ model Account {
   user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
-  @@index([userId], map: "account_userId_fkey")
+  @@index([userId])
   @@map("account")
 }
 
@@ -524,7 +524,7 @@ model Session {
   expires      DateTime
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId], map: "session_userId_fkey")
+  @@index([userId])
   @@map("session")
 }
 
