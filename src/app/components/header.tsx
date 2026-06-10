@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import {
-  Bell, Clock, CheckCheck, ArrowRight, FileText, MessageCircle, AlarmClock,
+  Bell, Clock, CheckCheck, ArrowRight, FileText, MessageCircle, AlarmClock, Pencil,
 } from "lucide-react";
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger,
@@ -24,13 +24,6 @@ import type { BurbujaTareaComentarios, AlertaProximaAVencer } from "src/lib/acti
 
 // ============================================================================
 // EVENTO GLOBAL — sincronización del Header con acciones de otros componentes
-// ============================================================================
-// El Header tiene su propio estado de notificaciones. Cuando el drawer marca
-// una tarea como leída (o cualquier otra acción que afecte el contador), no
-// hay forma de que el Header se entere automáticamente — son componentes
-// separados con su propio ciclo de vida.
-// Solución: un evento custom del DOM. El drawer dispara
-// dispatchNotificationsRefresh() y el Header escucha y recarga.
 // ============================================================================
 export const NOTIFICATIONS_REFRESH_EVENT = "notifications:refresh"
 
@@ -105,6 +98,10 @@ export function Header() {
   const totalItems = tareasNuevas.length + burbujasComentarios.length + alertasProximas.length
   const totalComentariosAcumulados = burbujasComentarios.reduce((acc, b) => acc + b.cantidadNuevos, 0)
 
+  // ⬇ NUEVO: discriminar nuevas vs editadas para el resumen del sheet
+  const cantidadEventosNuevos = tareasNuevas.filter(t => t.tipoNovedad === "nueva").length
+  const cantidadEventosEditados = tareasNuevas.filter(t => t.tipoNovedad === "editada").length
+
   const cargarNotificaciones = useCallback(() => {
     startTransition(async () => {
       try {
@@ -122,18 +119,24 @@ export function Header() {
     })
   }, [])
 
+  const nombre = user?.name ?? "Usuario";
+  const rol = user?.rol ?? "sin rol";
+  const avatar = user?.image ?? null;
+  const initials = nombre.split(" ").map(n => n[0]).slice(0, 2).join("").toUpperCase();
+  const isAdmin = typeof rol === 'string' && rol.toLowerCase() === "admin";
+
   // Carga inicial
   useEffect(() => {
     if (isAdmin) return
     cargarNotificaciones()
-  }, [cargarNotificaciones])
+  }, [cargarNotificaciones, isAdmin])
 
   // Recarga cuando se abre el sheet
   useEffect(() => {
     if (sheetOpen) cargarNotificaciones()
   }, [sheetOpen, cargarNotificaciones])
 
-  // ═══ FIX BUG 1: escuchar evento global de refresh ═══
+  // FIX BUG 1: escuchar evento global de refresh
   useEffect(() => {
     const handler = () => cargarNotificaciones()
     window.addEventListener(NOTIFICATIONS_REFRESH_EVENT, handler)
@@ -149,29 +152,24 @@ export function Header() {
     })
   }
 
-const handleClickItemTarea = (tareaId: string) => {
-  setSheetOpen(false)
- 
-  marcarTareaComoLeidaAction(tareaId).then(() => {
-    cargarNotificaciones()  // refresca el contador en el badge
-  })
- 
+  const handleClickItemTarea = (tareaId: string) => {
+    setSheetOpen(false)
 
-  if (typeof window !== "undefined" && window.location.pathname === "/gestion-tareas") {
-    dispatchAbrirTareaDrawer(tareaId)
-  } else {
-    router.push(`/gestion-tareas?tareaAbierta=${tareaId}`)
+    marcarTareaComoLeidaAction(tareaId).then(() => {
+      cargarNotificaciones()
+    })
+
+    if (typeof window !== "undefined" && window.location.pathname === "/gestion-tareas") {
+      dispatchAbrirTareaDrawer(tareaId)
+    } else {
+      router.push(`/gestion-tareas?tareaAbierta=${tareaId}`)
+    }
   }
-}
 
   const handleSignOut = () => {
     setShowUserMenu(false)
     signOut({ callbackUrl: "/auth/signin" })
   }
-
-  const getInitials = (name: string) => {
-    return name.split(" ").map(n => n[0]).slice(0, 2).join("").toUpperCase();
-  };
 
   const feed: ItemFeed[] = [
     ...tareasNuevas.map<ItemFeed>(t => ({
@@ -190,12 +188,6 @@ const handleClickItemTarea = (tareaId: string) => {
       data: a,
     })),
   ].sort((a, b) => b.ordenFecha - a.ordenFecha)
-
-  const nombre = user?.name ?? "Usuario";
-  const rol = user?.rol ?? "sin rol";
-  const avatar = user?.image ?? null;
-  const initials = getInitials(nombre);
-  const isAdmin = typeof rol === 'string' && rol.toLowerCase() === "admin";
 
   const getRolLabel = (rol: string) => {
     const roles: Record<string, string> = {
@@ -242,8 +234,17 @@ const handleClickItemTarea = (tareaId: string) => {
 
               {totalItems > 0 && (
                 <p className="text-xs text-slate-500 mt-1">
+                  {/* ⬇ ACTUALIZADO: discriminar nuevos vs editados */}
                   {tareasNuevas.length > 0 && (
-                    <span>{tareasNuevas.length} evento{tareasNuevas.length !== 1 ? "s" : ""} nuevo{tareasNuevas.length !== 1 ? "s" : ""}</span>
+                    <span>
+                      {cantidadEventosNuevos > 0 && (
+                        <>{cantidadEventosNuevos} nuevo{cantidadEventosNuevos !== 1 ? "s" : ""}</>
+                      )}
+                      {cantidadEventosNuevos > 0 && cantidadEventosEditados > 0 && " · "}
+                      {cantidadEventosEditados > 0 && (
+                        <>{cantidadEventosEditados} editado{cantidadEventosEditados !== 1 ? "s" : ""}</>
+                      )}
+                    </span>
                   )}
                   {tareasNuevas.length > 0 && (burbujasComentarios.length > 0 || alertasProximas.length > 0) && <span> · </span>}
                   {burbujasComentarios.length > 0 && (
@@ -263,7 +264,8 @@ const handleClickItemTarea = (tareaId: string) => {
                   className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 px-2 py-1.5 rounded-md hover:bg-slate-100 transition-colors w-fit mt-1"
                 >
                   <CheckCheck className="w-3.5 h-3.5" />
-                  Marcar eventos nuevos como vistos
+                  {/* ⬇ TEXTO ACTUALIZADO: ahora cubre nuevos y editados */}
+                  Marcar todos los eventos como vistos
                 </button>
               )}
             </SheetHeader>
@@ -283,6 +285,17 @@ const handleClickItemTarea = (tareaId: string) => {
                     if (item.kind === "tarea") {
                       const t = item.data
                       const prioCfg = PRIORIDAD_CONFIG[t.prioridad] ?? PRIORIDAD_CONFIG.MEDIA
+
+                      // ⬇ NUEVO: estilo dinámico según tipoNovedad
+                      const esEditada = t.tipoNovedad === "editada"
+                      const labelTipo = esEditada ? "Evento editado" : "Nuevo evento"
+                      const colorLabel = esEditada ? "text-amber-700" : "text-blue-700"
+                      const bgIcono = esEditada ? "bg-amber-50" : "bg-blue-50"
+                      const borderIcono = esEditada ? "border-amber-100" : "border-blue-100"
+                      const colorIcono = esEditada ? "text-amber-600" : "text-blue-600"
+                      const colorHover = esEditada ? "group-hover:text-amber-700" : "group-hover:text-blue-700"
+                      const IconoNovedad = esEditada ? Pencil : FileText
+
                       return (
                         <button
                           key={`t-${t.id}`}
@@ -291,15 +304,17 @@ const handleClickItemTarea = (tareaId: string) => {
                         >
                           <div className="px-5 py-3.5 hover:bg-slate-50 transition-colors group">
                             <div className="flex items-start gap-3">
-                              <div className="mt-0.5 w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center shrink-0 border border-blue-100">
-                                <FileText className="w-4 h-4 text-blue-600" />
+                              <div className={`mt-0.5 w-8 h-8 rounded-lg ${bgIcono} flex items-center justify-center shrink-0 border ${borderIcono}`}>
+                                <IconoNovedad className={`w-4 h-4 ${colorIcono}`} />
                               </div>
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-1.5 mb-0.5">
-                                  <span className="text-[10px] font-bold text-blue-700 uppercase tracking-wide">Nuevo evento</span>
+                                  <span className={`text-[10px] font-bold uppercase tracking-wide ${colorLabel}`}>
+                                    {labelTipo}
+                                  </span>
                                   <span className={`w-1 h-1 rounded-full ${t.tipo === "PROCESAL" ? "bg-red-500" : "bg-blue-500"}`} />
                                 </div>
-                                <p className="text-sm font-medium text-slate-800 group-hover:text-blue-700 transition-colors leading-snug">
+                                <p className={`text-sm font-medium text-slate-800 ${colorHover} transition-colors leading-snug`}>
                                   {t.titulo}
                                 </p>
                                 <div className="flex items-center gap-2 mt-1 flex-wrap">

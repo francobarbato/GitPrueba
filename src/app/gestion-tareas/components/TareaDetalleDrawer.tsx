@@ -135,19 +135,21 @@ export function TareaDetalleDrawer({
 
   // 2. EFECTOS (siguen siendo hooks, van antes del return temprano)
   // ═══ Marcar leída + disparar refresh del Header ═══
-  useEffect(() => {
-    if (!open || !tarea) return
-    const esResponsableOSupervisor =
-      tarea.responsableId === currentUserId || tarea.supervisorId === currentUserId
-    if (!esResponsableOSupervisor) return
+useEffect(() => {
+  if (!open || !tarea) return
+  const esResponsableOSupervisor =
+    tarea.responsableId === currentUserId || tarea.supervisorId === currentUserId
+  if (!esResponsableOSupervisor) return
 
-    marcarTareaLeidaAction(tarea.id)
-      .then(() => {
-        // Solo refrescamos el header DESPUÉS de que la action terminó.
-        dispatchNotificationsRefresh()
-      })
-      .catch(err => console.error("Error marcando tarea como leída:", err))
-  }, [open, tarea?.id, currentUserId])
+  marcarTareaLeidaAction(tarea.id)
+    .then((result) => {
+      if (result?.error) {
+        console.error("⚠️ marcarTareaLeida falló:", result.error)
+      }
+      dispatchNotificationsRefresh()
+    })
+    .catch(err => console.error("Error marcando tarea como leída:", err))
+}, [open, tarea?.id, currentUserId])
 
   // 3. CONDICIONALES / RETURNS TEMPRANOS
   if (!tarea) return null

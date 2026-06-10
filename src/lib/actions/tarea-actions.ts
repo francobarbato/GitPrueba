@@ -66,6 +66,7 @@ export type TareaNotificacion = {
   estado: EstadoTarea
   fechaVencimiento: string | null
   updatedAt: string
+  tipoNovedad: "nueva" | "editada"  
   creador: { nombre: string | null; apellido: string | null }
   caso: { numero: string } | null
 }
@@ -311,13 +312,19 @@ export async function getTareasParaNotificaciones(): Promise<{ nuevas: TareaNoti
   const tareas = tareasFiltradas.slice(0, 20)
 
   return {
-    nuevas: tareas.map(t => ({
-      id: t.id, titulo: t.titulo, tipo: t.tipo, prioridad: t.prioridad, estado: t.estado,
-      fechaVencimiento: t.fechaVencimiento?.toISOString() ?? null,
-      updatedAt: t.updatedAt.toISOString(),
-      creador: { nombre: t.creador.nombre, apellido: t.creador.apellido },
-      caso: t.caso ? { numero: t.caso.numero } : null,
-    })),
+    nuevas: tareas.map(t => {
+      const diffMs = t.updatedAt.getTime() - t.createdAt.getTime()
+      const tipoNovedad: "nueva" | "editada" = diffMs > 5000 ? "editada" : "nueva"
+
+      return {
+        id: t.id, titulo: t.titulo, tipo: t.tipo, prioridad: t.prioridad, estado: t.estado,
+        fechaVencimiento: t.fechaVencimiento?.toISOString() ?? null,
+        updatedAt: t.updatedAt.toISOString(),
+        tipoNovedad,
+        creador: { nombre: t.creador.nombre, apellido: t.creador.apellido },
+        caso: t.caso ? { numero: t.caso.numero } : null,
+      }
+    }),
     totalNuevas: tareas.length,
   }
 }

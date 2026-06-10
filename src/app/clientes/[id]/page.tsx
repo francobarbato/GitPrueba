@@ -150,7 +150,7 @@ const tieneInvitacionPendiente = !!(
                       )}
                       {cliente.nombre} {cliente.apellido}
                     </h1>
-                  <p className="text-slate-600 mt-1 flex items-center gap-2">
+                  <div className="text-slate-600 mt-1 flex items-center gap-2">
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
                       cliente.activo ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
                     }`}>
@@ -179,7 +179,7 @@ const tieneInvitacionPendiente = !!(
                         )}
                       </>
                     )}
-                  </p>
+                  </div>
                 </div>
               </div>
 

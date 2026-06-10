@@ -219,8 +219,10 @@ export function PortalAccesoSection({
                   <div className="flex items-center gap-2 text-sm">
                     <Calendar className="h-4 w-4 text-amber-700" />
                     <span className="text-amber-800">Invitación creada:</span>
-                    <span className="text-amber-900">{formatearFecha(cliente.usuarioPortal?.createdAt || null)}</span>
-                  </div>
+                      <span className="text-amber-900" suppressHydrationWarning>
+                        {formatearFecha(cliente.usuarioPortal?.createdAt || null)}
+                      </span>                  
+                    </div>
                 </div>
               </div>
 
@@ -275,12 +277,16 @@ export function PortalAccesoSection({
                   <div className="flex items-center gap-2 text-sm">
                     <Calendar className="h-4 w-4 text-slate-500" />
                     <span className="text-slate-600">Cuenta creada:</span>
-                    <span>{formatearFecha(cliente.usuarioPortal?.createdAt || null)}</span>
-                  </div>
+                      <span suppressHydrationWarning>
+                        {formatearFecha(cliente.usuarioPortal?.createdAt || null)}
+                      </span>                  
+                      </div>
                   <div className="flex items-center gap-2 text-sm">
                     <Shield className="h-4 w-4 text-slate-500" />
                     <span className="text-slate-600">Último acceso:</span>
-                    <span>{formatearFecha(cliente.usuarioPortal?.ultimoAcceso || null)}</span>
+                    <span suppressHydrationWarning>
+                      {formatearFecha(cliente.usuarioPortal?.ultimoAcceso || null)}
+                    </span>
                   </div>
                 </div>
               </div>

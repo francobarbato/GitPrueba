@@ -148,23 +148,38 @@ function getTipoNovedad(
   t: TareaConRelaciones,
   ultimoAcceso: string | null,
   currentUserId: string,
-  tareasLeidasLocalmente?: Set<string>
+  tareasLeidasLocalmente?: Set<string>,
+  lecturasPorTarea?: Record<string, string>
 ): "nueva" | "editada" | null {
-  // ═══ NUEVO: si la tarea fue marcada como leída en esta sesión, ya no es novedad ═══
+  // 1. Descuento instantáneo del cliente (solo dentro de la sesión)
   if (tareasLeidasLocalmente?.has(t.id)) return null
  
-  if (!ultimoAcceso) return "nueva"
-  if (new Date(t.updatedAt) <= new Date(ultimoAcceso)) return null
-    // Si sos creador Y responsable, ningún cambio tuyo genera novedad
+  // 2. Lectura individual persistida en BD (sobrevive F5)
+  const ultimaLecturaIndividual = lecturasPorTarea?.[t.id]
+  if (ultimaLecturaIndividual && new Date(ultimaLecturaIndividual) >= new Date(t.updatedAt)) {
+    return null
+  }
+ 
+  // 3. Filtro global por "marcar todo como visto"
+  if (ultimoAcceso && new Date(t.updatedAt) <= new Date(ultimoAcceso)) return null
+ 
+  // 4. Sos creador Y responsable: no autonotificación
   if (t.creadorId === currentUserId && t.responsableId === currentUserId) return null
-
-  // Si sos solo el creador, filtramos la creación inicial
+ 
+  // 5. Sos solo el creador: filtrar la creación inicial (red de seguridad)
   if (t.creadorId === currentUserId) {
     const diffMs = Math.abs(new Date(t.updatedAt).getTime() - new Date(t.createdAt).getTime())
     if (diffMs < 5000) return null
   }
-  if (new Date(t.createdAt) > new Date(ultimoAcceso)) return "nueva"
-  return "editada"
+ 
+  // Distinguir "nueva" de "editada" comparando createdAt con updatedAt.
+  // - Si updatedAt es notablemente posterior a createdAt → la tarea fue editada
+  // - Si son casi iguales (delta < 5s) → la tarea está recién creada
+  // Esto es una propiedad de la tarea, no del observador, así que funciona
+  // igual para el asistente la haya visto antes o no.
+  const diffMs = new Date(t.updatedAt).getTime() - new Date(t.createdAt).getTime()
+  if (diffMs > 5000) return "editada"
+  return "nueva"
 }
 
 // ============================================================================
@@ -1216,7 +1231,7 @@ function ordenarTareasPorUrgencia(tareas: TareaConRelaciones[]): TareaConRelacio
   })
 }
 
-function GrupoTareas({ titulo, icono: Icono, colorTitulo, tareas, onChange, onEdit, onDelete, onOpenDrawer, onCerrarVencida, soloLectura, currentUserId, ultimoAcceso, tareasLeidasLocalmente }: {
+function GrupoTareas({ titulo, icono: Icono, colorTitulo, tareas, onChange, onEdit, onDelete, onOpenDrawer, onCerrarVencida, soloLectura, currentUserId, ultimoAcceso, tareasLeidasLocalmente, lecturasPorTarea }: {
   titulo: string
   icono: any
   colorTitulo: string
@@ -1230,6 +1245,7 @@ function GrupoTareas({ titulo, icono: Icono, colorTitulo, tareas, onChange, onEd
   currentUserId: string
   ultimoAcceso: string | null
   tareasLeidasLocalmente?: Set<string>
+  lecturasPorTarea?: Record<string, string>
 }) {
   if (tareas.length === 0) return null
   const ordenadas = ordenarTareasPorUrgencia(tareas)
@@ -1246,7 +1262,7 @@ function GrupoTareas({ titulo, icono: Icono, colorTitulo, tareas, onChange, onEd
             key={t.id} tarea={t} onChange={onChange} onEdit={onEdit} onDelete={onDelete}
             onOpenDrawer={onOpenDrawer} onCerrarVencida={onCerrarVencida}
             soloLectura={soloLectura} currentUserId={currentUserId}
-            tipoNovedad={getTipoNovedad(t, ultimoAcceso, currentUserId, tareasLeidasLocalmente)}
+            tipoNovedad={getTipoNovedad(t, ultimoAcceso, currentUserId, tareasLeidasLocalmente, lecturasPorTarea)}
           />
         ))}
       </div>
@@ -1254,7 +1270,7 @@ function GrupoTareas({ titulo, icono: Icono, colorTitulo, tareas, onChange, onEd
   )
 }
 
-function SeccionTareas({ titulo, tareas, colorTitulo, onChange, onEdit, onDelete, onOpenDrawer, onCerrarVencida, soloLectura, currentUserId, ultimoAcceso, tareasLeidasLocalmente, agruparPorDisponibilidad = false }: {
+function SeccionTareas({ titulo, tareas, colorTitulo, onChange, onEdit, onDelete, onOpenDrawer, onCerrarVencida, soloLectura, currentUserId, ultimoAcceso, tareasLeidasLocalmente, lecturasPorTarea, agruparPorDisponibilidad = false }: {
   titulo: string
   tareas: TareaConRelaciones[]
   colorTitulo: string
@@ -1267,6 +1283,7 @@ function SeccionTareas({ titulo, tareas, colorTitulo, onChange, onEdit, onDelete
   currentUserId: string
   ultimoAcceso: string | null
   tareasLeidasLocalmente?: Set<string>
+  lecturasPorTarea?: Record<string, string>
   agruparPorDisponibilidad?: boolean
 }) {
   const [colapsada, setColapsada] = useState(false)
@@ -1296,7 +1313,7 @@ function SeccionTareas({ titulo, tareas, colorTitulo, onChange, onEdit, onDelete
         <ChevronRight className={`w-4 h-4 text-slate-400 transition-transform ${colapsada ? "" : "rotate-90"}`} />
       </button>
       {!colapsada && (
-        agruparPorDisponibilidad ? (
+agruparPorDisponibilidad ? (
           <>
             <GrupoTareas
               titulo="Requieren atención" icono={AlertTriangle} colorTitulo="text-red-600"
@@ -1304,6 +1321,7 @@ function SeccionTareas({ titulo, tareas, colorTitulo, onChange, onEdit, onDelete
               onOpenDrawer={onOpenDrawer} onCerrarVencida={onCerrarVencida}
               soloLectura={soloLectura} currentUserId={currentUserId} ultimoAcceso={ultimoAcceso}
               tareasLeidasLocalmente={tareasLeidasLocalmente}
+              lecturasPorTarea={lecturasPorTarea}
             />
             <GrupoTareas
               titulo="Activas" icono={Clock} colorTitulo="text-slate-500"
@@ -1311,6 +1329,7 @@ function SeccionTareas({ titulo, tareas, colorTitulo, onChange, onEdit, onDelete
               onOpenDrawer={onOpenDrawer} onCerrarVencida={onCerrarVencida}
               soloLectura={soloLectura} currentUserId={currentUserId} ultimoAcceso={ultimoAcceso}
               tareasLeidasLocalmente={tareasLeidasLocalmente}
+              lecturasPorTarea={lecturasPorTarea}
             />
             <GrupoTareas
               titulo="A la espera" icono={Lock} colorTitulo="text-slate-500"
@@ -1318,6 +1337,7 @@ function SeccionTareas({ titulo, tareas, colorTitulo, onChange, onEdit, onDelete
               onOpenDrawer={onOpenDrawer} onCerrarVencida={onCerrarVencida}
               soloLectura={soloLectura} currentUserId={currentUserId} ultimoAcceso={ultimoAcceso}
               tareasLeidasLocalmente={tareasLeidasLocalmente}
+              lecturasPorTarea={lecturasPorTarea}
             />
           </>
         ) : (
@@ -1327,7 +1347,7 @@ function SeccionTareas({ titulo, tareas, colorTitulo, onChange, onEdit, onDelete
                 key={t.id} tarea={t} onChange={onChange} onEdit={onEdit} onDelete={onDelete}
                 onOpenDrawer={onOpenDrawer} onCerrarVencida={onCerrarVencida}
                 soloLectura={soloLectura} currentUserId={currentUserId}
-                tipoNovedad={getTipoNovedad(t, ultimoAcceso, currentUserId, tareasLeidasLocalmente)}
+                tipoNovedad={getTipoNovedad(t, ultimoAcceso, currentUserId, tareasLeidasLocalmente, lecturasPorTarea)}
               />
             ))}
           </div>
@@ -1341,9 +1361,10 @@ function SeccionTareas({ titulo, tareas, colorTitulo, onChange, onEdit, onDelete
 // COMPONENTE PRINCIPAL
 // ============================================================================
 
-export function TareasBoard({ tareas: tareasIniciales, currentUserId, ultimoAccesoTareas, usuarios }: {
+export function TareasBoard({ tareas: tareasIniciales, currentUserId, ultimoAccesoTareas, usuarios, lecturasPorTarea = {} }: {
   tareas: TareaConRelaciones[]; currentUserId: string; ultimoAccesoTareas: string | null
   usuarios?: { id: string; nombre: string | null; apellido: string | null; rol: string }[]
+  lecturasPorTarea?: Record<string, string>
 }) {
 
   const [tareas, setTareas] = useState(tareasIniciales)
@@ -1467,10 +1488,10 @@ const lastOpenedRef = useRef<string | null>(null)
   const tareasConNovedad = useMemo(() =>
     tareas.filter(t =>
       !esTerminalParaBoard(t) &&
-      getTipoNovedad(t, ultimoAcceso, currentUserId, tareasLeidasLocalmente) !== null &&
+      getTipoNovedad(t, ultimoAcceso, currentUserId, tareasLeidasLocalmente, lecturasPorTarea) !== null &&
       (t.responsableId === currentUserId || t.supervisorId === currentUserId)
     ),
-  [tareas, currentUserId, ultimoAcceso, tareasLeidasLocalmente])
+  [tareas, currentUserId, ultimoAcceso, tareasLeidasLocalmente, lecturasPorTarea])
 
   const tareasMias = useMemo(() =>
     tareas.filter(t => !esTerminalParaBoard(t) && t.responsableId === currentUserId),
@@ -1935,9 +1956,8 @@ const handleCloseDrawer = () => {
         )
       })()}
 
-      {(tipoFiltro === "TODOS" || tipoFiltro === "PROCESAL") && <SeccionTareas titulo="Procesales" tareas={tipoFiltro === "PROCESAL" ? tareasFiltradas : procesales} colorTitulo="text-indigo-700" onChange={handleCambioEstado} onEdit={handleEdit} onDelete={handleDelete} onOpenDrawer={handleOpenDrawer} onCerrarVencida={handleCerrarVencida} soloLectura={vistaActiva === "supervisadas"} currentUserId={currentUserId} ultimoAcceso={ultimoAcceso} tareasLeidasLocalmente={tareasLeidasLocalmente} agruparPorDisponibilidad={vistaActiva === "mias"} />}
-      {(tipoFiltro === "TODOS" || tipoFiltro === "INTERNA") && <SeccionTareas titulo="Internas" tareas={tipoFiltro === "INTERNA" ? tareasFiltradas : internas} colorTitulo="text-slate-700" onChange={handleCambioEstado} onEdit={handleEdit} onDelete={handleDelete} onOpenDrawer={handleOpenDrawer} onCerrarVencida={handleCerrarVencida} soloLectura={vistaActiva === "supervisadas"} currentUserId={currentUserId} ultimoAcceso={ultimoAcceso} tareasLeidasLocalmente={tareasLeidasLocalmente} agruparPorDisponibilidad={vistaActiva === "mias"} />}
-
+{(tipoFiltro === "TODOS" || tipoFiltro === "PROCESAL") && <SeccionTareas titulo="Procesales" tareas={tipoFiltro === "PROCESAL" ? tareasFiltradas : procesales} colorTitulo="text-indigo-700" onChange={handleCambioEstado} onEdit={handleEdit} onDelete={handleDelete} onOpenDrawer={handleOpenDrawer} onCerrarVencida={handleCerrarVencida} soloLectura={vistaActiva === "supervisadas"} currentUserId={currentUserId} ultimoAcceso={ultimoAcceso} tareasLeidasLocalmente={tareasLeidasLocalmente} lecturasPorTarea={lecturasPorTarea} agruparPorDisponibilidad={vistaActiva === "mias"} />}
+      {(tipoFiltro === "TODOS" || tipoFiltro === "INTERNA") && <SeccionTareas titulo="Internas" tareas={tipoFiltro === "INTERNA" ? tareasFiltradas : internas} colorTitulo="text-slate-700" onChange={handleCambioEstado} onEdit={handleEdit} onDelete={handleDelete} onOpenDrawer={handleOpenDrawer} onCerrarVencida={handleCerrarVencida} soloLectura={vistaActiva === "supervisadas"} currentUserId={currentUserId} ultimoAcceso={ultimoAcceso} tareasLeidasLocalmente={tareasLeidasLocalmente} lecturasPorTarea={lecturasPorTarea} agruparPorDisponibilidad={vistaActiva === "mias"} />}
       {/* ═══ FOOTER INFORMATIVO ═══
           Aclaración en el tab Finalizadas sobre el alcance del historial.
           Reemplaza Gemini's "mostrando 30 días" con info honesta: todas las finalizadas + vencidas abandonadas. */}

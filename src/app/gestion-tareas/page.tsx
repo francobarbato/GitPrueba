@@ -16,6 +16,7 @@ import { NuevaTareaModal } from "./components/NuevaTareaModal"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/app/api/auth/[...nextauth]/route"
 import { marcarTareasVencidasAction } from "src/lib/actions/tarea-actions"
+import prisma from "src/lib/db/prisma"  // ⬅ NUEVO IMPORT
 
 export default async function TareasPage() {
 
@@ -30,13 +31,26 @@ export default async function TareasPage() {
   if (userRol === 'CLIENTE' || userRol === 'ADMIN') notFound()
 
   await marcarTareasVencidasAction()
-  const [tareas, usuarios, casos, clientes, ultimoAcceso] = await Promise.all([
+
+  // ⬇ AGREGADO: lecturasRaw al Promise.all
+  const [tareas, usuarios, casos, clientes, ultimoAcceso, lecturasRaw] = await Promise.all([
     getTareasDelUsuario(),
     getUsuariosAsignables(),
     getCasosDisponibles(),
     getClientesDisponibles(),
     getUltimoAccesoTareas(),
+    prisma.tareaLectura.findMany({
+      where: { userId: user.id },
+      select: { tareaId: true, ultimaLectura: true },
+    }),
   ])
+
+  // ⬇ NUEVO: convertimos las lecturas a un map { tareaId: ultimaLecturaISO }
+  // para pasarlo al cliente. El cliente lo usa en getTipoNovedad para no
+  // mostrar como novedad las tareas que el usuario ya abrió.
+  const lecturasPorTarea: Record<string, string> = Object.fromEntries(
+    lecturasRaw.map(l => [l.tareaId, l.ultimaLectura.toISOString()])
+  )
 
   // Smart Sorting (Ordenamiento Inteligente Base)
   const tareasOrdenadas = [...tareas].sort((a, b) => {
@@ -102,6 +116,7 @@ export default async function TareasPage() {
                 currentUserId={session?.user?.id || ""}
                 ultimoAccesoTareas={ultimoAcceso}
                 usuarios={usuarios}
+                lecturasPorTarea={lecturasPorTarea}  // ⬅ NUEVO PROP
               />
             )}
 

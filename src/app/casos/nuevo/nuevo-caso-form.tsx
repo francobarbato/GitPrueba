@@ -162,9 +162,9 @@ export function NuevoCasoForm({ clientes: clientesIniciales, abogados, userRol, 
     : ''
 
   // El botón se deshabilita para el asistente si no eligió abogado todavía
-  const submitDisabled = esAsistente 
-    ? (!abogadoSeleccionadoId || !hayClientesDisponibles)
-    : !hayClientesDisponibles
+const submitDisabled = !clienteSeleccionado || (esAsistente 
+  ? (!abogadoSeleccionadoId || !hayClientesDisponibles)
+  : !hayClientesDisponibles)
 
   return (
     <Card className="max-w-5xl shadow-md border-slate-200">
@@ -457,6 +457,9 @@ export function NuevoCasoForm({ clientes: clientesIniciales, abogados, userRol, 
               <input type="hidden" name="fuero" value={fueroValue} />
               <input type="hidden" name="provincia" value={provinciaSeleccionada} />
               <input type="hidden" name="ciudad" value={departamentoSeleccionado} />
+
+              <input type="hidden" name="requirements" value={JSON.stringify(requisitos)} />
+              <input type="hidden" name="clienteId" value={clienteSeleccionado} />
 
               {fueroValue && (
                 <div className="p-3 bg-white border border-slate-200 rounded-lg">
