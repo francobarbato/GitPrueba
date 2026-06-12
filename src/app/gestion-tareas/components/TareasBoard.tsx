@@ -28,6 +28,7 @@ import { dispatchNotificationsRefresh } from "@/app/components/header"
 import { useFeriados } from "../../hooks/useFeriados"
 import { UserName } from "../../components/UserName"
 import { cerrarEventoPorTraspasoAbogadoAction } from "src/lib/actions/tarea-actions"
+import { useConfirmacion } from "src/components/confirmacion/ConfirmacionProvider"
 
 // ============================================================================
 // TIME-BOXING — Configuración
@@ -363,6 +364,7 @@ export function ModalEditar({ tarea, onClose, onSaved, currentUserId, usuarios, 
   const [detalleLugar, setDetalle] = useState(tarea.lugarFisico?.replace(/^\[.*?\]\s?/, "").replace("Estudio Jurídico", "") ?? "")
  
   const categoriaCfg = CATEGORIA_CONFIG[tarea.categoria]
+  const { confirm: confirmar } = useConfirmacion()
  
   // ═══ FILTRO DE USUARIOS SEGÚN CASO ═══
   // Misma regla que NuevaTareaModal: si la tarea tiene caso activo, solo el
@@ -464,8 +466,16 @@ export function ModalEditar({ tarea, onClose, onSaved, currentUserId, usuarios, 
     })
   }
  
-  const handleCierrePorTraspasoAbogado = async () => {
-    if (!confirm("¿Cerrar este evento por traspaso del abogado? Esta acción marca el evento como cerrado administrativamente y no se puede revertir.")) return
+const handleCierrePorTraspasoAbogado = async () => {
+    const ok = await confirmar({
+      titulo: 'Cerrar evento por traspaso del abogado',
+      descripcion: 'Esta acción marca el evento como cerrado administrativamente porque el responsable o supervisor se fue del estudio.\n\nQueda registrado en la bitácora y no se puede revertir.',
+      textoConfirmar: 'Sí, cerrar evento',
+      textoCancelar: 'Cancelar',
+      variante: 'warning',
+    })
+    if (!ok) return
+
     setCerrandoTraspaso(true)
     try {
       const r = await cerrarEventoPorTraspasoAbogadoAction(tarea.id, motivoTraspasoAbogado.trim() || undefined)
@@ -765,7 +775,7 @@ function DropdownMenu({ onEdit, onDelete, puedeEditar, puedeEliminar }: { onEdit
       <button onClick={e => { e.stopPropagation(); setOpen(!open) }} className="p-1 rounded-md text-slate-300 hover:text-slate-600 hover:bg-slate-100 transition-colors"><MoreVertical className="w-4 h-4" /></button>
       {open && (
         <div className="absolute right-0 top-full mt-1 w-44 bg-white border border-slate-200 rounded-lg shadow-lg z-20 overflow-hidden">
-          {puedeEditar && <button onClick={e => { e.stopPropagation(); onEdit(); setOpen(false) }} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"><Pencil className="w-3.5 h-3.5 text-slate-400" /> Editar tarea</button>}
+          {puedeEditar && <button onClick={e => { e.stopPropagation(); onEdit(); setOpen(false) }} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"><Pencil className="w-3.5 h-3.5 text-slate-400" /> Editar evento</button>}
           {puedeEliminar && <button onClick={e => { e.stopPropagation(); onDelete(); setOpen(false) }} className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors ${puedeEditar ? "border-t border-slate-100" : ""}`}><Trash2 className="w-3.5 h-3.5" /> Eliminar</button>}
         </div>
       )}
@@ -807,24 +817,39 @@ function TareaCard({ tarea, onChange, onEdit, onDelete, onOpenDrawer, onCerrarVe
 
   const router = useRouter()
 const [cerrandoForzoso, setCerrandoForzoso] = useState(false)
+const [errorCierre, setErrorCierre] = useState<string | null>(null)
+const { confirm: confirmar } = useConfirmacion()
 
 const casoFinalizado = tarea.caso?.estaCerrado || tarea.caso?.esTraspasado
 const puedeCerrarForzoso = casoFinalizado && !esTerminal && (esResponsable || esSupervisor || esCreador)
 
 const handleCerrarPorCasoFinalizado = async (e: React.MouseEvent) => {
   e.stopPropagation()
-  if (!confirm("¿Cerrar este evento porque el expediente fue traspasado o cerrado?")) return
-  
+  setErrorCierre(null)
+
+  const motivo = tarea.caso?.esTraspasado
+    ? "El expediente fue traspasado a otro estudio"
+    : "El expediente fue cerrado"
+
+  const ok = await confirmar({
+    titulo: 'Cerrar evento por finalización del expediente',
+    descripcion: `${motivo}.\n\nEl evento se va a cerrar automáticamente y queda registrado en la bitácora. Esta acción no se puede revertir.`,
+    textoConfirmar: 'Sí, cerrar evento',
+    textoCancelar: 'Cancelar',
+    variante: 'warning',
+  })
+  if (!ok) return
+
   setCerrandoForzoso(true)
   try {
     const r = await cerrarTareaPorCasoFinalizadoAction(tarea.id)
     if (r.error) {
-      alert(r.error)
+      setErrorCierre(r.error)
     } else {
       router.refresh()
     }
-  } catch (e: any) {
-    alert(e.message || "Error")
+  } catch (err: any) {
+    setErrorCierre(err.message || "Error al cerrar el evento")
   } finally {
     setCerrandoForzoso(false)
   }
@@ -994,6 +1019,18 @@ const handleCerrarPorCasoFinalizado = async (e: React.MouseEvent) => {
                   </>
                 )}
               </button>
+            )}
+            {errorCierre && (
+              <div className="w-full mt-1 p-1.5 bg-red-50 border border-red-200 rounded flex items-start gap-1">
+                <span className="text-[10px] text-red-700 flex-1">{errorCierre}</span>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setErrorCierre(null) }}
+                  className="text-red-400 hover:text-red-600 text-[10px] leading-none"
+                  aria-label="Cerrar error"
+                >
+                  ×
+                </button>
+              </div>
             )}
           </div>
         )}

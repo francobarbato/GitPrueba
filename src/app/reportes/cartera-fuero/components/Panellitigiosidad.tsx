@@ -25,7 +25,7 @@ export function PanelLitigiosidad({ data }: { data: LitigiosidadData }) {
       <CardHeader className="pb-3">
         <CardTitle className="text-base font-semibold text-slate-800 flex items-center gap-2">
           <TrendingDown className="w-5 h-5 text-indigo-600" />
-          Tasa de Litigiosidad (Pipeline del Estudio)
+          Tasa de Litigiosidad 
         </CardTitle>
         <p className="text-xs text-slate-500">
           ¿En qué etapa están los expedientes? Si todo está en ejecución, se viene un &quot;vacío&quot; de trabajo.
@@ -101,7 +101,7 @@ export function PanelLitigiosidad({ data }: { data: LitigiosidadData }) {
           )}
           {equilibrado && (
             <p>
-              <span className="font-semibold">✓ Pipeline equilibrado.</span> Hay distribución razonable entre etapas 
+              <span className="font-semibold">✓ equilibrado.</span> Hay distribución razonable entre etapas 
               tempranas ({pctTemprana}%), medias ({pctMedia}%) y tardías ({pctTardia}%).
             </p>
           )}

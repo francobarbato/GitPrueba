@@ -192,8 +192,7 @@ const puedeVerMontoDisputa = isAbogado(userRol)
               <div className="mb-6 p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm flex items-start gap-2">
                 <ShieldAlert className="w-5 h-5 mt-0.5 flex-shrink-0" />
                 <div>
-                  <strong>Modo Asistente:</strong> Puedes ver la información del expediente y gestionar la agenda. 
-                  La edición del expediente y la información financiera están restringidas.
+                  <strong>Modo Asistente:</strong> Puedes ver la información del expediente y gestionar la agenda.
                 </div>
               </div>
             )}

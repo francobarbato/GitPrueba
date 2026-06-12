@@ -204,8 +204,7 @@ async function getEventosAuditoria(
     liquidacion: { select: { id: true, tipo: true, montoTotal: true, descripcion: true, eliminadoEn: true } },
   }
 
-  // Para paginar correctamente con el filtrado post-query, primero
-  // traemos TODO lo que matchea el where, filtramos en JS, y después paginamos.
+  // Traemos TODOS los eventos del período (sin paginar todavía)
   const todosLosEventos = await prisma.bitacora.findMany({
     where,
     orderBy: { createdAt: "desc" },
@@ -213,14 +212,35 @@ async function getEventosAuditoria(
   })
 
   const filtrados = filtrarHitosTarea(todosLosEventos)
-  const totalCount = filtrados.length
+  const totalCount = filtrados.length  // ← total de eventos (para KPI)
 
+  // ─── AGRUPAR EVENTOS POR CASO ────────────────────────────────────────
+  // El Map mantiene el orden de inserción, y como filtrados ya viene
+  // ordenado por createdAt DESC, el primer caso en aparecer es el que
+  // tiene el evento más reciente.
+  const gruposPorCaso = new Map<string, any[]>()
+  for (const evento of filtrados) {
+    const key = evento.casoId || "sin-caso"
+    if (!gruposPorCaso.has(key)) gruposPorCaso.set(key, [])
+    gruposPorCaso.get(key)!.push(evento)
+  }
+
+  const casosOrdenados = Array.from(gruposPorCaso.keys())
+  const casosAfectadosTotal = casosOrdenados.length
+
+  // ─── PAGINAR POR CASO ─────────────────────────────────────────────────
+  // Mostramos ITEMS_PER_PAGE casos por página, cada uno con TODOS sus
+  // eventos del período. Así un caso nunca aparece duplicado en 2 páginas
+  // ni con datos parciales.
   const skip = (page - 1) * ITEMS_PER_PAGE
-  const eventosPaginados = filtrados.slice(skip, skip + ITEMS_PER_PAGE)
+  const casosEnEstaPagina = casosOrdenados.slice(skip, skip + ITEMS_PER_PAGE)
+  const eventosDeEstaPagina = casosEnEstaPagina.flatMap(casoId => gruposPorCaso.get(casoId) ?? [])
 
-  const casosAfectadosTotal = new Set(filtrados.map((e: any) => e.casoId).filter(Boolean)).size
-
-  return { eventos: eventosPaginados.map(mapearEvento), totalCount, casosAfectadosTotal }
+  return { 
+    eventos: eventosDeEstaPagina.map(mapearEvento), 
+    totalCount,  // total de eventos (mostrado en "Eventos en el período")
+    casosAfectadosTotal  // total de casos (usado para calcular totalPages)
+  }
 }
 
 async function getEventosCasoAgrupados(
@@ -392,7 +412,7 @@ export default async function AuditoriaPage({ searchParams }: PageProps) {
     : []
 
   const fechasActivas = await getFechasConActividad(user.id, filtroAccion, filtroCasoId, filtroRol)
-  const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE)
+  const totalPages = Math.ceil(casosAfectadosTotal / ITEMS_PER_PAGE)
   const fechaLabel = getLabelFecha(esRango, fechaDesde, esRango ? fechaDesde : null, esRango ? fechaHasta : null)
 
   let eventosDetalle: EventoAuditoria[] = []

@@ -74,6 +74,9 @@ export function PortalAccesoSection({
       } else {
         setShowConfirmarEnvioModal(false)
         router.refresh()
+        setTimeout(() => {
+          router.replace(`/clientes/${cliente.id}`)
+        }, 50)
       }
     } catch (err: any) {
       setError(err.message || 'Error al enviar invitación')
@@ -82,57 +85,66 @@ export function PortalAccesoSection({
     }
   }
 
-  const handleReenviarInvitacion = async () => {
-    setError('')
-    setIsLoading(true)
-    try {
-      const result = await reenviarInvitacionPortalAction(cliente.id)
-      if (result.error) {
-        setError(result.error)
-      } else {
-        router.refresh()
-      }
-    } catch (err: any) {
-      setError(err.message || 'Error al reenviar')
-    } finally {
-      setIsLoading(false)
+const handleReenviarInvitacion = async () => {
+  setError('')
+  setIsLoading(true)
+  try {
+    const result = await reenviarInvitacionPortalAction(cliente.id)
+    if (result.error) {
+      setError(result.error)
+    } else {
+      router.refresh()
+      setTimeout(() => {
+        router.replace(`/clientes/${cliente.id}`)
+      }, 50)
     }
+  } catch (err: any) {
+    setError(err.message || 'Error al reenviar')
+  } finally {
+    setIsLoading(false)
   }
+}
 
-  const handleDesactivar = async () => {
-    setError('')
-    setIsLoading(true)
-    try {
-      const result = await desactivarUsuarioPortalAction(cliente.id)
-      if (result.error) {
-        setError(result.error)
-      } else {
-        setShowDesactivarModal(false)
-        router.refresh()
-      }
-    } catch (err: any) {
-      setError(err.message || 'Error al desactivar')
-    } finally {
-      setIsLoading(false)
+const handleDesactivar = async () => {
+  setError('')
+  setIsLoading(true)
+  try {
+    const result = await desactivarUsuarioPortalAction(cliente.id)
+    if (result.error) {
+      setError(result.error)
+    } else {
+      setShowDesactivarModal(false)
+      router.refresh()
+      setTimeout(() => {
+        router.replace(`/clientes/${cliente.id}`)
+      }, 50)
     }
+  } catch (err: any) {
+    setError(err.message || 'Error al desactivar')
+  } finally {
+    setIsLoading(false)
   }
+}
 
-  const handleReactivar = async () => {
-    setError('')
-    setIsLoading(true)
-    try {
-      const result = await reactivarUsuarioPortalAction(cliente.id)
-      if (result.error) {
-        setError(result.error)
-      } else {
-        router.refresh()
-      }
-    } catch (err: any) {
-      setError(err.message || 'Error al reactivar')
-    } finally {
-      setIsLoading(false)
+const handleReactivar = async () => {
+  setError('')
+  setIsLoading(true)
+  try {
+    const result = await reactivarUsuarioPortalAction(cliente.id)
+    if (result.error) {
+      setError(result.error)
+    } else {
+      router.refresh()
+      setTimeout(() => {
+        router.replace(`/clientes/${cliente.id}`)
+      }, 50)
     }
+  } catch (err: any) {
+    setError(err.message || 'Error al reactivar')
+  } finally {
+    setIsLoading(false)
   }
+}
 
   const formatearFecha = (fecha: Date | string | null) => {
     if (!fecha) return 'Nunca'

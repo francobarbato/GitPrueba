@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { ArrowLeft, Save, Star, AlertCircle, Scale, User, Lock, AlertTriangle, MapPin, Ban } from 'lucide-react' 
+import { ArrowLeft, Save, Star, AlertCircle, Scale, User, Lock, AlertTriangle, MapPin, Ban } from 'lucide-react'
 import Link from "next/link"
 import { useFormState, useFormStatus } from "react-dom"
 import { useState, useEffect, FormEvent } from "react"
@@ -16,6 +16,8 @@ import {
   getDepartamentosParaSelect 
 } from "src/lib/data/argentina-ubicaciones"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
+import { useConfirmacion } from "src/components/confirmacion/ConfirmacionProvider"
+
 
 // ========== TIPOS DE CASO ACTUALIZADOS ==========
 const TIPOS_CASO = [
@@ -101,6 +103,12 @@ export function EditarCasoForm({ caso, clientes }: { caso: any, clientes: any[] 
     ciudad: deptoInicial,
     fuero: caso.fuero || ''
   })
+  const { confirm: confirmar } = useConfirmacion()
+  const [yaConfirmoCambioEtapa, setYaConfirmoCambioEtapa] = useState(false)
+
+  const [errorJuzgado, setErrorJuzgado] = useState('')
+  const [errorUbicacion, setErrorUbicacion] = useState('')
+  const [errorMonto, setErrorMonto] = useState('')
 
   // Cargar provincias
   const provincias: { value: string; label: string }[] = getProvinciasParaSelect()
@@ -150,14 +158,26 @@ export function EditarCasoForm({ caso, clientes }: { caso: any, clientes: any[] 
   )
 
   // Interceptor del envío para confirmar cambio de estado
-  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
-    if (etapaActual !== etapaOriginal) {
-        const confirmado = window.confirm(
-            `⚠️ ATENCIÓN: Estás a punto de cambiar la etapa procesal de:\n\n"${etapaOriginal}"  ➡️  "${etapaActual}"\n\n¿Estás seguro de que el expediente avanzó de fase?`
-        )
-        if (!confirmado) {
-            e.preventDefault()
-        }
+const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    // Si no hubo cambio de etapa, dejar pasar normal
+    if (etapaActual === etapaOriginal) return
+    // Si ya confirmó en este intento, dejar pasar (segundo submit)
+    if (yaConfirmoCambioEtapa) return
+
+    e.preventDefault()
+    const formEl = e.currentTarget
+    const ok = await confirmar({
+      titulo: 'Cambio de etapa procesal',
+      descripcion: `Estás moviendo el expediente de "${etapaOriginal}" a "${etapaActual}".\n\nEste cambio queda registrado en la bitácora del expediente y puede impactar en los reportes de seguimiento. ¿Confirmás que el expediente avanzó de fase?`,
+      textoConfirmar: 'Sí, avanzar etapa',
+      textoCancelar: 'Cancelar',
+      variante: 'warning',
+    })
+
+    if (ok) {
+      setYaConfirmoCambioEtapa(true)
+      // Re-disparar el submit ahora que el flag está activo
+      formEl.requestSubmit()
     }
   }
 
@@ -557,18 +577,26 @@ export function EditarCasoForm({ caso, clientes }: { caso: any, clientes: any[] 
                 placeholder="Ej: Excusación del juez, cambio de sede..."
                 rows={3}
               />
+              {/* ⬇ ACÁ va el error inline */}
+              {errorJuzgado && (
+                <p className="text-xs text-red-600 flex items-center gap-1 mt-1">
+                  <AlertCircle className="h-3 w-3" />
+                  {errorJuzgado}
+                </p>
+              )}
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setModalJuzgado(false)}>
               Cancelar
             </Button>
-            <Button 
+                        <Button 
               onClick={() => {
                 if (!motivoJuzgado.trim()) {
-                  alert('El motivo es obligatorio')
+                  setErrorJuzgado('El motivo es obligatorio')
                   return
                 }
+                setErrorJuzgado('')
                 setJuzgadoConfirmado(nuevoJuzgado)
                 setModalJuzgado(false)
               }}
@@ -630,6 +658,12 @@ export function EditarCasoForm({ caso, clientes }: { caso: any, clientes: any[] 
                 placeholder="Ej: Inhibición del juzgado, cambio de jurisdicción..."
                 rows={3}
               />
+              {errorUbicacion && (
+                <p className="text-xs text-red-600 flex items-center gap-1 mt-1">
+                  <AlertCircle className="h-3 w-3" />
+                  {errorUbicacion}
+                </p>
+              )}
             </div>
           </div>
           <DialogFooter>
@@ -639,13 +673,14 @@ export function EditarCasoForm({ caso, clientes }: { caso: any, clientes: any[] 
             <Button
               onClick={() => {
                 if (!motivoUbicacion.trim()) {
-                  alert('El motivo es obligatorio')
+                  setErrorUbicacion('El motivo es obligatorio')
                   return
                 }
                 if (!provinciaSeleccionada || !departamentoSeleccionado) {
-                  alert('Seleccioná provincia y ciudad')
+                  setErrorUbicacion('Seleccioná provincia y ciudad')
                   return
                 }
+                setErrorUbicacion('')
                 const provinciaLabel = provincias.find(p => p.value === provinciaSeleccionada)?.label || provinciaSeleccionada
                 const nuevoFuero = `${departamentoSeleccionado}, ${provinciaLabel}`
                 setUbicacionConfirmada({
@@ -691,6 +726,12 @@ export function EditarCasoForm({ caso, clientes }: { caso: any, clientes: any[] 
                 placeholder="Ej: Actualización por inflación, pericia determinó nuevo valor..."
                 rows={3}
               />
+              {errorMonto && (
+                <p className="text-xs text-red-600 flex items-center gap-1 mt-1">
+                  <AlertCircle className="h-3 w-3" />
+                  {errorMonto}
+                </p>
+              )}
             </div>
           </div>
           <DialogFooter>
@@ -700,9 +741,10 @@ export function EditarCasoForm({ caso, clientes }: { caso: any, clientes: any[] 
             <Button
               onClick={() => {
                 if (!motivoMonto.trim()) {
-                  alert('El motivo es obligatorio')
+                  setErrorMonto('El motivo es obligatorio')
                   return
                 }
+                setErrorMonto('')
                 setMontoConfirmado(nuevaMonto)
                 setModalMonto(false)
               }}

@@ -150,8 +150,7 @@ if (terminoEtapa) {
           {/* Indicador de rol para Asistente */}
           {isAsistente(userRol) && (
             <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm">
-              <strong>Modo Asistente:</strong> Puedes ver todos los expedientes y crear nuevos. 
-              Para modificar estados o ver información financiera, contacta al abogado responsable.
+              <strong>Modo Asistente:</strong> Puedes ver todos los expedientes y crear nuevos.
             </div>
           )}
 

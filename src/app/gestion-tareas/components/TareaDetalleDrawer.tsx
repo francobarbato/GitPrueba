@@ -19,6 +19,7 @@ import { marcarTareaLeidaAction } from "src/lib/actions/comentario-actions"
 import { ComentariosSection } from "./ComentariosSection"
 import { dispatchNotificationsRefresh } from "@/app/components/header"
 import { UserName } from "../../components/UserName"
+import { useConfirmacion } from "src/components/confirmacion/ConfirmacionProvider"
 
 const ESTADO_CONFIG: Record<string, { label: string; dot: string; text: string; bg: string; border: string }> = {
   PENDIENTE:  { label: "Pendiente",  dot: "bg-slate-400", text: "text-slate-600", bg: "bg-slate-100", border: "border-slate-200" },
@@ -133,6 +134,9 @@ export function TareaDetalleDrawer({
   const router = useRouter()
   const [cerrandoForzoso, setCerrandoForzoso] = useState(false)
 
+  const { confirm: confirmar } = useConfirmacion()
+const [errorAccion, setErrorAccion] = useState<string | null>(null)
+
   // 2. EFECTOS (siguen siendo hooks, van antes del return temprano)
   // ═══ Marcar leída + disparar refresh del Header ═══
 useEffect(() => {
@@ -168,7 +172,7 @@ useEffect(() => {
   const esResponsable = tarea.responsableId === currentUserId
   const puedeEditar = esCreador || esSupervisor || esResponsable
   const puedeEliminar = esCreador
-  const puedeComentar = esResponsable || esSupervisor
+
 
   const esCompletada = tarea.estado === "COMPLETADA"
   const esVencidaCerrada = tarea.estado === "VENCIDA" && !!tarea.vencidaCerradaEn
@@ -178,21 +182,36 @@ useEffect(() => {
   const casoFinalizado = tarea.caso?.estaCerrado || tarea.caso?.esTraspasado
   const puedeCerrarForzoso = casoFinalizado && !esTerminal && (esResponsable || esSupervisor || esCreador)
 
-  const handleCerrarPorCasoFinalizado = async () => {
+  const puedeComentar = (esResponsable || esSupervisor) && !esTerminal
+
+const handleCerrarPorCasoFinalizado = async () => {
     if (!tarea) return
-    if (!confirm("¿Cerrar este evento porque el expediente fue traspasado o cerrado? Quedará registrado en la bitácora.")) return
+    
+    const motivo = tarea.caso?.esTraspasado 
+      ? "El expediente fue traspasado a otro estudio"
+      : "El expediente fue cerrado"
+    
+    const ok = await confirmar({
+      titulo: 'Cerrar evento por finalización del expediente',
+      descripcion: `${motivo}.\n\nEl evento se va a cerrar automáticamente y queda registrado en la bitácora del expediente. Esta acción no se puede revertir.`,
+      textoConfirmar: 'Sí, cerrar evento',
+      textoCancelar: 'Cancelar',
+      variante: 'warning',
+    })
+    if (!ok) return
     
     setCerrandoForzoso(true)
+    setErrorAccion(null)
     try {
       const r = await cerrarTareaPorCasoFinalizadoAction(tarea.id)
       if (r.error) {
-        alert(r.error)
+        setErrorAccion(r.error)
       } else {
         onClose()
         router.refresh()
       }
     } catch (e: any) {
-      alert(e.message || "Error al cerrar el evento")
+      setErrorAccion(e.message || "Error al cerrar el evento")
     } finally {
       setCerrandoForzoso(false)
     }
@@ -408,17 +427,38 @@ useEffect(() => {
             </section>
           )}
 
-          {puedeComentar && (
+          {puedeComentar ? (
             <ComentariosSection
               tareaId={tarea.id}
               currentUserId={currentUserId}
             />
-          )}
+          ) : esTerminal && (esResponsable || esSupervisor) ? (
+            <section>
+              <SeccionTitulo icon={Lock}>Comentarios</SeccionTitulo>
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                <p className="text-xs text-slate-500 italic">
+                  Este evento está {esCompletada ? "completado" : "cerrado"}. No se pueden agregar nuevos comentarios.
+                </p>
+              </div>
+            </section>
+          ) : null}
         </div>
 
+        {errorAccion && (
+          <div className="mx-6 mb-3 p-2.5 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 text-red-600 mt-0.5 shrink-0" />
+            <p className="text-xs text-red-700 flex-1">{errorAccion}</p>
+            <button 
+              onClick={() => setErrorAccion(null)}
+              className="text-red-400 hover:text-red-600"
+              aria-label="Cerrar"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
         {!esTerminal && !soloLectura && (
           <div className="sticky bottom-0 bg-white border-t border-slate-100 px-6 py-4 flex flex-wrap items-center gap-2">
-
             {/* ═══ Acciones de transición — SOLO el responsable ═══ */}
             {esResponsable && tarea.estado === "PENDIENTE" && (
               <>

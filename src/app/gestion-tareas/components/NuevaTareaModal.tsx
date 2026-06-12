@@ -161,8 +161,6 @@ export function NuevaTareaModal({
   const categoriasDisponibles = tipo === "PROCESAL" ? CATEGORIAS_PROCESAL : CATEGORIAS_INTERNA
   const handleTipoChange = (nuevoTipo: TipoTarea) => { setTipo(nuevoTipo); setCategoria("") }
 
-  const casosFiltrados = casos.filter(c => c.numero.toLowerCase().includes(searchCaso.toLowerCase()) || c.titulo.toLowerCase().includes(searchCaso.toLowerCase()))
-
   const casoObj = casos.find(c => c.id === casoId)
   const responsableObj = usuarios.find(u => u.id === responsableId)
   const creadorEsResponsable = responsableId === currentUserId
@@ -183,6 +181,17 @@ export function NuevaTareaModal({
     }
   }, [heredarClienteDelCaso, casoObj, clienteId])
 
+  // ════ FILTRO DE CASOS (frontend) ════
+  // Si soy ASISTENTE y el responsable elegido es un ABOGADO específico,
+  // muestro solo los casos de ese abogado. Si el responsable es ASISTENTE
+  // (acceso general) o soy yo mismo, muestro todos los casos del estudio.
+  const casosParaDropdown = useMemo(() => {
+    if (currentUserRol !== "ASISTENTE") return casos
+    const responsable = usuarios.find(u => u.id === responsableId)
+    if (!responsable || responsable.rol !== "ABOGADO") return casos
+    return casos.filter(c => c.abogadoId === responsable.id)
+  }, [casos, responsableId, usuarios, currentUserRol])
+
   // ════ FILTRO DE CLIENTES (frontend) ════
   // Regla:
   //   - Si soy ABOGADO: el backend ya filtra a mis propios clientes, no toco
@@ -195,6 +204,10 @@ export function NuevaTareaModal({
     if (!responsable || responsable.rol !== "ABOGADO") return clientes
     return clientes.filter(c => c.abogadoId === responsable.id)
   }, [clientes, responsableId, usuarios, currentUserRol])
+
+  // ════ FILTROS POR TEXTO DE BÚSQUEDA ════
+  // Estos se aplican sobre los dropdowns ya filtrados por rol/responsable
+  const casosFiltrados = casosParaDropdown.filter(c => c.numero.toLowerCase().includes(searchCaso.toLowerCase()) || c.titulo.toLowerCase().includes(searchCaso.toLowerCase()))
 
   const clientesFiltrados = clientesParaDropdown.filter(c => {
     const t = searchCliente.toLowerCase()
@@ -214,6 +227,20 @@ export function NuevaTareaModal({
       setVisibleCliente(false)
     }
   }, [clientesParaDropdown, clienteId, currentUserRol, heredarClienteDelCaso])
+
+  // Si soy asistente y cambio de responsable, si el casoId actual ya no
+  // pertenece al abogado elegido, lo limpio (junto con el cliente que
+  // venía heredado del caso).
+  useEffect(() => {
+    if (currentUserRol !== "ASISTENTE") return
+    if (!casoId) return
+    const sigueValido = casosParaDropdown.some(c => c.id === casoId)
+    if (!sigueValido) {
+      setCasoId("")
+      setClienteId("")
+      setVisibleCliente(false)
+    }
+  }, [casosParaDropdown, casoId, currentUserRol])
 
   // Cliente efectivo (puede venir del caso o del combobox)
   // Usamos la lista completa de clientes (no la filtrada) para encontrarlo,
@@ -408,7 +435,13 @@ export function NuevaTareaModal({
                           </div>
                         )
                       })}
-                    {casosFiltrados.length === 0 && <div className="py-6 text-center text-sm text-slate-400">Sin resultados</div>}
+                    {casosFiltrados.length === 0 && (
+                      <div className="py-6 text-center text-sm text-slate-400">
+                        {currentUserRol === "ASISTENTE" && responsableObj?.rol === "ABOGADO"
+                          ? `${responsableObj.nombre} ${responsableObj.apellido} no tiene expedientes asignados`
+                          : "Sin resultados"}
+                      </div>
+                    )}
                   </div>
                 </Combobox>
               )}

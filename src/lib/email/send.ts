@@ -6,6 +6,7 @@ import {
 } from "./client";
 import { activationEmailTemplate }    from "./templates/activation";
 import { passwordResetEmailTemplate } from "./templates/password-reset";
+import { alertaVencimientoTemplate } from "./templates/alerta-vencimiento"
 
 interface SendResult {
   ok: boolean;
@@ -90,4 +91,43 @@ export async function sendPasswordResetEmail(args: {
       link,
     }),
   });
+}
+
+// ── Alerta de vencimiento (cron diario de mails a 8 AM Argentina) ─────────
+export async function sendAlertaVencimientoEmail(args: {
+  to: string
+  nombre: string
+  apellido: string
+  tituloEvento: string
+  diasHabilesRestantes: number
+  fechaVencimientoFormateada: string
+  numeroExpediente: string | null
+  tituloExpediente: string | null
+  prioridad: "BAJA" | "MEDIA" | "ALTA" | "FATAL"
+  tareaId: string
+  appUrl: string
+}): Promise<SendResult> {
+  const link = `${args.appUrl}/gestion-tareas?tareaAbierta=${args.tareaId}`
+ 
+  const subjectPrefix = args.diasHabilesRestantes <= 0
+    ? "Plazo vencido"
+    : args.diasHabilesRestantes === 1
+      ? "Vence mañana (1 día hábil)"
+      : `Vence en ${args.diasHabilesRestantes} días hábiles`
+ 
+  return sendEmail({
+    to:      args.to,
+    subject: `[${subjectPrefix}] ${args.tituloEvento}`,
+    html:    alertaVencimientoTemplate({
+      nombre:                     args.nombre,
+      apellido:                   args.apellido,
+      tituloEvento:               args.tituloEvento,
+      diasHabilesRestantes:       args.diasHabilesRestantes,
+      fechaVencimientoFormateada: args.fechaVencimientoFormateada,
+      numeroExpediente:           args.numeroExpediente,
+      tituloExpediente:           args.tituloExpediente,
+      prioridad:                  args.prioridad,
+      link,
+    }),
+  })
 }

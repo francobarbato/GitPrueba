@@ -86,17 +86,26 @@ export function CasoHeader({ caso, userRol, userId, puedeEditar }: CasoHeaderPro
 
   const motivoConfig = caso.motivoCierre ? MOTIVOS_CONFIG[caso.motivoCierre] : null
 
-  const handleCerrarCaso = async (data: CierreData) => {
-    await cerrarCasoAction(caso.id, data)
-    setShowCerrarModal(false)
-    router.refresh()
-  }
+const handleCerrarCaso = async (data: CierreData) => {
+  await cerrarCasoAction(caso.id, data)
+  setShowCerrarModal(false)
+  // Forzar refresh completo: router.refresh() + re-navegación
+  router.refresh()
+  // Pequeño delay para que React procese el cierre del modal antes de re-fetch
+  setTimeout(() => {
+    router.replace(`/casos/${caso.id}`)
+  }, 50)
+}
 
   const handleReabrirCaso = async (motivo: string) => {
-    await reabrirCasoAction(caso.id, motivo)
-    setShowReabrirModal(false)
-    router.refresh()
-  }
+  await reabrirCasoAction(caso.id, motivo)
+  setShowReabrirModal(false)
+  // Forzar refresh completo: router.refresh() + re-navegación
+  router.refresh()
+  setTimeout(() => {
+    router.replace(`/casos/${caso.id}`)
+  }, 50)
+}
 
   return (
     <>

@@ -8,10 +8,13 @@
 //   - Reasignación de cartera propaga eventos vinculados automáticamente
 //   - Traspaso de cartera cierra eventos vinculados con TRASPASO_EXPEDIENTE
 //   - Asistente en offboarding: acción en lote al titular del expediente
-//   - NUEVO: panel intermedio del admin procesa eventos pendientes uno por uno
+//   - Panel intermedio del admin procesa eventos pendientes uno por uno
 //     sin entrar al módulo de eventos (ADMIN es técnico, no entra a /gestion-tareas).
-//     Dos actions nuevas: reasignarEventoPendienteAction y
+//     Dos actions: reasignarEventoPendienteAction y
 //     cerrarEventoPorTraspasoEnOffboardingAction.
+//   - ⬇ NUEVO ⬇ Traspaso/desactivación de cliente: cierra eventos libres del
+//     cliente con motivo TRASPASO_CLIENTE Y desactiva el portal del cliente
+//     (invalidando tokens y sesiones).
 
 import { getUserSessionServer } from "@/auth/actions/auth-actions"
 import prisma from "src/lib/db/prisma"
@@ -384,9 +387,15 @@ export async function reasignarCarteraAction(
   try {
     const admin = await verificarAdmin()
 
+    // ⬇ MODIFICADO: Agregamos usuarioPortalId al select para poder gestionar
+    // la baja del portal del cliente cuando se traspasa fuera del estudio.
     const cliente = await prisma.cliente.findUnique({
       where: { id: clienteId },
-      select: { id: true, nombre: true, apellido: true, abogadoId: true, activo: true },
+      select: {
+        id: true, nombre: true, apellido: true,
+        abogadoId: true, activo: true,
+        usuarioPortalId: true,  // ⬅ NUEVO
+      },
     })
     if (!cliente) return { error: "Cliente no encontrado" }
     if (cliente.abogadoId !== userIdQueSeVa) return { error: "El cliente no pertenece al usuario indicado" }
@@ -508,6 +517,20 @@ export async function reasignarCarteraAction(
         })
       : []
 
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // ⬇ NUEVO ⬇ Bug 9 — Buscar eventos libres del cliente (sin caso) que
+    // estén activos. Estos se cierran con motivo TRASPASO_CLIENTE porque
+    // pierden sentido cuando el cliente se va del estudio.
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    const tareasLibresDelCliente = await prisma.tarea.findMany({
+      where: {
+        clienteId: clienteId,
+        casoId: null,
+        ...TAREAS_ACTIVAS,
+      },
+      select: { id: true, titulo: true },
+    })
+
     await prisma.$transaction(async (tx) => {
       if (casoIds.length > 0) {
         await tx.caso.updateMany({
@@ -563,14 +586,82 @@ export async function reasignarCarteraAction(
         }
       }
 
+      // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      // ⬇ NUEVO ⬇ Bug 9 — Cerrar eventos libres del cliente
+      // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      if (tareasLibresDelCliente.length > 0) {
+        const motivoLibre = `Cliente traspasado a otro estudio${estudioDestino ? ` (${estudioDestino})` : ''}. Cierre automático del evento libre.`
+
+        await tx.tarea.updateMany({
+          where: { id: { in: tareasLibresDelCliente.map(t => t.id) } },
+          data: {
+            vencidaCerradaEn: new Date(),
+            vencidaCerradaPorId: admin.id,
+            motivoCierreAdmin: 'TRASPASO_CLIENTE',
+            motivoCierreVencida: motivoLibre,
+          },
+        })
+
+        for (const t of tareasLibresDelCliente) {
+          await tx.bitacora.create({
+            data: {
+              texto: `Evento libre "${t.titulo}" cerrado automáticamente por traspaso del cliente`,
+              tipo: 'auto',
+              accion: 'TAREA_CERRADA_POR_TRASPASO_CLIENTE',
+              usuarioId: admin.id,
+              tareaId: t.id,
+              detalle: motivoLibre,
+            },
+          })
+        }
+      }
+
+      // Desactivar el cliente del estudio
       await tx.cliente.update({
         where: { id: clienteId },
         data: { activo: false },
       })
 
+      // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      // ⬇ NUEVO ⬇ Bug 8 — Desactivar portal del cliente
+      // Si el cliente tiene usuario de portal, lo desactivamos, invalidamos
+      // sus tokens de activación pendientes y limpiamos sus sesiones para
+      // que no pueda volver a entrar.
+      // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      if (cliente.usuarioPortalId) {
+        await tx.user.update({
+          where: { id: cliente.usuarioPortalId },
+          data: { isActive: false },
+        })
+        await tx.accountActivationToken.updateMany({
+          where: { userId: cliente.usuarioPortalId, usedAt: null },
+          data: { usedAt: new Date() },
+        })
+        await tx.session.deleteMany({
+          where: { userId: cliente.usuarioPortalId },
+        })
+
+        await tx.bitacora.create({
+          data: {
+            texto: `Portal del cliente ${clienteNombre} desactivado automáticamente por traspaso fuera del estudio`,
+            tipo: 'auto',
+            accion: 'PORTAL_CLIENTE_DESACTIVADO_POR_TRASPASO',
+            usuarioId: admin.id,
+          }
+        })
+      }
+
+      // Bitácora de cierre del traspaso
+      const detalles: string[] = []
+      if (casoIds.length > 0) detalles.push(`${casoIds.length} expediente(s)`)
+      if (tareasACerrar.length > 0) detalles.push(`${tareasACerrar.length} evento(s) de expediente`)
+      if (tareasLibresDelCliente.length > 0) detalles.push(`${tareasLibresDelCliente.length} evento(s) libre(s)`)
+      if (cliente.usuarioPortalId) detalles.push('portal desactivado')
+      const detallesStr = detalles.length > 0 ? ` (${detalles.join(', ')})` : ''
+
       await tx.bitacora.create({
         data: {
-          texto: `Cartera de ${clienteNombre} traspasada a otro estudio por offboarding de ${nombreUsuario}. Cliente desactivado${casoIds.length > 0 ? ` (${casoIds.length} expediente(s), ${tareasACerrar.length} evento(s) cerrado(s))` : ''}.`,
+          texto: `Cartera de ${clienteNombre} traspasada a otro estudio por offboarding de ${nombreUsuario}. Cliente desactivado${detallesStr}.`,
           tipo: 'auto',
           accion: 'Desactivación de Cliente por Offboarding',
           usuarioId: admin.id,
@@ -582,9 +673,18 @@ export async function reasignarCarteraAction(
     revalidatePath('/clientes')
     revalidatePath('/casos')
     revalidatePath('/gestion-tareas')
+    revalidatePath('/portal')  // ⬅ NUEVO: por si el cliente tenía sesión abierta
+
+    // Mensaje de éxito con detalles
+    const partesMsg: string[] = []
+    if (tareasACerrar.length > 0) partesMsg.push(`${tareasACerrar.length} evento(s) de expediente cerrado(s)`)
+    if (tareasLibresDelCliente.length > 0) partesMsg.push(`${tareasLibresDelCliente.length} evento(s) libre(s) cerrado(s)`)
+    if (cliente.usuarioPortalId) partesMsg.push('portal desactivado')
+    const detalleMsg = partesMsg.length > 0 ? ` (${partesMsg.join(', ')})` : ''
+
     return {
       success: true,
-      mensaje: `Cartera de ${clienteNombre} traspasada${tareasACerrar.length > 0 ? ` (${tareasACerrar.length} evento(s) cerrado(s))` : ''}. Cliente desactivado.`
+      mensaje: `Cartera de ${clienteNombre} traspasada${detalleMsg}. Cliente desactivado.`
     }
   } catch (error: any) {
     console.error('Error en reasignarCarteraAction:', error)
@@ -608,9 +708,14 @@ export async function reasignarClienteSoloAction(
   try {
     const admin = await verificarAdmin()
 
+    // ⬇ MODIFICADO: incluimos usuarioPortalId para gestionar el portal al desactivar
     const cliente = await prisma.cliente.findUnique({
       where: { id: clienteId },
-      select: { id: true, nombre: true, apellido: true, abogadoId: true, activo: true },
+      select: {
+        id: true, nombre: true, apellido: true,
+        abogadoId: true, activo: true,
+        usuarioPortalId: true,  // ⬅ NUEVO
+      },
     })
     if (!cliente) return { error: "Cliente no encontrado" }
     if (cliente.abogadoId !== userIdQueSeVa) return { error: "El cliente no pertenece al usuario indicado" }
@@ -657,24 +762,105 @@ export async function reasignarClienteSoloAction(
       return { success: true, mensaje: `Cliente ${clienteNombre} reasignado a ${nombreDestino}.` }
     }
 
-    await prisma.$transaction([
-      prisma.cliente.update({
+    // ────── DESACTIVAR ──────
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // ⬇ NUEVO ⬇ Bug 9 — Buscar eventos libres del cliente
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    const tareasLibresDelCliente = await prisma.tarea.findMany({
+      where: {
+        clienteId: clienteId,
+        casoId: null,
+        ...TAREAS_ACTIVAS,
+      },
+      select: { id: true, titulo: true },
+    })
+
+    await prisma.$transaction(async (tx) => {
+      // 1. Desactivar el cliente
+      await tx.cliente.update({
         where: { id: clienteId },
         data: { activo: false },
-      }),
-      prisma.bitacora.create({
+      })
+
+      // 2. NUEVO Bug 9 — Cerrar eventos libres del cliente
+      if (tareasLibresDelCliente.length > 0) {
+        const motivoLibre = `Cliente desactivado del estudio por offboarding de ${nombreUsuario}. Cierre automático del evento libre.`
+
+        await tx.tarea.updateMany({
+          where: { id: { in: tareasLibresDelCliente.map(t => t.id) } },
+          data: {
+            vencidaCerradaEn: new Date(),
+            vencidaCerradaPorId: admin.id,
+            motivoCierreAdmin: 'TRASPASO_CLIENTE',
+            motivoCierreVencida: motivoLibre,
+          },
+        })
+
+        for (const t of tareasLibresDelCliente) {
+          await tx.bitacora.create({
+            data: {
+              texto: `Evento libre "${t.titulo}" cerrado automáticamente por desactivación del cliente`,
+              tipo: 'auto',
+              accion: 'TAREA_CERRADA_POR_TRASPASO_CLIENTE',
+              usuarioId: admin.id,
+              tareaId: t.id,
+              detalle: motivoLibre,
+            },
+          })
+        }
+      }
+
+      // 3. NUEVO Bug 8 — Desactivar portal del cliente
+      if (cliente.usuarioPortalId) {
+        await tx.user.update({
+          where: { id: cliente.usuarioPortalId },
+          data: { isActive: false },
+        })
+        await tx.accountActivationToken.updateMany({
+          where: { userId: cliente.usuarioPortalId, usedAt: null },
+          data: { usedAt: new Date() },
+        })
+        await tx.session.deleteMany({
+          where: { userId: cliente.usuarioPortalId },
+        })
+
+        await tx.bitacora.create({
+          data: {
+            texto: `Portal del cliente ${clienteNombre} desactivado automáticamente por desactivación del cliente`,
+            tipo: 'auto',
+            accion: 'PORTAL_CLIENTE_DESACTIVADO_POR_TRASPASO',
+            usuarioId: admin.id,
+          }
+        })
+      }
+
+      // 4. Bitácora de cierre
+      const detalles: string[] = []
+      if (tareasLibresDelCliente.length > 0) detalles.push(`${tareasLibresDelCliente.length} evento(s) libre(s) cerrado(s)`)
+      if (cliente.usuarioPortalId) detalles.push('portal desactivado')
+      const detallesStr = detalles.length > 0 ? ` (${detalles.join(', ')})` : ''
+
+      await tx.bitacora.create({
         data: {
-          texto: `Cliente ${clienteNombre} desactivado por offboarding de ${nombreUsuario} (sin expedientes)`,
+          texto: `Cliente ${clienteNombre} desactivado por offboarding de ${nombreUsuario} (sin expedientes)${detallesStr}`,
           tipo: 'auto',
           accion: 'Desactivación de Cliente por Offboarding',
           usuarioId: admin.id,
         }
-      }),
-    ])
+      })
+    })
 
     revalidatePath(`/usuarios/${userIdQueSeVa}/offboarding`)
     revalidatePath('/clientes')
-    return { success: true, mensaje: `Cliente ${clienteNombre} desactivado.` }
+    revalidatePath('/portal')  // ⬅ NUEVO
+
+    // Mensaje con detalles
+    const partesMsg: string[] = []
+    if (tareasLibresDelCliente.length > 0) partesMsg.push(`${tareasLibresDelCliente.length} evento(s) libre(s) cerrado(s)`)
+    if (cliente.usuarioPortalId) partesMsg.push('portal desactivado')
+    const detalleMsg = partesMsg.length > 0 ? ` (${partesMsg.join(', ')})` : ''
+
+    return { success: true, mensaje: `Cliente ${clienteNombre} desactivado${detalleMsg}.` }
   } catch (error: any) {
     console.error('Error en reasignarClienteSoloAction:', error)
     return { error: error.message || 'Error al procesar el cliente' }
@@ -768,15 +954,7 @@ export async function reasignarEventosExpedienteDelUsuarioAction(
 }
 
 // ============================================================================
-// 5. NUEVA: REASIGNAR UN EVENTO INDIVIDUAL DESDE EL PANEL DE OFFBOARDING
-// ============================================================================
-// Usada por el panel intermedio. El admin selecciona un evento del listado y
-// un usuario destino activo (ABOGADO o ASISTENTE). Cambia responsable o
-// supervisor (donde el saliente figure) al destino.
-//
-// Como el ADMIN no tiene acceso al módulo de eventos, esta action es la única
-// vía para que pueda resolver eventos pendientes durante el offboarding sin
-// salir del panel.
+// 5. REASIGNAR UN EVENTO INDIVIDUAL DESDE EL PANEL DE OFFBOARDING
 // ============================================================================
 
 export async function reasignarEventoPendienteAction(
@@ -865,14 +1043,7 @@ export async function reasignarEventoPendienteAction(
 }
 
 // ============================================================================
-// 6. NUEVA: CIERRE POR TRASPASO DEL ABOGADO DESDE EL PANEL DE OFFBOARDING
-// ============================================================================
-// Cierra el evento administrativamente con motivoCierreAdmin = TRASPASO_ABOGADO.
-// Es la otra opción disponible en el panel intermedio para cuando reasignar
-// no tiene sentido (la tarea ya no aplica porque el responsable se fue).
-//
-// El evento queda con vencidaCerradaEn seteado y motivoCierreAdmin marcado
-// para que los reportes lo puedan filtrar de las métricas operativas.
+// 6. CIERRE POR TRASPASO DEL ABOGADO DESDE EL PANEL DE OFFBOARDING
 // ============================================================================
 
 export async function cerrarEventoPorTraspasoEnOffboardingAction(

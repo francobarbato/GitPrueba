@@ -2,7 +2,7 @@
 
 // app/reportes/cartera-fuero/components/MatrizFuero.tsx
 
-import { useState } from "react"
+import { useState, Fragment } from "react"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ChevronDown, ChevronRight, Scale, ArrowUpRight, Clock, DollarSign } from "lucide-react"
@@ -63,7 +63,7 @@ export function MatrizFuero({ data }: { data: FueroRow[] }) {
                 const esDesbalanceado = diferencia > 20
 
                 return (
-                  <>
+                  <Fragment key={row.tipo}>
                     <tr
                       key={row.tipo}
                       onClick={() => setExpandedRow(isExpanded ? null : row.tipo)}
@@ -230,7 +230,7 @@ export function MatrizFuero({ data }: { data: FueroRow[] }) {
                         </td>
                       </tr>
                     )}
-                  </>
+                  </Fragment>
                 )
               })}
             </tbody>

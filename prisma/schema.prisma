@@ -37,6 +37,8 @@ model User {
   pagosValidados       Pago[]
   sessions             Session[]
 
+  alertasMailRecibidas TareaAlertaMail[]
+
   passwordResetTokens     PasswordResetToken[]
   activationToken         AccountActivationToken?
   
@@ -287,6 +289,7 @@ model Tarea {
   // Comentarios e historial de lectura
   comentarios      ComentarioTarea[]
   lecturas         TareaLectura[]
+   alertasMail      TareaAlertaMail[]
   motivoCierreAdmin   MotivoCierreAdmin?
 
   createdAt        DateTime       @default(now())
@@ -302,9 +305,29 @@ model Tarea {
   @@map("tarea")
 }
 
+model TareaAlertaMail {
+  id        String   @id @default(cuid())
+  tareaId   String
+  userId    String
+  umbral    Int      // 20, 10 o 5 (días hábiles)
+  enviadoAt DateTime @default(now())
+
+  tarea Tarea @relation(fields: [tareaId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Un mail por tarea + usuario + umbral. Si ya se envió, no se vuelve a enviar.
+  @@unique([tareaId, userId, umbral])
+  @@index([tareaId])
+  @@index([userId])
+  @@index([enviadoAt])
+  @@map("tarea_alerta_mail")
+}
+
+
 enum MotivoCierreAdmin {
   TRASPASO_ABOGADO     // El responsable/supervisor del evento se fue del estudio
   TRASPASO_EXPEDIENTE  // El caso del que dependía se traspasó a otro estudio
+  TRASPASO_CLIENTE 
 }
 
 // ============================================================================

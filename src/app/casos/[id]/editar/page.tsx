@@ -70,7 +70,7 @@ export default async function EditarCasoPage({ params }: { params: { id: string 
           </Link>
           <nav className="flex items-center gap-1 text-sm">
             <Link href="/casos" className="text-slate-500 hover:text-slate-700 transition-colors">
-              Exppediente
+              Expediente
             </Link>
             <ChevronRight className="h-3 w-3 text-slate-400" />
             <Link href={`/casos/${params.id}`} className="text-slate-500 hover:text-slate-700 transition-colors max-w-[200px] truncate">
