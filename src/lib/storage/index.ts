@@ -3,7 +3,7 @@
 
 import { StorageProvider } from './StorageProvider'
 import { LocalStorageAdapter } from './adapters/LocalStorageAdapter'
-// import { VercelBlobAdapter } from './adapters/VercelBlobAdapter'
+import { VercelBlobAdapter } from './adapters/VercelBlobAdapter'
 // import { S3StorageAdapter } from './adapters/S3StorageAdapter'
 
 function createStorageProvider(): StorageProvider {
@@ -11,7 +11,7 @@ function createStorageProvider(): StorageProvider {
 
   switch (provider) {
     case 'vercel-blob':
-    //   return new VercelBlobAdapter()
+      return new VercelBlobAdapter()
     case 's3':
     case 'r2':
     //   return new S3StorageAdapter()
