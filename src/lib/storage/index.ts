@@ -9,6 +9,7 @@ import { VercelBlobAdapter } from './adapters/VercelBlobAdapter'
 function createStorageProvider(): StorageProvider {
   const provider = process.env.STORAGE_PROVIDER || 'local'
 
+
   switch (provider) {
     case 'vercel-blob':
       return new VercelBlobAdapter()

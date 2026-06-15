@@ -55,13 +55,14 @@ async function main() {
 
   console.log("🗑️ Base de datos limpiada.");
 
-  const password = await bcrypt.hash("123456", 10);
+const passwordAdmin = await bcrypt.hash("AzarDemo2026!", 10);
+const passwordDemo = await bcrypt.hash("123456", 10);
 
   // ============================================================
   // 2. USUARIOS
   // ============================================================
   const usuarios = [
-    { id: "u-admin",     nombre: "Carlos",    apellido: "Mendoza",   email: "admin@estudio.com",      rol: "ADMIN" },
+    { id: "u-admin", nombre: "Franco", apellido: "Barbato", email: "franco.barbato@mi.unc.edu.ar", rol: "ADMIN" },
     { id: "u-hernan",    nombre: "Hernán",    apellido: "Azar",      email: "hernan@estudio.com",     rol: "ABOGADO" },
     { id: "u-agustin",   nombre: "Agustín",   apellido: "Azar",      email: "agustin@estudio.com",    rol: "ABOGADO" },
     { id: "u-mario",     nombre: "Mario",     apellido: "Rodríguez", email: "mario@estudio.com",      rol: "ABOGADO" },
@@ -69,11 +70,17 @@ async function main() {
     { id: "u-asistente", nombre: "Valentina", apellido: "López",     email: "valentina@estudio.com",  rol: "ASISTENTE" },
   ];
 
-  for (const u of usuarios) {
-    await prisma.user.create({
-      data: { ...u, password, isActive: true, name: `${u.nombre} ${u.apellido}`, emailVerified: new Date() },
-    });
-  }
+for (const u of usuarios) {
+  await prisma.user.create({
+    data: {
+      ...u,
+      password: u.rol === 'ADMIN' ? passwordAdmin : passwordDemo,
+      isActive: true,
+      name: `${u.nombre} ${u.apellido}`,
+      emailVerified: new Date()
+    },
+  });
+}
   console.log("👥 6 Usuarios creados.");
 
   // ============================================================
@@ -1087,7 +1094,7 @@ const pickArr = (arr) => arr[randomInt(0, arr.length - 1)];
 
   console.log("");
   console.log("🔑 Credenciales:");
-  console.log("   admin@estudio.com / 123456 (Admin)");
+  console.log("   franco.barbato@mi.unc.edu.ar / AzarDemo2026! (Admin)");
   console.log("   hernan@estudio.com / 123456");
   console.log("   agustin@estudio.com / 123456");
   console.log("   mario@estudio.com / 123456");

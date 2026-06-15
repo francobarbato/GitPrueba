@@ -2,6 +2,12 @@
 const nextConfig = {
   experimental: {
     // se remueve appDir: true porque ya no es necesario en Next.js 14
+
+    // Le dice a Next.js que @vercel/blob corre solo en server-side y que
+    // NO lo bundlee con webpack. Lo importa como require() nativo de Node.
+    // Esto evita el error de parsing de undici (private class fields #target)
+    // que Next 14.0.4 no procesa porque su versión de webpack/SWC es vieja.
+    serverComponentsExternalPackages: ['@vercel/blob'],
   },
   eslint: {
     ignoreDuringBuilds: true,
