@@ -153,15 +153,6 @@ export function SubirDocumentoDrawer({ abierto, onCerrar, caso, carpetaActualId,
               onChange={e => setDescripcion(e.target.value)} rows={2} className="resize-none text-sm" />
           </div>
 
-          {/* Toggle interno */}
-          <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-            <div>
-              <p className="text-sm font-medium text-slate-700">Documento interno</p>
-              <p className="text-xs text-slate-500">No visible para el cliente</p>
-            </div>
-            <Switch checked={esInterno} onCheckedChange={setEsInterno} />
-          </div>
-
           {/* Resultado */}
           {resultado?.error && (
             <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">

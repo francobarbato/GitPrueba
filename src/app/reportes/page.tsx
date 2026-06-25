@@ -29,7 +29,7 @@ type Reporte = {
   href: string
   icono: any
   color: keyof typeof COLOR_MAP
-  soloAbogado: boolean  // ⭐ NUEVO
+  soloAbogado: boolean 
 }
 
 type Bloque = {
@@ -49,7 +49,7 @@ const BLOQUES: Bloque[] = [
         href: "/reportes/auditoria",
         icono: FileText,
         color: "slate",
-        soloAbogado: false  // Asistente también puede ver
+        soloAbogado: true 
       },
     ],
   },

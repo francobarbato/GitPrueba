@@ -30,9 +30,6 @@ export async function middleware(request: NextRequest) {
   const userRol = (token.rol as string)?.toUpperCase() || ''
   const debeResetearPassword = token.debeResetearPassword as boolean
 
-  // LOG TEMPORAL — borrar después de confirmar que funciona
-  console.log("MW:", pathname, "| rol:", token.rol, "| userRol:", userRol, "| debe resetear:", debeResetearPassword)
-
   // ================================================================
   // ROL CLIENTE — solo puede acceder a /portal y apis propias
   // ================================================================

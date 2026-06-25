@@ -2,13 +2,13 @@
   "name": "sistema-legal",
   "version": "0.1.0",
   "private": true,
-"scripts": {
-  "dev": "next dev",
-  "build": "prisma generate && next build",
-  "start": "next start",
-  "lint": "next lint",
-  "postinstall": "prisma generate"
-},
+  "scripts": {
+    "dev": "next dev",
+    "build": "prisma generate && next build",
+    "start": "next start",
+    "lint": "next lint",
+    "postinstall": "prisma generate"
+  },
   "prisma": {
     "seed": "node prisma/seed.js"
   },
@@ -39,6 +39,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "date-fns": "^3.0.6",
+    "dotenv": "^17.4.2",
     "form-data": "^4.0.5",
     "geist": "^1.5.1",
     "lucide-react": "^0.563.0",
