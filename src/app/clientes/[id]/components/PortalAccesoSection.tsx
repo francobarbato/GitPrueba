@@ -74,9 +74,6 @@ export function PortalAccesoSection({
       } else {
         setShowConfirmarEnvioModal(false)
         router.refresh()
-        setTimeout(() => {
-          router.replace(`/clientes/${cliente.id}`)
-        }, 50)
       }
     } catch (err: any) {
       setError(err.message || 'Error al enviar invitación')
@@ -94,9 +91,6 @@ const handleReenviarInvitacion = async () => {
       setError(result.error)
     } else {
       router.refresh()
-      setTimeout(() => {
-        router.replace(`/clientes/${cliente.id}`)
-      }, 50)
     }
   } catch (err: any) {
     setError(err.message || 'Error al reenviar')
@@ -115,9 +109,6 @@ const handleDesactivar = async () => {
     } else {
       setShowDesactivarModal(false)
       router.refresh()
-      setTimeout(() => {
-        router.replace(`/clientes/${cliente.id}`)
-      }, 50)
     }
   } catch (err: any) {
     setError(err.message || 'Error al desactivar')
@@ -134,10 +125,7 @@ const handleReactivar = async () => {
     if (result.error) {
       setError(result.error)
     } else {
-      router.refresh()
-      setTimeout(() => {
-        router.replace(`/clientes/${cliente.id}`)
-      }, 50)
+        router.refresh()
     }
   } catch (err: any) {
     setError(err.message || 'Error al reactivar')

@@ -226,8 +226,8 @@ export async function generarTelegramaPdfAction(datos: DatosTelegrama) {
       if (errorLimite) return { success: false, error: errorLimite }
     }
 
-    const rutaPdf = path.join(process.cwd(), 'src', 'assets', 'modelos-correo', nombreArchivoPdf)
-    const pdfBytesOriginales = await fs.readFile(rutaPdf)
+const rutaPdf = path.join(process.cwd(), 'public', 'modelos-correo', nombreArchivoPdf)
+const pdfBytesOriginales = await fs.readFile(rutaPdf)
 
     const pdfDoc = await PDFDocument.load(pdfBytesOriginales)
     const form = pdfDoc.getForm()

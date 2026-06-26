@@ -39,8 +39,8 @@ export async function obtenerDatosCasoParaCarta(casoId: string) {
 // 2. Action para estampar los datos en el PDF de la Carta Documento
 export async function generarCartaPdfAction(datos: DatosCartaDocumento) {
   try {
-    const rutaPdf = path.join(process.cwd(), 'src', 'assets', 'modelos-correo', 'carta-documento.pdf')
-    const pdfBytesOriginales = await fs.readFile(rutaPdf)
+const rutaPdf = path.join(process.cwd(), 'public', 'modelos-correo', 'carta-documento.pdf')
+const pdfBytesOriginales = await fs.readFile(rutaPdf)
     
     const pdfDoc = await PDFDocument.load(pdfBytesOriginales)
     const form = pdfDoc.getForm()
