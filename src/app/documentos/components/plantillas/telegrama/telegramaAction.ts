@@ -226,10 +226,20 @@ export async function generarTelegramaPdfAction(datos: DatosTelegrama) {
       if (errorLimite) return { success: false, error: errorLimite }
     }
 
-const rutaPdf = path.join(process.cwd(), 'public', 'modelos-correo', nombreArchivoPdf)
-const pdfBytesOriginales = await fs.readFile(rutaPdf)
+    const urlsModelos: Record<string, string> = {
+      'comunicacion-ARCA-articulo-11.pdf': 'https://cyfouzxlqfgip4ew.public.blob.vercel-storage.com/comunicacion-ARCA-articulo-11.pdf',
+      'comunicacion-ausencia-23789.pdf': 'https://cyfouzxlqfgip4ew.public.blob.vercel-storage.com/comunicacion-ausencia-23789.pdf',
+      'comunicacion-renuncia.pdf': 'https://cyfouzxlqfgip4ew.public.blob.vercel-storage.com/comunicacion-renuncia.pdf',
+      'otro-tipo-comunicacion-laboral.pdf': 'https://cyfouzxlqfgip4ew.public.blob.vercel-storage.com/otro-tipo-comunicacion-laboral.pdf'
+    };
 
-    const pdfDoc = await PDFDocument.load(pdfBytesOriginales)
+    const urlPdf = urlsModelos[nombreArchivoPdf];
+    if (!urlPdf) throw new Error("No se encontró el modelo de PDF en la nube");
+
+    const response = await fetch(urlPdf);
+    const pdfBytesOriginales = await response.arrayBuffer();
+
+    const pdfDoc = await PDFDocument.load(pdfBytesOriginales);
     const form = pdfDoc.getForm()
     const fuente = await pdfDoc.embedFont(StandardFonts.Helvetica)
 

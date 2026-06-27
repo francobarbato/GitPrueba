@@ -44,9 +44,9 @@ export function CartaFormulario({ casos }: CartaFormularioProps) {
             casoId: c.id,
             remitenteNombre: `${c.cliente.nombre} ${c.cliente.apellido || ''}`.trim(),
             remitenteDni: c.cliente.numeroDocumento || '',
-            remitenteDomicilio: c.cliente.direccion || '', // ✅ Ajustado a tu base de datos
-            remitenteLocalidad: '', // Comentado por seguridad
-            remitenteProvincia: '', // Comentado por seguridad
+            remitenteDomicilio: c.cliente.direccion || '', 
+            remitenteLocalidad: '', 
+            remitenteProvincia: '', 
             destinatarioNombre: c.contraparte?.nombre || '',
             destinatarioDomicilio: c.contraparte?.domicilio || '',
             destinatarioLocalidad: c.contraparte?.localidad || '',
